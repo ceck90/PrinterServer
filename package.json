@@ -5,12 +5,16 @@
   "module": "index.ts",
   "type": "module",
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "@types/stompjs": "^2.3.5",
+    "@types/sockjs-client": "^1.5.1"
   },
   "dependencies": {
     "better-sqlite3": "^12.2.0",
     "elysia": "^0.6.7",
-    "escpos-buffer": "^3.0.3"
+    "escpos-buffer": "^3.0.3",
+    "stompjs": "^2.3.3",
+    "sockjs-client": "^1.6.1"
   },
   "scripts": {
     "dev": "bun src/main.ts"
