@@ -22,7 +22,9 @@ export interface ReceiptLog {
     id: string;
     orderId: string;
     destination: string;
-    content: Buffer;
+    itemName: string;
+    printData: Buffer;
     status: "PRINTED" | "FAILED";
     printedAt: Date;
+    reprintedAt?: Date;
 }

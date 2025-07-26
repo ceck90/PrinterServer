@@ -60,12 +60,14 @@ export class DatabaseController {
 
         this.db.run(`
             CREATE TABLE IF NOT EXISTS receipts (
-                id TEXT PRIMARY KEY,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 orderId TEXT,
                 destination TEXT,
-                content BLOB,
+                itemName TEXT,
+                printData BLOB,
                 status TEXT CHECK(status IN ('PRINTED', 'FAILED')),
-                printedAt TEXT
+                printedAt TEXT,
+                reprintedAt TEXT
             );
         `);
 
@@ -75,7 +77,8 @@ export class DatabaseController {
 
         this.db.run(`
             CREATE TABLE IF NOT EXISTS settings (
-                key TEXT PRIMARY KEY,   
+                id INTEGER PRIMARY KEY AUTOINCREMENT,   
+                key TEXT UNIQUE,
                 printerName TEXT,
                 printerIp TEXT,
                 printerPort INTEGER,
@@ -98,12 +101,14 @@ export class DatabaseController {
         ).get(key);
     }
 
-    public savePrinterSettings(settings: { printerName: string, printerIp: string, printerPort: number, printerDestinations: string }) {
+    public savePrinterSettings(settings: { key:string, printerName: string, printerIp: string, printerPort: number, printerDestinations: string }) {
         this.db.run(
             `INSERT OR REPLACE INTO settings (key, printerName, printerIp, printerPort, printerDestinations)
-             VALUES ('printer', ?, ?, ?, ?)`,
-            [settings.printerName, settings.printerIp, settings.printerPort, settings.printerDestinations]
+            VALUES (?, ?, ?, ?, ?)`,
+            [settings.key, settings.printerName, settings.printerIp, settings.printerPort, settings.printerDestinations]
         );
+
+        // console.log("[DB] Printer settings saved:", settings);
     }
 
     public getPrinterById(id: string) {
@@ -120,9 +125,9 @@ export class DatabaseController {
 
     public saveReceipt(log: ReceiptLog) {
         this.db.run(
-            `INSERT OR REPLACE INTO receipts (id, orderId, destination, content, status, printedAt)
-             VALUES (?, ?, ?, ?, ?, ?)`,
-            [log.id, log.orderId, log.destination, log.content, log.status, log.printedAt.toISOString()]
+            `INSERT OR REPLACE INTO receipts (orderId, destination, printData, itemName, status, printedAt, reprintedAt)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [log.orderId, log.destination, log.printData, log.itemName, log.status, log.printedAt.toISOString(), log.reprintedAt ? log.reprintedAt.toISOString() : null]
         );
     }
 
@@ -138,20 +143,27 @@ export class DatabaseController {
         return this.db.query(query).all(...params) as ReceiptLog[];
     }
 
-    public getReceiptById(id: string) {
+    public getReceiptById(id: number) {
         return this.db.query(
             `SELECT * FROM receipts WHERE id = ?`
         ).get(id);
     }
 
-    public updateReceiptStatus(id: string, status: string) {
+    public async updateReceiptStatus(id: number, status: string) {
         this.db.run(
             `UPDATE receipts SET status = ? WHERE id = ?`,
             [status, id]
         );
     }
 
-    public deleteReceipt(id: string) {
+    public async updateReceiptReprint(id: number, status: string) {
+        this.db.run(
+            `UPDATE receipts SET status = ?, reprintedAt = ? WHERE id = ?`,
+            [status, new Date().toISOString(), id]
+        );
+    }
+
+    public async deleteReceipt(id: string) {
         this.db.run(
             `DELETE FROM receipts WHERE id = ?`,
             [id]

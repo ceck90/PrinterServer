@@ -1,7 +1,7 @@
-export async function sendToPrinter(ip: string, port: number, buffer: Buffer): Promise<void> {
+export async function sendToPrinter(name: string, ip: string, port: number, buffer: Buffer): Promise<void> {
     return new Promise((resolve, reject) => {
-        console.log(`[PRINT] Inviando dati alla stampante ${ip}:${port}`);
-        console.log(`[PRINT] Dati da inviare:`, buffer.toString('hex'));
+        console.log(`[PRINT] Inviando dati alla stampante [${name}] @ ${ip}:${port}`);
+        // console.log(`[PRINT] Dati da inviare:`, buffer.toString('hex'));
         Bun.connect({
             hostname: ip,
             port,
@@ -28,22 +28,6 @@ export async function sendToPrinter(ip: string, port: number, buffer: Buffer): P
             console.error(`[PRINT] Errore di connessione alla stampante ${ip}:${port}:`, err);
             reject(err);
         });
-        // Bun.connect({
-        //     hostname: ip,
-        //     port,
-        //     socket: {
-        //         open(sock) {
-        //             sock.write(buffer);
-        //             sock.end();
-        //             resolve();
-        //         },
-        //         error(err) {
-        //             reject(err);
-        //         },
-        //         close() {
-        //             // optional log
-        //         }
-        //     }
-        // });
     });
+    
 }
