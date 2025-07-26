@@ -8,19 +8,19 @@ type PrinterDest = keyof typeof printerMap;
 import { DatabaseController } from "./controllers/db.controller.ts";
 
 export async function handleIncomingData(data: any) {
-    console.log("[DISPATCHER] Dati ricevuti:", data);
+    // console.log("[DISPATCHER] Dati ricevuti:", data);
 
     if (!data || !data.plateKitchenMenuItem || !data.plateKitchenMenuItem.menuItem) {
-        console.error("Dati non validi ricevuti:", data);
+        // console.error("Dati non validi ricevuti:", data);
         return;
     }
 
     switch (data.plateKitchenMenuItem.status) {
         case "TODO":
-            console.log("[DISPATCHER] Nuovo ordine ricevuto:", data.plateKitchenMenuItem);
+            // console.log("[DISPATCHER] Nuovo ordine ricevuto:", data.plateKitchenMenuItem);
             return; // Non gestiamo ordini "TODO" qui, ma in un altro punto
         case "PROGRESS":
-            console.log("[DISPATCHER] Ordine in lavorazione:", data.plateKitchenMenuItem);
+            // console.log("[DISPATCHER] Ordine in lavorazione:", data.plateKitchenMenuItem);
             if( data.plateKitchenMenuItem.plate != null && data.plateKitchenMenuItem.plate != undefined) {
                 break;
             }
@@ -29,7 +29,7 @@ export async function handleIncomingData(data: any) {
                 return;
             }
         case "DONE":
-            console.log("[DISPATCHER] Ordine completato:", data.plateKitchenMenuItem);
+            // console.log("[DISPATCHER] Ordine completato:", data.plateKitchenMenuItem);
             return; // Non gestiamo ordini "DONE" qui, ma in un altro punto
         case "CANCELED":
             console.log("[DISPATCHER] Ordine cancellato:", data.plateKitchenMenuItem);
@@ -54,7 +54,6 @@ export async function handleIncomingData(data: any) {
     };
 
     await handleIncomingOrder(order);
-    
 }
 
 export async function handleIncomingOrder(order: OrderPayload) {

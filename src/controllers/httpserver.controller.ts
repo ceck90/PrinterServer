@@ -63,7 +63,7 @@ export class HttpServerController {
 
         // Initialize the HTTP server
         this.app.listen(4000);
-        console.log("✅ HTTP server su http://localhost:4000");
+        console.log("[WWW] ✅ HTTP server su http://localhost:4000");
     }
     public static get instance(): HttpServerController {
         if (!HttpServerController.#instance) {

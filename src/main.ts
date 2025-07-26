@@ -2,8 +2,24 @@ import { HttpServerController } from './controllers/httpserver.controller.ts';
 import { DatabaseController } from './controllers/db.controller.ts';
 import { WSClientController } from './controllers/ws-client.controller.ts';
 
-console.log("Music FestOn");
-console.log("Backend per gestione ordini e stampa scontrini su stampanti termiche Ethernet");
+// console.log("Music FestOn");
+// console.log("Backend per gestione ordini e stampa scontrini su stampanti termiche Ethernet");
+// console.log("Versione: 1.0.0");
+
+const banner = `
+==============================================
+         Music FestOn
+ Backend per gestione e stampa ticket piatto
+ con stampanti termiche Ethernet
+
+ Versione:  1.0.0
+ Autore:    Roberto Ceccato - RC Projects
+ Email:     ceccato.roberto@alice.it
+==============================================
+`;
+console.log(banner);
+
+console.log("Inizializzazione del server...");
 
 // Inizializza il controller del database
 const dbController = DatabaseController.instance;
@@ -12,4 +28,6 @@ const httpServerController = HttpServerController.instance;
 // Inizializza il client WebSocket
 const wsClientController = WSClientController.getInstance();
 
-console.log("✅ Server avviato con successo!");
+console.log(dbController.getAllReceipts(100, "FAILED"));
+
+console.log("[MAIN] ✅ Server avviato con successo!");

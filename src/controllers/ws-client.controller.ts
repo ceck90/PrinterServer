@@ -45,7 +45,7 @@ export class WSClientController {
     }    
 
     connect() {
-        console.log("Initialize WebSocket Connection to: " + this.url);
+        console.log("[WS] Initialize WebSocket Connection to: " + this.url);
         let ws = new SockJS(this.url);
         console.log("[WS] WebSocket creato con URL:", this.url);
         this.stompClient = Stomp.over(ws);
@@ -55,7 +55,7 @@ export class WSClientController {
             //if (!!this.interval) {
             //  clearInterval(this.interval);
             //}
-            console.log("[STOMP] STOMP Client connesso a:", _this.url);
+            console.log("[STOMP] Client connesso a:", _this.url);
             _this.stompClient.subscribe(_this.greetingsTopic, (event: any) => {
                 console.log("[STOMP] Messaggio ricevuto dal server:", event.body);
                 // _this.onNotificationReceived(event);
