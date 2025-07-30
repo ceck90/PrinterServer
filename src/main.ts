@@ -42,6 +42,6 @@ const wsClientController = WSClientController.getInstance();
 
 // printSpecificOrder(5);
 
-// savePrintersToDb();
+savePrintersToDb();
 
 console.log("[MAIN] ✅ Server avviato con successo!");

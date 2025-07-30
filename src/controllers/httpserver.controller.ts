@@ -1,6 +1,7 @@
 import Elysia from "elysia";
 import { readFileSync } from "fs";
 import { join } from "path";
+import { DatabaseController } from "./db.controller";
 // import { getAllReceipts, retryReceipt } from "./receiptController";
 
 
@@ -54,10 +55,29 @@ export class HttpServerController {
             }
         });
 
+        
         this.app.all("*", () => new Response("404 Not Found", { status: 404 }));
-
+        
         // API routes delegate to controller
-        // this.app.get("/api/receipts", () => getAllReceipts());
+        this.app.get("/api/receipts", async ({ request }) => {
+            try {
+            const url = new URL(request.url);
+            const limitParam = url.searchParams.get("limit");
+            const typeParam = url.searchParams.get("type");
+
+            const limit = limitParam ? parseInt(limitParam, 10) : 100;
+            const allowedTypes = ["PRINTED", "FAILED"] as const;
+            const type: "PRINTED" | "FAILED" | undefined = allowedTypes.includes(typeParam as any) ? typeParam as "PRINTED" | "FAILED" : "PRINTED";
+
+            const receipts = await DatabaseController.instance.getAllReceipts(limit, type);
+            return new Response(JSON.stringify(receipts), { headers: { "Content-Type": "application/json" } });
+            } catch (err) {
+            console.error("[API] Error fetching receipts:", err);
+            return new Response("Internal Server Error", { status: 500 });
+            }
+        });
+        // this.app.get("/api/receipts/:id", ({ params }) => getAllReceipts(params.id));
+
 
         // this.app.post("/api/receipts/:id/retry", ({ params }) => retryReceipt(params.id));
 

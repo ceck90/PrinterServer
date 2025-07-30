@@ -28,7 +28,7 @@ export async function buildKitchenReceipt(order: OrderPayload, dest: string, ite
         }, async () => {
             await printer.writeln(`ORDINE: ${order.orderNumber}`);
             await printer.writeln(`TAVOLO: ${items[0].tableNumber}`);
-            await printer.writeln(`CLIENTE: ${items[0].clientname}`);
+            await printer.writeln(`CLIENTE: ${items[0].clientName}`);
             await printer.writeln(`TIPO: ${items[0].name}`);
             if( items[0].takeAway) {
                 await printer.writeln(`---- ASPORTO ----`, Style.Bold);

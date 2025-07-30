@@ -8,7 +8,7 @@ type PrinterDest = keyof typeof printerMap;
 import { DatabaseController } from "./controllers/db.controller.ts";
 
 export async function handleIncomingData(data: any) {
-    // console.log("[DISPATCHER] Dati ricevuti:", data);
+    console.log("[DISPATCHER] Dati ricevuti:", data);
 
     if (!data || !data.plateKitchenMenuItem || !data.plateKitchenMenuItem.menuItem) {
         // console.error("Dati non validi ricevuti:", data);
@@ -37,7 +37,7 @@ export async function handleIncomingData(data: any) {
     }
 
     const order: OrderPayload = {
-        id: data.plateKitchenMenuItem.menuItem.externalId,
+        id: data.plateKitchenMenuItem.id,
         createdAt: data.plateKitchenMenuItem.menuItem.createdDate || new Date().toISOString(),
         timestamp: new Date().toISOString(),
         orderNumber : data.plateKitchenMenuItem.orderNumber || 0,
@@ -46,7 +46,7 @@ export async function handleIncomingData(data: any) {
             name: data.plateKitchenMenuItem.menuItem.name,
             qty: data.plateKitchenMenuItem.quantity || 1,
             tableNumber: data.plateKitchenMenuItem.tableNumber,
-            clientname: data.plateKitchenMenuItem.clientName,
+            clientName: data.plateKitchenMenuItem.clientName,
             note: data.plateKitchenMenuItem.note || "",
             orderNotes: data.plateKitchenMenuItem.orderNotes || "",
             takeAway: data.plateKitchenMenuItem.takeAway || false,
@@ -69,13 +69,18 @@ export async function handleIncomingOrder(order: OrderPayload) {
         const id = `${order.id}-${dest}`;
         try {
             const buffer = await buildKitchenReceipt(order, dest, items);
-            await sendToPrinter(printer.destination, printer.ip, printer.port, buffer);
+            if(printer.active) {
+                await sendToPrinter(printer.destination, printer.ip, printer.port, buffer);
+            }
 
             DatabaseController.instance.saveReceipt({
                 id,
-                orderId: order.id,
+                orderNumber: order.id,
                 destination: dest,
                 itemName: order.items[0].name,
+                tableNumber: order.items[0].tableNumber,
+                clientName: order.items[0].clientName,
+                note: order.items[0].note,
                 printData: buffer,
                 status: "PRINTED",
                 printedAt: new Date(),
@@ -84,9 +89,12 @@ export async function handleIncomingOrder(order: OrderPayload) {
             console.error(`Errore stampando ${dest}:`, err);
             DatabaseController.instance.saveReceipt({
                 id,
-                orderId: order.id,
+                orderNumber: order.id,
                 destination: dest,
                 itemName: order.items[0].name,
+                tableNumber: order.items[0].tableNumber,
+                clientName: order.items[0].clientName,
+                note: order.items[0].note,
                 printData: Buffer.from(""),
                 status: "FAILED",
                 printedAt: new Date(),
@@ -95,10 +103,10 @@ export async function handleIncomingOrder(order: OrderPayload) {
     }
 }
 
-export async function printSpecificOrder(orderId: number) {
-    const receipt = await DatabaseController.instance.getReceiptById(orderId) as { id: number, printData: Buffer, destination: string } | null;
+export async function printSpecificOrder(orderNumber: number) {
+    const receipt = await DatabaseController.instance.getReceiptById(orderNumber) as { id: number, printData: Buffer, destination: string } | null;
     if (!receipt) {
-        console.warn(`[DISPATCHER] Nessuna ricevuta trovata per ordine ${orderId}`);
+        console.warn(`[DISPATCHER] Nessuna ticket trovata per ordine ${orderNumber}`);
         return;
     }
     const printer = printerMap[receipt.destination as PrinterDest];
@@ -107,23 +115,25 @@ export async function printSpecificOrder(orderId: number) {
         return;
     }
     try {
-        console.log(`[DISPATCHER] Ristampando ricevuta per ordine ${receipt.id} su ${receipt.destination}`);
-        await sendToPrinter(printer.destination, printer.ip, printer.port, receipt.printData);
-        await DatabaseController.instance.updateReceiptReprint(receipt.id, "PRINTED");
-        console.log(`[DISPATCHER] Ricevuta per ordine ${receipt.id} ristampata su ${receipt.destination}`);
+        console.log(`[DISPATCHER] Ristampo ticket per ordine ${receipt.id} su ${receipt.destination}`);
+        if(printer.active) {
+            await sendToPrinter(printer.destination, printer.ip, printer.port, receipt.printData);
+            await DatabaseController.instance.updateReceiptReprint(receipt.id, "PRINTED");
+            console.log(`[DISPATCHER] Ricevuta per ordine ${receipt.id} ristampata su ${receipt.destination}`);
+        }
     } catch (err) {
-        console.error(`[DISPATCHER] Errore nella ristampa della ricevuta per ordine ${receipt.id}`);
+        console.error(`[DISPATCHER] Errore nella ristampa del ticket per ordine ${receipt.id}`);
         await DatabaseController.instance.updateReceiptStatus(receipt.id, "FAILED");
     }
 }
 
-export async function handleOrderStatusUpdate(orderId: number, status: "PRINTED" | "FAILED") {
-    console.log(`[DISPATCHER] Aggiornamento stato ordine ${orderId} a ${status}`);
-    const receipt = await DatabaseController.instance.getReceiptById(orderId) as { id: number } | null;
+export async function handleOrderStatusUpdate(orderNumber: number, status: "PRINTED" | "FAILED") {
+    console.log(`[DISPATCHER] Aggiornamento stato ordine ${orderNumber} a ${status}`);
+    const receipt = await DatabaseController.instance.getReceiptById(orderNumber) as { id: number } | null;
     if (receipt) {
         await DatabaseController.instance.updateReceiptStatus(receipt.id, status);
     } else {
-        console.warn(`[DISPATCHER] Ricevuta non trovata per l'ordine ${orderId}`);
+        console.warn(`[DISPATCHER] Ricevuta non trovata per l'ordine ${orderNumber}`);
     }
 }
 
@@ -132,7 +142,7 @@ export async function handleReceiptDeletion(receiptId: string) {
     await DatabaseController.instance.deleteReceipt(receiptId);
 }
 
-export async function handlePrinterSettingsUpdate(settings: { key: string, printerName: string, printerIp: string, printerPort: number, printerDestinations: string }) {
+export async function handlePrinterSettingsUpdate(settings: { key: string, printerName: string, printerIp: string, printerPort: number, printerDestinations: string, active: boolean }) {
     console.log(`[DISPATCHER] Aggiornamento impostazioni stampante ${settings.key}`);
     await DatabaseController.instance.savePrinterSettings(settings);
 }

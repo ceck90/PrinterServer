@@ -2,7 +2,7 @@ export interface OrderItem {
     status?: "NEW" | "IN_PROGRESS" | "DONE";
     name: string;
     tableNumber: string;
-    clientname: string;
+    clientName: string;
     note: string;
     orderNotes?: string;
     takeAway: boolean;
@@ -20,10 +20,13 @@ export interface OrderPayload {
 
 export interface ReceiptLog {
     id: string;
-    orderId: string;
+    orderNumber: string;
     destination: string;
     itemName: string;
     printData: Buffer;
+    clientName: string;
+    tableNumber: string;
+    note: string;
     status: "PRINTED" | "FAILED";
     printedAt: Date;
     reprintedAt?: Date;

@@ -61,18 +61,24 @@ export class DatabaseController {
         this.db.run(`
             CREATE TABLE IF NOT EXISTS receipts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                orderId TEXT,
+                orderId STRING UNIQUE,
+                orderNumber INTEGER,
                 destination TEXT,
                 itemName TEXT,
+                tableNumber TEXT,
+                clientName TEXT,
+                note TEXT,
                 printData BLOB,
                 status TEXT CHECK(status IN ('PRINTED', 'FAILED')),
+                printed BOOLEAN DEFAULT 0,
                 printedAt TEXT,
+                reprinted BOOLEAN DEFAULT 0,
                 reprintedAt TEXT
             );
         `);
 
         this.db.run(`
-            CREATE INDEX IF NOT EXISTS idx_receipts_orderId ON receipts (orderId);
+            CREATE INDEX IF NOT EXISTS idx_receipts_orderNumber ON receipts (orderNumber);
         `);
 
         this.db.run(`
@@ -82,7 +88,8 @@ export class DatabaseController {
                 printerName TEXT,
                 printerIp TEXT,
                 printerPort INTEGER,
-                printerDestinations TEXT
+                printerDestinations TEXT,
+                active BOOLEAN DEFAULT 0
             );
         `);
 
@@ -101,11 +108,11 @@ export class DatabaseController {
         ).get(key);
     }
 
-    public savePrinterSettings(settings: { key:string, printerName: string, printerIp: string, printerPort: number, printerDestinations: string }) {
+    public savePrinterSettings(settings: { key:string, printerName: string, printerIp: string, printerPort: number, printerDestinations: string, active: boolean }) {
         this.db.run(
-            `INSERT OR REPLACE INTO settings (key, printerName, printerIp, printerPort, printerDestinations)
-            VALUES (?, ?, ?, ?, ?)`,
-            [settings.key, settings.printerName, settings.printerIp, settings.printerPort, settings.printerDestinations]
+            `INSERT OR REPLACE INTO settings (key, printerName, printerIp, printerPort, printerDestinations, active)
+            VALUES (?, ?, ?, ?, ?, ?)`,
+            [settings.key, settings.printerName, settings.printerIp, settings.printerPort, settings.printerDestinations, settings.active]
         );
 
         // console.log("[DB] Printer settings saved:", settings);
@@ -125,9 +132,9 @@ export class DatabaseController {
 
     public saveReceipt(log: ReceiptLog) {
         this.db.run(
-            `INSERT OR REPLACE INTO receipts (orderId, destination, printData, itemName, status, printedAt, reprintedAt)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [log.orderId, log.destination, log.printData, log.itemName, log.status, log.printedAt.toISOString(), log.reprintedAt ? log.reprintedAt.toISOString() : null]
+            `INSERT OR REPLACE INTO receipts (orderNumber, destination, printData, tableNumber, clientName, note, itemName, status, printedAt, reprintedAt)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [log.orderNumber, log.destination, log.printData, log.tableNumber, log.clientName, log.note, log.itemName, log.status, log.printedAt.toISOString(), log.reprintedAt ? log.reprintedAt.toISOString() : null]
         );
     }
 
@@ -140,7 +147,15 @@ export class DatabaseController {
             params.unshift(status);
         }
 
+        console.log("[DB] Fetching all receipts with limit:", limit, "and status:", status);
+
         return this.db.query(query).all(...params) as ReceiptLog[];
+    }
+
+    public getReceiptsByDate(startDate: Date, endDate: Date, limit = 50) {
+        return this.db.query(
+            `SELECT * FROM receipts WHERE printedAt BETWEEN ${startDate.toISOString()} AND ${endDate.toISOString()} ORDER BY printedAt DESC LIMIT ${limit}`
+        ).all() as ReceiptLog[];
     }
 
     public getReceiptById(id: number) {
