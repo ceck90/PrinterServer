@@ -40,7 +40,6 @@
     "send": "Invia",
     "sendFail": "Invio Fallito",
     "sendSuccess": "Invio Riuscito",
-    "server": "Server",
     "serverClosed": "❌ Connessione al server chiusa. Tentativo di riconnessione in corso...",
     "serverConnected": "✅ Connessione al server stabilita.",
     "serverConnecting": "🚀 Connessione al server in corso...",
@@ -57,9 +56,15 @@
     "statusUnknown": "STATO SCONOSCIUTO",
     "stopped": "INTERROTTO",
     "success": "Successo",
-    "title":"PrinterServer",
+    "title":"Music Feston - Ticket Cucina",
     "type": "Tipo",
     "update": "Aggiorna",
     "utility": "Utility",
-    "value": "Valore"
+    "value": "Valore",
+    "server.title": "Server",
+    "server.status": "Stato",
+    "server.uptime": "Tempo di attività",
+    "ticket.empty": "Nessun biglietto trovato.",    "ticket.title": "Biglietto",
+    "ticket.status": "Stato",
+    "ticket.uptime": "Tempo di attività"
 }

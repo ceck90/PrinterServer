@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="title"></title>
+    <link href="assets/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+    <link href="assets/bootstrap/css/bootstrap-icons.min.css" rel="stylesheet">
+    <script src="assets/bootstrap/js/bootstrap.min.js"></script>
+    <script src="assets/bootstrap/js/popper.min.js"></script>
+    <link href="assets/css/styles.css" rel="stylesheet">
+    <link rel="icon" href="assets/img/favicon/favicon.ico" type="image/x-icon">
+</head>
+
+<body>
+    <!-- TOP Header -->
+    <div class="container-fluid d-flex justify-content-between align-middle p-3 bg-auto text-auto">
+        <b><label class="text-auto" id="device-hostname"></label></b>
+        <span class="bi bi-circle-half icon-theme fs-4 theme-item" type="button" alt="Theme"></span>
+    </div>
+    <!-- Server Card -->
+    <div class="container-fluid py-2">
+        <div class="card text-auto bg-auto border-0 shadow-lg rounded-4 mb-3" style="backdrop-filter: blur(6px);">
+            <div class="card-header d-flex justify-content-between">
+                <h5 class="mb-0" data-i18n="server.title"></h5>
+                <small class="text-muted" data-i18n="server.status">Online</small>
+            </div>
+            <div class="card-body">
+                <p class="card-text" data-i18n="server.description"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ticket List -->
+    <div class="container-fluid flex-grow-1 overflow-y-auto mh-100 py-1">
+        <div class="card text-auto bg-auto border-0 shadow-lg rounded-4 mb-3" style="backdrop-filter: blur(6px);">
+            <div class="card-header d-flex justify-content-between">
+                <h5 class="mb-0" data-i18n="ticket.title"></h5>
+                <small class="text-muted" id="ticket-count">0</small>
+            </div>
+            <div class="card-body">
+                <table class="table table-hover  mb-0" id="ticket-list">
+                    <thead>
+                        <tr>
+                            <th scope="col" data-i18n="ticket.id"></th>
+                            <th scope="col" data-i18n="ticket.order_id"></th>
+                            <th scope="col" data-i18n="ticket.client_name"></th>
+                            <th scope="col" data-i18n="ticket.table_number"></th>
+                            <th scope="col" data-i18n="ticket.plate_name"></th>
+                            <th scope="col" data-i18n="ticket.item_name"></th>
+                            <th scope="col" data-i18n="ticket.note"></th>
+                            <!-- <th scope="col" data-i18n="ticket.printed"></th> -->
+                            <!-- <th scope="col" data-i18n="ticket.reprinted"></th> -->
+                            <th scope="col" data-i18n="ticket.actions"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="ticket-list-body" class="table-hover">
+                        <!-- Ticket rows will be dynamically inserted here -->
+                    </tbody>
+                </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+
+<script src="assets/js/index.js" type="module"></script>
+
+</html>
