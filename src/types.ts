@@ -15,19 +15,23 @@ export interface OrderPayload {
     createdAt?: string;
     timestamp: string;
     orderNumber: number;
+    status: "TODO" | "PROGRESS" | "DONE" | "CANCELLED";
     items: OrderItem[];
 }
 
 export interface ReceiptLog {
     id: string;
-    orderNumber: string;
+    orderNumber: number;
+    orderStatus: "TODO" | "PROGRESS" | "DONE" | "CANCELLED";
     destination: string;
     itemName: string;
     printData: Buffer;
     clientName: string;
     tableNumber: string;
     note: string;
-    status: "PRINTED" | "FAILED";
+    printStatus: "PRINTED" | "FAILED";
     printedAt: Date;
+    printed: boolean
     reprintedAt?: Date;
+    reprinted?: boolean;
 }

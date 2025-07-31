@@ -4,17 +4,19 @@ import { $ } from "bun";
 import { existsSync } from "fs";
 import { savePrintersToDb } from "../print-routing.config";
 
+const DB_FILE = "data/receipts.sqlite";
+const BACKUP_FILE = "data/receipts_backup.sqlite";
+
 export class DatabaseController {
     static #instance: DatabaseController;
     private db: Database;
 
     private constructor() {
-        this.db = new Database("receipts.sqlite");
-        console.log("[DB] Database initialized with file: receipts.sqlite");
-        if (existsSync("receipts.sqlite")) {
+        this.db = new Database(DB_FILE);
+        console.log("[DB] Database initialized with file:", DB_FILE);
+        if (existsSync(DB_FILE)) {
             if (this.checkIntegrity()) {
-                const backupPath = `receipts_backup.sqlite`;
-                this.backupDatabase(backupPath);
+                this.backupDatabase(BACKUP_FILE);
             } else {
                 throw new Error("[DB] Database integrity check failed. Aborting initialization.");
             }
@@ -40,7 +42,7 @@ export class DatabaseController {
         if (existsSync(backupPath)) {
             console.warn(`[DB] Backup file already exists at: ${backupPath}. Overwriting...`);
         }
-        Bun.write(backupPath, Bun.file("receipts.sqlite"));        
+        Bun.write(backupPath, Bun.file(DB_FILE));
         console.log(`[DB] Database backup created at: ${backupPath}`);
     }
 
@@ -63,13 +65,14 @@ export class DatabaseController {
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 orderId STRING UNIQUE,
                 orderNumber INTEGER,
+                orderStatus TEXT CHECK(orderStatus IN ('TODO', 'PROGRESS', 'DONE', 'CANCELLED')),
                 destination TEXT,
                 itemName TEXT,
                 tableNumber TEXT,
                 clientName TEXT,
                 note TEXT,
                 printData BLOB,
-                status TEXT CHECK(status IN ('PRINTED', 'FAILED')),
+                printStatus TEXT CHECK(printStatus IN ('PRINTED', 'FAILED')),
                 printed BOOLEAN DEFAULT 0,
                 printedAt TEXT,
                 reprinted BOOLEAN DEFAULT 0,
@@ -82,14 +85,21 @@ export class DatabaseController {
         `);
 
         this.db.run(`
-            CREATE TABLE IF NOT EXISTS settings (
+            CREATE TABLE IF NOT EXISTS printers (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,   
                 key TEXT UNIQUE,
                 printerName TEXT,
                 printerIp TEXT,
                 printerPort INTEGER,
                 printerDestinations TEXT,
-                active BOOLEAN DEFAULT 0
+                active BOOLEAN DEFAULT 0,
+                description TEXT
+            );
+        `);
+
+        this.db.run(`
+            CREATE TABLE IF NOT EXISTS settings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT  
             );
         `);
 
@@ -98,21 +108,36 @@ export class DatabaseController {
 
     public getPrinterSettings() {
         return this.db.query(
-            `SELECT * FROM settings`
+            `SELECT * FROM printers`
         ).get();
     }
 
     public getPrinterSettingsByKey(key: string) {
         return this.db.query(
-            `SELECT * FROM settings WHERE key = ?`
+            `SELECT * FROM printers WHERE key = ?`
         ).get(key);
     }
 
-    public savePrinterSettings(settings: { key:string, printerName: string, printerIp: string, printerPort: number, printerDestinations: string, active: boolean }) {
+    public savePrinterSettings(printers: { key:string, printerName: string, printerIp: string, printerPort: number, printerDestinations: string, active: boolean, description: string }) {
         this.db.run(
-            `INSERT OR REPLACE INTO settings (key, printerName, printerIp, printerPort, printerDestinations, active)
-            VALUES (?, ?, ?, ?, ?, ?)`,
-            [settings.key, settings.printerName, settings.printerIp, settings.printerPort, settings.printerDestinations, settings.active]
+            `INSERT INTO printers (key, printerName, printerIp, printerPort, printerDestinations, active, description)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET
+                printerName = excluded.printerName,
+                printerIp = excluded.printerIp,
+                printerPort = excluded.printerPort,
+                printerDestinations = excluded.printerDestinations,
+                active = excluded.active,
+                description = excluded.description`,
+            [
+                printers.key,
+                printers.printerName,
+                printers.printerIp,
+                printers.printerPort,
+                printers.printerDestinations,
+                printers.active,
+                printers.description
+            ]
         );
 
         // console.log("[DB] Printer settings saved:", settings);
@@ -120,37 +145,103 @@ export class DatabaseController {
 
     public getPrinterById(id: string) {
         return this.db.query(
-            `SELECT * FROM settings WHERE key = ${id}`
+            `SELECT * FROM printers WHERE key = ${id}`
         ).get();
     }
 
     public getPrinterByDestination(dest: string) {
         return this.db.query(
-            `SELECT * FROM settings WHERE printerDestinations LIKE ${dest}`
+            `SELECT * FROM printers WHERE printerDestinations LIKE ${dest}`
         ).get();
     }
 
     public saveReceipt(log: ReceiptLog) {
         this.db.run(
-            `INSERT OR REPLACE INTO receipts (orderNumber, destination, printData, tableNumber, clientName, note, itemName, status, printedAt, reprintedAt)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [log.orderNumber, log.destination, log.printData, log.tableNumber, log.clientName, log.note, log.itemName, log.status, log.printedAt.toISOString(), log.reprintedAt ? log.reprintedAt.toISOString() : null]
+            `INSERT INTO receipts (
+            orderId, orderNumber, orderStatus, destination, printData, tableNumber, clientName,
+            note, itemName, printStatus, printedAt, reprintedAt
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(orderId) DO UPDATE SET
+            orderNumber = excluded.orderNumber,
+            orderStatus = excluded.orderStatus,
+            destination = excluded.destination,
+            printData = excluded.printData,
+            tableNumber = excluded.tableNumber,
+            clientName = excluded.clientName,
+            note = excluded.note,
+            itemName = excluded.itemName,
+            printStatus = excluded.printStatus,
+            printedAt = excluded.printedAt,
+            reprintedAt = excluded.reprintedAt`,
+            [
+                log.id,
+                log.orderNumber,
+                log.orderStatus,
+                log.destination,
+                log.printData,
+                log.tableNumber,
+                log.clientName,
+                log.note,
+                log.itemName,
+                log.printStatus,
+                log.printedAt.toISOString(),
+                log.reprintedAt ? log.reprintedAt.toISOString() : null
+            ]
         );
     }
 
-    public getAllReceipts(limit = 50, status?: "PRINTED" | "FAILED") {
-        let query = `SELECT * FROM receipts ORDER BY printedAt DESC LIMIT ?`;
-        const params: (string | number)[] = [limit];
 
-        if (status) {
-            query = `SELECT * FROM receipts WHERE status = ? ORDER BY printedAt DESC LIMIT ?`;
-            params.unshift(status);
+    public getAllReceipts(
+        limit = 50,
+        offset = 0,
+        printStatus?: "PRINTED" | "FAILED",
+        startDate?: Date,
+        endDate?: Date
+    ) {
+        const fields = `
+        id, orderId, orderNumber, orderStatus, destination, itemName, tableNumber, clientName,
+        note, printStatus, printed, printedAt, reprinted, reprintedAt
+    `;
+
+        // Costruzione dinamica della WHERE clause
+        const conditions: string[] = [];
+        const params: (string | number)[] = [];
+
+        if (printStatus) {
+            conditions.push("printStatus = ?");
+            params.push(printStatus);
         }
 
-        console.log("[DB] Fetching all receipts with limit:", limit, "and status:", status);
+        if (startDate) {
+            conditions.push("printedAt >= ?");
+            const start = new Date(startDate);
+            start.setUTCHours(0, 0, 0, 0);
+            params.push(start.toISOString());
+        }
+
+        if (endDate) {
+            conditions.push("printedAt <= ?");
+            const end = new Date(endDate);
+            end.setUTCHours(23, 59, 59, 999);
+            params.push(end.toISOString());
+        }
+
+        let query = `SELECT ${fields} FROM receipts`;
+
+        if (conditions.length > 0) {
+            query += ` WHERE ${conditions.join(" AND ")}`;
+        }
+
+        query += ` ORDER BY printedAt DESC LIMIT ? OFFSET ?`;
+        params.push(limit, offset);
+
+        // console.log("[DB] Fetching all receipts:", { limit, offset, printStatus, startDate, endDate });
+
+        // console.log("[DB] Query:", query, "Params:", params);
 
         return this.db.query(query).all(...params) as ReceiptLog[];
     }
+
 
     public getReceiptsByDate(startDate: Date, endDate: Date, limit = 50) {
         return this.db.query(
@@ -164,17 +255,17 @@ export class DatabaseController {
         ).get(id);
     }
 
-    public async updateReceiptStatus(id: number, status: string) {
+    public async updateReceiptStatus(id: number, printStatus: string) {
         this.db.run(
-            `UPDATE receipts SET status = ? WHERE id = ?`,
-            [status, id]
+            `UPDATE receipts SET printStatus = ?, printed = ? WHERE id = ?`,
+            [printStatus, true, id]
         );
     }
 
-    public async updateReceiptReprint(id: number, status: string) {
+    public async updateReceiptReprint(id: number, printStatus: string) {
         this.db.run(
-            `UPDATE receipts SET status = ?, reprintedAt = ? WHERE id = ?`,
-            [status, new Date().toISOString(), id]
+            `UPDATE receipts SET printStatus = ?, reprintedAt = ?, reprinted = ? WHERE id = ?`,
+            [printStatus, new Date().toISOString(), true, id]
         );
     }
 

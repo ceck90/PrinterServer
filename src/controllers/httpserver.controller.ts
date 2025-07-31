@@ -2,6 +2,7 @@ import Elysia from "elysia";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { DatabaseController } from "./db.controller";
+import { printSpecificOrder } from "../dispatcher";
 // import { getAllReceipts, retryReceipt } from "./receiptController";
 
 
@@ -64,12 +65,39 @@ export class HttpServerController {
             const url = new URL(request.url);
             const limitParam = url.searchParams.get("limit");
             const typeParam = url.searchParams.get("type");
+            const offsetParam = url.searchParams.get("offset");
+            const startDateParam = url.searchParams.get("startDate");
+            const endDateParam = url.searchParams.get("endDate");
 
-            const limit = limitParam ? parseInt(limitParam, 10) : 100;
+            const startDate = startDateParam ? new Date(startDateParam) : undefined;
+            const endDate = endDateParam ? new Date(endDateParam) : undefined;
+
+            if (startDate && isNaN(startDate.getDate())) {
+                return new Response("Invalid startDate", { status: 400 });
+            }
+
+            if (endDate && isNaN(endDate.getDate())) {
+                return new Response("Invalid endDate", { status: 400 });
+            }
+            if (startDate && endDate && startDate > endDate) {
+                return new Response("startDate cannot be after endDate", { status: 400 });
+            }
+            if (limitParam && isNaN(parseInt(limitParam, 10))) {
+                return new Response("Invalid limit", { status: 400 });
+            }
+
+            if (offsetParam && isNaN(parseInt(offsetParam, 10))) {
+                return new Response("Invalid offset", { status: 400 });
+            }   
+
+
+            const limit = limitParam ? parseInt(limitParam, 10) : 10;
+            const offset = offsetParam ? parseInt(offsetParam, 10) : 0;
+
             const allowedTypes = ["PRINTED", "FAILED"] as const;
-            const type: "PRINTED" | "FAILED" | undefined = allowedTypes.includes(typeParam as any) ? typeParam as "PRINTED" | "FAILED" : "PRINTED";
+            const type: "PRINTED" | "FAILED" | undefined = allowedTypes.includes(typeParam as any) ? (typeParam as "PRINTED" | "FAILED") : undefined;
 
-            const receipts = await DatabaseController.instance.getAllReceipts(limit, type);
+            const receipts = await DatabaseController.instance.getAllReceipts(limit, offset, type, startDate, endDate);
             return new Response(JSON.stringify(receipts), { headers: { "Content-Type": "application/json" } });
             } catch (err) {
             console.error("[API] Error fetching receipts:", err);
@@ -79,7 +107,10 @@ export class HttpServerController {
         // this.app.get("/api/receipts/:id", ({ params }) => getAllReceipts(params.id));
 
 
-        // this.app.post("/api/receipts/:id/retry", ({ params }) => retryReceipt(params.id));
+        this.app.post("/api/receipts/:id/print", ({ params }) => {
+         console.log("[API] Ristampa ticket @ ID:", params.id);
+         printSpecificOrder(parseInt(params.id));
+        });
 
         // Initialize the HTTP server
         this.app.listen(4000);

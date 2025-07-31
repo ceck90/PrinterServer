@@ -1,11 +1,11 @@
 import { DatabaseController } from './controllers/db.controller.ts';
 
 export const printerMap = {
-    PIADINE: { key: "piadine",ip: "10.10.1.95", port: 9100, destination: "PIADINE", active: false },
-    FORNO: { key: "forno", ip: "10.10.1.95", port: 9100, destination: "FORNO", active: false },
-    PANINI: { key: "panini", ip: "10.10.1.95", port: 9100, destination: "PANINI", active: false },
-    TOAST: { key: "toast", ip: "10.10.1.95", port: 9100, destination: "TOAST", active: false },
-    "PIATTI UNICI": { key: "piattiu", ip: "10.10.1.95", port: 9100, destination: "PIATTI UNICI", active: false },
+    "PIADINE": { key: "piadine",ip: "10.10.1.95", port: 9100, destination: "PIADINE", active: false, description: "" },
+    "FORNO": { key: "forno", ip: "10.10.1.95", port: 9100, destination: "FORNO", active: false, description: "" },
+    "PANINI": { key: "panini", ip: "10.10.1.95", port: 9100, destination: "PANINI", active: false, description: "" },
+    "TOAST": { key: "toast", ip: "10.10.1.95", port: 9100, destination: "TOAST", active: false, description: "" },
+    "PIATTI UNICI": { key: "piattiunici", ip: "10.10.1.95", port: 9100, destination: "PIATTI UNICI", active: false, description: "" },
 };
 
 export type PrinterDest = keyof typeof printerMap;
@@ -26,6 +26,7 @@ export async function savePrintersToDb() {
         printerPort: config.port,
         printerDestinations: config.destination,
         active: config.active,
+        description: config.description
     }));
     // console.log("[PRINT] Salvataggio stampanti nel database:", printers);
     if (printers.length === 0) {    
@@ -40,7 +41,7 @@ export async function savePrintersToDb() {
 }
 
 export async function loadPrintersFromDb() {
-    const printers = await DatabaseController.instance.getPrinterSettings() as Array<{ name: string; ip: string; port: number; destination?: string; active: boolean }>;
+    const printers = await DatabaseController.instance.getPrinterSettings() as Array<{ name: string; ip: string; port: number; destination?: string; active: boolean; description?: string }>;
     const loadedMap: typeof printerMap = {} as any;
     for (const printer of printers) {
         loadedMap[printer.name as PrinterDest] = {
@@ -49,7 +50,9 @@ export async function loadPrintersFromDb() {
             port: printer.port,
             destination: printer.destination ?? printer.name,
             active: printer.active, // Assuming all loaded printers are active by default
+            description: printer.description ?? "",
         };
+        console.log(`[PRINT] Stampante caricata: ${printer.name} (${printer.ip}:${printer.port})`);
     }
     return loadedMap;
 }

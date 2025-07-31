@@ -10,7 +10,7 @@ import { printSpecificOrder } from './dispatcher.ts';
 
 const banner = `
 ==============================================
-         Music FestOn
+                Music FestOn
  Backend per gestione e stampa ticket piatto
  con stampanti termiche Ethernet
 
@@ -43,5 +43,15 @@ const wsClientController = WSClientController.getInstance();
 // printSpecificOrder(5);
 
 savePrintersToDb();
+
+// loadPrintersFromDb().then((loadedMap) => {
+//         // Object.assign(printerMap, loadedMap);
+//         console.log("[PRINT] Stampanti caricate dal database:", printerMap);
+//         }).catch(err => {
+//                 console.error("[PRINT] Errore durante il caricamento delle stampanti dal database:", err);
+//                 console.warn("[PRINT] Utilizzo della mappa stampanti predefinita.");
+//                 // Ritorna la mappa originale in caso di errore
+//         }
+// );
 
 console.log("[MAIN] ✅ Server avviato con successo!");
