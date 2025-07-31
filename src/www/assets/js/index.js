@@ -52,6 +52,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-bs-theme'] });
     });  
 
+   
+
     const applyThemeFromLocalStorage = () => {
         const storedTheme = getThemeFromLocalStorage();
         document.documentElement.setAttribute('data-bs-theme', storedTheme);
@@ -199,31 +201,29 @@ document.addEventListener("DOMContentLoaded", async () => {
         document.getElementById('cpu-temp-1-progress').style.width = `${data.cpuTemp1}%`;
         document.getElementById('cpu-temp-1-progress').textContent = `${data.cpuTemp1}°C`;
 
-        if (data.knx_connected !== undefined) {
-            let knxStatus = document.getElementById("badge-status-knx");
-            knxStatus.textContent = data.knx_connected ? translate('running') : translate('stopped');
-            knxStatus.className = data.knx_connected ? "badge bg-success" : "badge bg-danger";
-        }
-        if (data.ws_connected !== undefined) {
-            let serverStatus = document.getElementById("badge-status-server");
-            serverStatus.textContent = data.ws_connected ? translate('running') : translate('stopped');
-            serverStatus.className = data.ws_connected ? "badge bg-success" : "badge bg-danger";
-        }
-        if (data.mqtt_client_connected !== undefined) {
-            let mattClientStatus = document.getElementById("badge-status-mqtt-client");
-            mattClientStatus.textContent = data.mqtt_client_connected ? translate('running') : translate('stopped');
-            mattClientStatus.className = data.mqtt_client_connected ? "badge bg-success" : "badge bg-danger";
-        }
-        if (data.mqtt_server_active !== undefined) {
-            let mqttServerStatus = document.getElementById("badge-status-mqtt-server");
-            mqttServerStatus.textContent = data.mqtt_server_active ? translate('running') : translate('stopped');
-            mqttServerStatus.className = data.mqtt_server_active ? "badge bg-success" : "badge bg-danger";
-        }
-        if (data.osc_server_active !== undefined) {
-            let oscStatus = document.getElementById("badge-status-osc");
-            oscStatus.textContent = data.osc_server_active ? translate('running') : translate('stopped');
-            oscStatus.className = data.osc_server_active ? "badge bg-success" : "badge bg-danger";
-        }
+        
+    }
+
+    const addEventListeners = () => {
+        const printButtons = document.querySelectorAll('[id^="print-btn-"]');
+        printButtons.forEach(button => {
+            // console.log("Print button found:", button.id);
+            button.addEventListener('click', async (e) => {
+                const ticketId = button.id.split('-')[2];
+                console.log("Print button clicked for ticket:", ticketId);
+                fetch(`/api/receipts/${ticketId}/print`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                });
+            });
+        });
     }
 
     const fetchStatus = async () => {
@@ -236,10 +236,79 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     }
 
-    const fetchTickets = async () => {
+    const rowsPerPage = 10;
+    let currentPage = 1;
+    let tableBody = document.getElementById('ticket-list-body');
+    let pagination = document.getElementById('pagination');
+
+    function paginateTable() {
+        const rows = tableBody.querySelectorAll('tr');
+        const totalPages = Math.ceil(rows.length / rowsPerPage);
+
+        // Mostra/Nasconde righe
+        rows.forEach((row, index) => {
+            row.style.display =
+                index >= (currentPage - 1) * rowsPerPage &&
+                    index < currentPage * rowsPerPage
+                    ? ''
+                    : 'none';
+        });
+        // Ricostruisce i bottoni
+        pagination.innerHTML = '';
+
+        for (let i = 1; i <= totalPages; i++) {
+            const li = document.createElement('li');
+            li.classList.add('page-item');
+            if (i === currentPage) li.classList.add('active');
+
+            const btn = document.createElement('button');
+            btn.classList.add('page-link');
+            btn.innerText = i;
+            btn.onclick = () => {
+                currentPage = i;
+                paginateTable();
+            };
+
+            li.appendChild(btn);
+            pagination.appendChild(li);
+        }
+    }
+
+
+    const fetchTickets = async (startDate, endDate, limit, offset) => {
         console.log("Fetching tickets from server...");
         try {
-            const response = await fetch('/api/receipts');
+            // Parametri dinamici per la query
+            limit = limit || 10;
+            offset = offset || 0;
+            // Calcola intervallo date: se non passati, usa oggi
+            // Ottieni la data attuale in UTC
+            const now = new Date();
+            const utcYear = now.getUTCFullYear();
+            const utcMonth = now.getUTCMonth(); // zero-based
+            const utcDate = now.getUTCDate();
+
+            // Costruisci inizio e fine giorno in UTC
+            const startUtc = new Date(Date.UTC(utcYear, utcMonth, utcDate, 0, 0, 0, 0));
+            const endUtc = new Date(Date.UTC(utcYear, utcMonth, utcDate, 23, 59, 59, 999));
+
+            // Convertili in ISO string (sono già in UTC)
+            const isoStart = startUtc.toISOString().slice(0, 10); // YYYY-MM-DD
+            const isoEnd = endUtc.toISOString().slice(0, 10); // YYYY-MM-DD
+
+            // console.log("Start UTC ISO:", isoStart);
+            // console.log("End UTC ISO:", isoEnd);
+
+            const params = new URLSearchParams({
+                limit,
+                offset,
+                startDate: startDate || isoStart,
+                endDate: endDate || isoEnd
+            });
+
+            console.log("Fetching tickets with params:", params.toString());
+
+            const response = await fetch(`/api/receipts?${params.toString()}`);
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
@@ -249,12 +318,16 @@ document.addEventListener("DOMContentLoaded", async () => {
             } else {
                 document.getElementById('ticket-count').textContent = tickets.length;
                 tickets.forEach(ticket => {
-                    console.log(ticket);
                     // Append each ticket to the console or a specific element
                     const ticketList = document.getElementById('ticket-list-body');
                     if (ticketList) {
+                        // console.log(ticket);
                         const row = document.createElement('tr');
                         row.classList.add('py-2');
+
+                        if(ticket.orderStatus === "CANCELLED") {
+                            row.classList.add('table-secondary');
+                        }
 
                         row.innerHTML = `
                             <td>${ticket.id}</td>
@@ -264,16 +337,40 @@ document.addEventListener("DOMContentLoaded", async () => {
                             <td>${ticket.destination}</td>
                             <td>${ticket.itemName}</td>
                             <td>${ticket.note ? ticket.note : ''}</td>
-                            <td>
+                            
+                        `;
+                        if( ticket.printStatus === "PRINTED" ){
+                            row.innerHTML += `<td>
                                 <div class="d-flex justify-content-center">
                                     <button class="btn btn-success bi bi-printer" id="print-btn-${ticket.id}"></button>
                                 </div>
-                            </td>
-                        `;
+                            </td>`;
+                            // row.innerHTML += `<td class="text-center"><span class="badge bg-${ticket.printed ? 'success' : 'secondary'}">${ticket.printed ? translate('ticket.printed') : translate('ticket.notPrinted')}</span></td>`;
+                        }
+                        else {
+                            if(ticket.printed || ticket.reprinted){
+                                row.innerHTML += `<td>
+                                    <div class="d-flex justify-content-center">
+                                        <button class="btn btn-warning bi bi-printer" id="print-btn-${ticket.id}"></button>
+                                    </div>
+                                </td>`;
+                            }
+                            else {
+                                row.innerHTML += `<td>
+                                    <div class="d-flex justify-content-center">
+                                        <button class="btn btn-danger bi bi-printer" id="print-btn-${ticket.id}"></button>
+                                    </div>
+                                </td>`;
+                                row.classList.add('table-danger');
+                            }
+                            // row.innerHTML += `<td class="text-center"><span class="badge bg-secondary">${translate('ticket.notPrinted')}</span></td>`;
+                        }
                         ticketList.appendChild(row);
                     }
-                    console.log(`Ticket ID: ${ticket.id}, Status: ${ticket.status}, Printed: ${ticket.printedAt}, Re-Printed: ${ticket.reprintedAt ? ticket.reprintedAt : 'N/A'}`);
+                    // console.log(`Ticket ID: ${ticket.id}, Status: ${ticket.status}, Printed: ${ticket.printedAt}, Re-Printed: ${ticket.reprintedAt ? ticket.reprintedAt : 'N/A'}`);
                 });
+                addEventListeners();
+                // paginateTable();
             }
         } catch (error) {
             console.error("Error fetching tickets:", error);    
@@ -370,7 +467,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     await updateTranslate();
 
-    fetchTickets();
+    fetchTickets(undefined, undefined, 50, 0);
 
     // startWebSocket();
 });
