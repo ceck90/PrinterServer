@@ -33,8 +33,8 @@ export async function buildKitchenReceipt(order: OrderPayload, dest: string, ite
             if( items[0].takeAway) {
                 await printer.writeln(`---- ASPORTO ----`, Style.Bold);
             }
-            if( items[0].note ) {
-                await printer.writeln(`NOTE: ${items[0].note}`);
+            if( items[0].itemNote ) {
+                await printer.writeln(`NOTE: ${items[0].itemNote}`);
             }
     })
     if(order.status === "CANCELLED") {

@@ -8,7 +8,7 @@ type PrinterDest = keyof typeof printerMap;
 import { DatabaseController } from "./controllers/db.controller.ts";
 
 export async function handleIncomingData(data: any) {
-    // console.log("[DISPATCHER] Dati ricevuti:", data);
+    console.log("[DISPATCHER] Dati ricevuti:", data);
 
     if (!data || !data.plateKitchenMenuItem || !data.plateKitchenMenuItem.menuItem) {
         // console.error("Dati non validi ricevuti:", data);
@@ -48,7 +48,7 @@ export async function handleIncomingData(data: any) {
             qty: data.plateKitchenMenuItem.quantity || 1,
             tableNumber: data.plateKitchenMenuItem.tableNumber,
             clientName: data.plateKitchenMenuItem.clientName,
-            note: data.plateKitchenMenuItem.note || "",
+            itemNote: data.plateKitchenMenuItem.notes || "",
             orderNotes: data.plateKitchenMenuItem.orderNotes || "",
             takeAway: data.plateKitchenMenuItem.takeAway || false,
         }],
@@ -58,7 +58,7 @@ export async function handleIncomingData(data: any) {
 }
 
 export async function handleIncomingOrder(order: OrderPayload) {
-    // console.log("[DISPATCHER] Gestione ordine:", order);
+    console.log("[DISPATCHER] Gestione ordine:", order);
     const grouped = groupBy(order.items, i => i.dest);
     for (const [dest, items] of Object.entries(grouped)) {
         const printer = printerMap[dest as PrinterDest];
@@ -76,6 +76,7 @@ export async function handleIncomingOrder(order: OrderPayload) {
 
         const id = `${order.id}-${dest}`;
         try {
+            // console.log(order);
             const buffer = await buildKitchenReceipt(order, dest, items);
             if(printer.active) {
                 console.log(`[DISPATCHER] Stampa ordine ${order.id} a ${printer.destination} (${printer.ip}:${printer.port})`);
@@ -90,11 +91,13 @@ export async function handleIncomingOrder(order: OrderPayload) {
                 itemName: order.items[0].name,
                 tableNumber: order.items[0].tableNumber,
                 clientName: order.items[0].clientName,
-                note: order.items[0].note,
+                itemNote: order.items[0].itemNote,
+                orderNotes: order.items[0].orderNotes || "",
                 printData: buffer,
                 printStatus: printer.active ? "PRINTED" : "FAILED",
                 printedAt: new Date(),
-                printed: true
+                printed: true,
+                takeAway: order.items[0].takeAway
             });
         } catch (err) {
             console.error(`Errore stampando ${dest}:`, err);
@@ -106,11 +109,13 @@ export async function handleIncomingOrder(order: OrderPayload) {
                 itemName: order.items[0].name,
                 tableNumber: order.items[0].tableNumber,
                 clientName: order.items[0].clientName,
-                note: order.items[0].note,
+                itemNote: order.items[0].itemNote,
+                orderNotes: order.items[0].orderNotes || "",
                 printData: Buffer.from(""),
                 printStatus: "FAILED",
                 printedAt: new Date(),
-                printed: true
+                printed: true,
+                takeAway: order.items[0].takeAway
             });
         }
     }

@@ -17,6 +17,10 @@
     "sockjs-client": "^1.6.1"
   },
   "scripts": {
-    "dev": "bun src/main.ts"
+    "dev": "bun src/main.ts",
+    "build": "bun build src/main.ts --outdir=dist --target=node",
+    "start": "bun run build && bun dist/main.js",
+    "test": "bun test",
+    "watch": "bun src/main.ts --watch"
   }
 }

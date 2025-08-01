@@ -71,6 +71,7 @@ export class DatabaseController {
                 tableNumber TEXT,
                 clientName TEXT,
                 note TEXT,
+                orderNotes TEXT,
                 printData BLOB,
                 printStatus TEXT CHECK(printStatus IN ('PRINTED', 'FAILED')),
                 printed BOOLEAN DEFAULT 0,
@@ -159,8 +160,8 @@ export class DatabaseController {
         this.db.run(
             `INSERT INTO receipts (
             orderId, orderNumber, orderStatus, destination, printData, tableNumber, clientName,
-            note, itemName, printStatus, printedAt, reprintedAt
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            note, orderNotes, itemName, printStatus, printedAt, reprintedAt, takeAway
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(orderId) DO UPDATE SET
             orderNumber = excluded.orderNumber,
             orderStatus = excluded.orderStatus,
@@ -169,10 +170,12 @@ export class DatabaseController {
             tableNumber = excluded.tableNumber,
             clientName = excluded.clientName,
             note = excluded.note,
+            orderNotes = excluded.orderNotes,
             itemName = excluded.itemName,
             printStatus = excluded.printStatus,
             printedAt = excluded.printedAt,
-            reprintedAt = excluded.reprintedAt`,
+            reprintedAt = excluded.reprintedAt,
+            takeAway = excluded.takeAway`,
             [
                 log.id,
                 log.orderNumber,
@@ -181,11 +184,13 @@ export class DatabaseController {
                 log.printData,
                 log.tableNumber,
                 log.clientName,
-                log.note,
+                log.itemNote,
+                log.orderNotes,
                 log.itemName,
                 log.printStatus,
                 log.printedAt.toISOString(),
-                log.reprintedAt ? log.reprintedAt.toISOString() : null
+                log.reprintedAt ? log.reprintedAt.toISOString() : null,
+                log.takeAway ? 1 : 0
             ]
         );
     }
@@ -200,7 +205,7 @@ export class DatabaseController {
     ) {
         const fields = `
         id, orderId, orderNumber, orderStatus, destination, itemName, tableNumber, clientName,
-        note, printStatus, printed, printedAt, reprinted, reprintedAt
+        note, orderNotes, printStatus, printed, printedAt, reprinted, reprintedAt, takeAway
     `;
 
         // Costruzione dinamica della WHERE clause

@@ -323,11 +323,11 @@ document.addEventListener("DOMContentLoaded", async () => {
                     if (ticketList) {
                         // console.log(ticket);
                         const row = document.createElement('tr');
-                        row.classList.add('py-2');
+                        // row.classList.add('py-2');
 
                         if(ticket.orderStatus === "CANCELLED") {
                             row.classList.add('table-secondary');
-                        }
+                        }                       
 
                         row.innerHTML = `
                             <td>${ticket.id}</td>
@@ -337,6 +337,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                             <td>${ticket.destination}</td>
                             <td>${ticket.itemName}</td>
                             <td>${ticket.note ? ticket.note : ''}</td>
+                            <td>${ticket.orderNotes ? ticket.orderNotes : ''}</td>
                             
                         `;
                         if( ticket.printStatus === "PRINTED" ){
@@ -365,6 +366,19 @@ document.addEventListener("DOMContentLoaded", async () => {
                             }
                             // row.innerHTML += `<td class="text-center"><span class="badge bg-secondary">${translate('ticket.notPrinted')}</span></td>`;
                         }
+                        if(ticket.takeAway) {
+                            row.innerHTML += `<td>
+                            <div class="align-middle text-center">
+                                <span class="badge bg-warning">${translate('ticket.take_away')}</span>
+                            </div></td>`;
+                        }
+                        else {
+                            row.innerHTML += `<td>
+                            <div class="align-middle text-center" style="height: 100%;">
+                                <span class="badge bg-secondary">${translate('ticket.dine_in')}</span>
+                            </div></td>`;
+                        }
+
                         ticketList.appendChild(row);
                     }
                     // console.log(`Ticket ID: ${ticket.id}, Status: ${ticket.status}, Printed: ${ticket.printedAt}, Re-Printed: ${ticket.reprintedAt ? ticket.reprintedAt : 'N/A'}`);

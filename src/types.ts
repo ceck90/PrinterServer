@@ -3,7 +3,7 @@ export interface OrderItem {
     name: string;
     tableNumber: string;
     clientName: string;
-    note: string;
+    itemNote: string;
     orderNotes?: string;
     takeAway: boolean;
     qty?: number;
@@ -28,10 +28,12 @@ export interface ReceiptLog {
     printData: Buffer;
     clientName: string;
     tableNumber: string;
-    note: string;
+    itemNote: string;
+    orderNotes: string;
     printStatus: "PRINTED" | "FAILED";
     printedAt: Date;
     printed: boolean
     reprintedAt?: Date;
     reprinted?: boolean;
+    takeAway: boolean;
 }

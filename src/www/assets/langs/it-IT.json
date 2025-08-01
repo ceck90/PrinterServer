@@ -66,5 +66,26 @@
     "server.uptime": "Tempo di attività",
     "ticket.empty": "Nessun biglietto trovato.",    "ticket.title": "Biglietto",
     "ticket.status": "Stato",
-    "ticket.uptime": "Tempo di attività"
+    "ticket.uptime": "Tempo di attività",
+    "ticket.id": "ID",
+    "ticket.order_id": "ID Ordine",
+    "ticket.order_status": "Stato Ordine",
+    "ticket.order_statuses": {
+        "PENDING": "In attesa",
+        "CONFIRMED": "Confermato",
+        "CANCELLED": "Annullato"
+    },
+    "ticket.order_date": "Data Ordine",
+    "ticket.order_time": "Ora Ordine",
+    "ticket.client_name": "Nome Cliente",
+    "ticket.table_number": "Tavolo",
+    "ticket.plate_name": "Piastra",
+    "ticket.item_name": "Piatto",
+    "ticket.note": "Nota",
+    "ticket.item_note": "Nota Piatto",
+    "ticket.order_notes": "Note Ordine",
+    "ticket.quantity": "Quantità",
+    "ticket.actions": "Azioni",
+    "ticket.take_away": "Asporto",
+    "ticket.dine_in": "Al Tavolo"
 }
