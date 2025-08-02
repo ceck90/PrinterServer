@@ -8,16 +8,35 @@ export async function buildKitchenReceipt(order: OrderPayload, dest: string, ite
     // await printer.cutter(Cut.Full)
     // await printer.setColumns(56)
     await printer.setAlignment(Align.Center);
+    
+    if(order.status === "CANCELLED") {
+        await printer.withStyle({
+            width: 4,
+            height: 8,
+            bold: true,
+            italic: false,
+            underline: true,
+            align: Align.Center,
+            }, async () => {
+                await printer.writeln(`!!!! ANNULLATO !!!!`);
+        })
+    }
+
     await printer.withStyle({
         width: 4,
-        height: 8,
+        height: 10,
         bold: true,
         italic: false,
         underline: false,
         align: Align.Center,
         }, async () => {
             await printer.writeln(`----- ${dest} -----`);
+            if( items[0].takeAway) {
+                await printer.writeln(`---- ASPORTO ----`, Style.Bold);
+            }
+            await printer.writeln(`TIPO: ${items[0].name}`);
     })
+
     await printer.withStyle({
         width: 4,
         height: 8,
@@ -29,10 +48,6 @@ export async function buildKitchenReceipt(order: OrderPayload, dest: string, ite
             await printer.writeln(`ORDINE: ${order.orderNumber}`);
             await printer.writeln(`TAVOLO: ${items[0].tableNumber}`);
             await printer.writeln(`CLIENTE: ${items[0].clientName}`);
-            await printer.writeln(`TIPO: ${items[0].name}`);
-            if( items[0].takeAway) {
-                await printer.writeln(`---- ASPORTO ----`, Style.Bold);
-            }
             if( items[0].itemNote ) {
                 await printer.writeln(`NOTE PIATTO: ${items[0].itemNote}`);
             }
@@ -40,18 +55,6 @@ export async function buildKitchenReceipt(order: OrderPayload, dest: string, ite
                 await printer.writeln(`NOTE ORDINE: ${items[0].orderNotes}`);
             }
     })
-    if(order.status === "CANCELLED") {
-        await printer.withStyle({
-            width: 4,
-            height: 8,
-            bold: true,
-            italic: false,
-            underline: false,
-            align: Align.Center,
-            }, async () => {
-                await printer.writeln(`!!!! ANNULLATO !!!!`, Style.Bold | Style.Underline);
-        })
-    }
     // await printer.writeln(new Date(order.timestamp).toLocaleString());
     // await printer.drawer(Drawer.Second)
     await printer.withStyle({
