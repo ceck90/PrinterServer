@@ -77,7 +77,8 @@ export class DatabaseController {
                 printed BOOLEAN DEFAULT 0,
                 printedAt TEXT,
                 reprinted BOOLEAN DEFAULT 0,
-                reprintedAt TEXT
+                reprintedAt TEXT,
+                takeAway BOOLEAN DEFAULT 0
             );
         `);
 

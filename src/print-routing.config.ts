@@ -1,11 +1,11 @@
 import { DatabaseController } from './controllers/db.controller.ts';
 
 export const printerMap = {
-    "PIADINE": { key: "piadine",ip: "10.10.1.95", port: 9100, destination: "PIADINE", active: false, description: "" },
-    "FORNO": { key: "forno", ip: "10.10.1.95", port: 9100, destination: "FORNO", active: false, description: "" },
-    "PANINI": { key: "panini", ip: "10.10.1.95", port: 9100, destination: "PANINI", active: false, description: "" },
-    "TOAST": { key: "toast", ip: "10.10.1.95", port: 9100, destination: "TOAST", active: false, description: "" },
-    "PIATTI UNICI": { key: "piattiunici", ip: "10.10.1.95", port: 9100, destination: "PIATTI UNICI", active: false, description: "" },
+    "PIADINE": { key: "piadine",ip: "10.10.1.95", port: 9100, destination: "PIADINE", active: true, description: "" },
+    "FORNO": { key: "forno", ip: "10.10.1.95", port: 9100, destination: "FORNO", active: true, description: "" },
+    "PANINI": { key: "panini", ip: "10.10.1.95", port: 9100, destination: "PANINI", active: true, description: "" },
+    "TOAST": { key: "toast", ip: "10.10.1.95", port: 9100, destination: "TOAST", active: true, description: "" },
+    "PIATTI UNICI": { key: "piattiunici", ip: "10.10.1.95", port: 9100, destination: "PIATTI UNICI", active: true, description: "" },
 };
 
 export type PrinterDest = keyof typeof printerMap;

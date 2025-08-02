@@ -34,18 +34,38 @@ export async function buildKitchenReceipt(order: OrderPayload, dest: string, ite
                 await printer.writeln(`---- ASPORTO ----`, Style.Bold);
             }
             if( items[0].itemNote ) {
-                await printer.writeln(`NOTE: ${items[0].itemNote}`);
+                await printer.writeln(`NOTE PIATTO: ${items[0].itemNote}`);
+            }
+            if( items[0].orderNotes ) {
+                await printer.writeln(`NOTE ORDINE: ${items[0].orderNotes}`);
             }
     })
     if(order.status === "CANCELLED") {
-        await printer.writeln(`!!!! ANNULLATO !!!!`, Style.Bold | Style.Underline);
+        await printer.withStyle({
+            width: 4,
+            height: 8,
+            bold: true,
+            italic: false,
+            underline: false,
+            align: Align.Center,
+            }, async () => {
+                await printer.writeln(`!!!! ANNULLATO !!!!`, Style.Bold | Style.Underline);
+        })
     }
     // await printer.writeln(new Date(order.timestamp).toLocaleString());
     // await printer.drawer(Drawer.Second)
-
-       
+    await printer.withStyle({
+        width: 4,
+        height: 8,
+        bold: true,
+        italic: false,
+        underline: false,
+        align: Align.Center,
+        }, async () => {
+            await printer.writeln(`___________________`);
+    })
     await printer.feed(5)
-    // await printer.buzzer()
+    await printer.buzzer()
     await printer.cutter(Cut.Full)
 
     return connection.buffer();
