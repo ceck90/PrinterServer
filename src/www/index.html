@@ -9,6 +9,9 @@
     <link href="assets/bootstrap/css/bootstrap-icons.min.css" rel="stylesheet">
     <script src="assets/bootstrap/js/bootstrap.min.js"></script>
     <script src="assets/bootstrap/js/popper.min.js"></script>
+    <link href="assets/flatpickr/css/flatpickr.min.css" rel="stylesheet">
+    <link href="assets/flatpickr/css/material_orange.css" rel="stylesheet">
+    <script src="assets/flatpickr/js/flatpickr.js"></script>
     <link href="assets/css/styles.css" rel="stylesheet">
     <link rel="icon" href="assets/img/favicon/favicon.ico" type="image/x-icon">
 </head>
@@ -45,10 +48,25 @@
                         <small class="text-muted" id="ticket-count">0</small>
                     </div>
                     <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div class="input-group mb-3" style="max-width: 350px;">
+                                <input type="text" id="table-search" class="form-control" placeholder="Cerca..." />
+                                <button class="btn btn-outline-secondary" type="button" id="btn-search">
+                                    <i class="bi bi-search"></i>
+                                </button>
+                                <button class="btn btn-outline-secondary" type="button" id="btn-clear">
+                                    <i class="bi bi-x-circle"></i>
+                                </button>
+                            </div>
+                            <div class="input-group mb-3" style="max-width: 350px;">
+                                <input type="text" id="date-range" class="form-control" placeholder="Filtro Date" />
+                                <span class="input-group-text"><i class="bi bi-calendar-range" type="button" id="btn-date-range"></i></span>
+                            </div>
+                        </div>
                         <table class="table table-hover  mb-0" id="ticket-list">
                             <thead>
                                 <tr>
-                                    <th scope="col" data-i18n="ticket.id"></th>
+                                    <!-- <th scope="col" data-i18n="ticket.id"></th> -->
                                     <th scope="col" data-i18n="ticket.order_id"></th>
                                     <th scope="col" data-i18n="ticket.client_name"></th>
                                     <th scope="col" data-i18n="ticket.table_number"></th>

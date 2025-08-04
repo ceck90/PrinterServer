@@ -1,6 +1,8 @@
 import { translate, updateTranslate, initI18n, getLanguageFromLocalStorage } from './i18n.js';
 import { getThemeFromLocalStorage, setThemeInLocalStorage } from './theme.js';
 
+// import { flatpickr } from '../flatpickr/js/flatpickr.js';
+
 let lang = "en-US"; // Default language
 // let theme = getThemeFromLocalStorage(); // Default theme
 
@@ -21,6 +23,56 @@ let lang = "en-US"; // Default language
  */
 
 document.addEventListener("DOMContentLoaded", async () => {
+
+    flatpickr("#date-range", {
+    mode: "range",
+    dateFormat: "Y-m-d",
+    locale: {
+        firstDayOfWeek: 1
+    },
+    maxDate: "today"
+    });
+
+    const input_data_range = document.getElementById('date-range');
+
+    input_data_range.addEventListener('change', () => {
+        const [start, end] = input_data_range.value.split(' to ');
+        if (start && end) {
+            console.log("Data range:", start, " to ", end);
+            const startDate = new Date(start);
+            const endDate = new Date(end);
+            // console.log("Start Date:", startDate, "End Date:", endDate);
+            fetchTickets(startDate.toISOString().slice(0, 10), endDate.toISOString().slice(0, 10), 50, 0);
+        }
+        else if (start) {
+            console.log("Single date selected:", start);
+            const startDate = new Date(start);
+            fetchTickets(startDate.toISOString().slice(0, 10), startDate.toISOString().slice(0, 10), 50, 0);
+        }
+    });
+
+    const input = document.getElementById('table-search');
+    const btnSearch = document.getElementById('btn-search');
+    const btnClear = document.getElementById('btn-clear');
+    var tableRows = document.querySelectorAll('#ticket-list-body tr');
+
+    btnSearch.addEventListener('click', () => {
+        // console.log("Search button clicked");
+        const query = input.value.trim().toLowerCase();
+        // console.log("Search query:", query);
+        // console.log("Total rows:", tableRows.length);
+        tableRows.forEach(row => {
+            // console.log("Row text:", row.innerText);
+            const rowText = row.innerText.toLowerCase();
+            row.style.display = rowText.includes(query) ? '' : 'none';
+        });
+    });
+
+    btnClear.addEventListener('click', () => {
+        input.value = '';
+        tableRows.forEach(row => (row.style.display = ''));
+    });
+
     
     const themeItems = document.querySelectorAll('.theme-item');
 
@@ -224,6 +276,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                 });
             });
         });
+
+        tableRows = document.querySelectorAll('#ticket-list-body tr');
     }
 
     const fetchStatus = async () => {
@@ -308,6 +362,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
             console.log("Fetching tickets with params:", params.toString());
 
+            const ticketList = document.getElementById('ticket-list-body');
+
             const response = await fetch(`/api/receipts?${params.toString()}`);
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -315,11 +371,13 @@ document.addEventListener("DOMContentLoaded", async () => {
             const tickets = await response.json();
             if (tickets.length === 0) {
                 console.log(translate('ticket.empty'));
+                ticketList.innerHTML = `<td colspan="8" class="text-center">${translate('ticket.empty')}</td>`;
+                document.getElementById('ticket-count').textContent = 0;
             } else {
                 document.getElementById('ticket-count').textContent = tickets.length;
+                ticketList.innerHTML = ''; // Clear previous Ctickets
                 tickets.forEach(ticket => {
                     // Append each ticket to the console or a specific element
-                    const ticketList = document.getElementById('ticket-list-body');
                     if (ticketList) {
                         // console.log(ticket);
                         const row = document.createElement('tr');
@@ -330,7 +388,6 @@ document.addEventListener("DOMContentLoaded", async () => {
                         }                       
 
                         row.innerHTML = `
-                            <td>${ticket.id}</td>
                             <td>${ticket.orderNumber}</td>
                             <td>${ticket.clientName}</td>
                             <td>${ticket.tableNumber}</td>
