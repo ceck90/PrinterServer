@@ -319,10 +319,30 @@ export class DatabaseController {
      * @param id ID della ricevuta
      * @returns Oggetto ReceiptLog o undefined
      */
-    public getReceiptById(id: number) {
+    public getReceiptById(id: number, status?: string) {
         return this.db.query(
             `SELECT * FROM receipts WHERE id = ?`
         ).get(id);
+    }
+
+    /**
+     * Restituisce una ricevuta tramite ID.
+     * @param id ID della ricevuta
+     * @param status Stato opzionale della ricevuta
+     * @return ReceiptLog o undefined
+     */
+    public getReceiptByIdAndStatus(orderId: string, orderStatus?: string) {
+        const conditions = ["orderId = ?"];
+        const params: (string | number)[] = [orderId];
+
+        if (orderStatus) {
+            conditions.push("orderStatus = ?");
+            params.push(orderStatus);
+        }
+
+        const query = `SELECT * FROM receipts WHERE ${conditions.join(" AND ")}`;
+        // console.log("[DB] Query receipt by ID:", query, "Params:", params);
+        return this.db.query(query).get(...params) as ReceiptLog | undefined;
     }
 
     /**
