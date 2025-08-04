@@ -129,7 +129,7 @@ export async function handleIncomingOrder(order: OrderPayload) {
         // Verifica se l'ordine è già registrato nel DB per questa destinazione
         const existingReceipt = await DatabaseController.instance.getReceiptByIdAndStatus(order.orderId, order.status);
         if (existingReceipt) {
-            console.log(`[DISPATCHER] Ordine ${order.id} già registrato per la destinazione ${dest}, salto la stampa.`);
+            // console.log(`[DISPATCHER] Ordine ${order.id} già registrato per la destinazione ${dest}, salto la stampa.`);
             continue;
         }
 
