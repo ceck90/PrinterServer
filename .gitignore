@@ -159,6 +159,7 @@ dist
 # Stores VSCode versions used for testing VSCode extensions
 
 .vscode-test
+.vscode/
 
 # yarn v2
 
@@ -179,3 +180,6 @@ dist
 *.db
 *.sqlite
 *.sqlite3
+
+#Bun build
+*.exe

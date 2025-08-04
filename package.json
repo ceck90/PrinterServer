@@ -5,14 +5,24 @@
   "module": "index.ts",
   "type": "module",
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "@types/stompjs": "^2.3.5",
+    "@types/sockjs-client": "^1.5.1"
   },
   "dependencies": {
     "better-sqlite3": "^12.2.0",
-    "elysia": "^0.6.7",
-    "escpos-buffer": "^3.0.3"
+    "elysia": "^1.3.6",
+    "escpos-buffer": "^4.1.0",
+    "html2thermal": "^1.0.7",
+    "node-thermal-printer": "^4.5.0",
+    "sockjs-client": "^1.6.1",
+    "stompjs": "^2.3.3"
   },
   "scripts": {
-    "dev": "bun src/main.ts"
+    "dev": "bun src/main.ts",
+    "build": "bun build src/main.ts --outdir=dist --target=node",
+    "start": "bun run build && bun dist/main.js",
+    "test": "bun test",
+    "watch": "bun src/main.ts --watch"
   }
 }

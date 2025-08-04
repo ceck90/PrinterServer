@@ -1,24 +1,46 @@
-import { handleIncomingOrder } from "../dispatcher";
+import { handleIncomingData } from "../dispatcher";
+import Stomp from "stompjs";
+import SockJS from "sockjs-client";
 
+/**
+ * Opzioni di configurazione per il client WebSocket.
+ * - reconnectAttempts: numero massimo di tentativi di riconnessione (-1 = infinito)
+ * - reconnectDelayMs: millisecondi tra i tentativi di riconnessione
+ * - url: endpoint del server WebSocket
+ */
 type WSClientOptions = {
-    reconnectAttempts?: number; // Numero massimo di tentativi, -1 per infinito
-    reconnectDelayMs?: number;  // Millisecondi tra i tentativi
+    reconnectAttempts?: number;
+    reconnectDelayMs?: number;
     url?: string;
 };
 
+/**
+ * Controller singleton per la gestione del client WebSocket STOMP/SockJS.
+ * Gestisce la connessione, la riconnessione automatica e la sottoscrizione ai topic.
+ */
 export class WSClientController {
     static #instance: WSClientController;
-    private ws?: WebSocket;
+
     private url: string;
     private reconnectAttempts: number;
     private reconnectDelayMs: number;
     private currentAttempts = 0;
     private shouldReconnect = true;
 
-    private constructor(options: WSClientOptions = {}) {
-        this.url = options.url ?? "wss://10.10.5.170/api";
+    private stompClient: any;
 
-        // Se siamo in ambiente Node.js e la url è wss, accetta tutti i certificati
+    // Topic STOMP a cui sottoscriversi
+    private pkmiTopic: string = "/topic/pkmi";
+    private greetingsTopic: string = "/topic/greetings";
+
+    /**
+     * Costruttore privato: inizializza la connessione e le opzioni.
+     * @param options Opzioni di configurazione
+     */
+    private constructor(options: WSClientOptions = {}) {
+        this.url = options.url ?? "http://10.10.1.12:8080/ws";
+
+        // Permette connessioni wss anche con certificati self-signed in Node.js
         if (this.url.startsWith("wss://")) {
             // @ts-ignore
             process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
@@ -28,43 +50,61 @@ export class WSClientController {
         this.connect();
     }
 
+    /**
+     * Restituisce l'istanza singleton del controller.
+     * @param options Opzioni di configurazione (solo alla prima chiamata)
+     */
     public static getInstance(options?: WSClientOptions): WSClientController {
         if (!WSClientController.#instance) {
             WSClientController.#instance = new WSClientController(options);
         }
         return WSClientController.#instance;
-    }
+    }    
 
-    private connect() {
-        this.ws = new WebSocket(this.url);
+    /**
+     * Inizializza la connessione WebSocket e la sottoscrizione ai topic STOMP.
+     * Gestisce anche la riconnessione automatica in caso di errore.
+     */
+    connect() {
+        console.log("[WS] Initialize WebSocket Connection to: " + this.url);
+        let ws = new SockJS(this.url);
+        console.log("[WS] WebSocket creato con URL:", this.url);
+        this.stompClient = Stomp.over(ws);
+        const _this = this;
 
-        this.ws.addEventListener("open", () => {
-            this.currentAttempts = 0;
-            console.log("[WS] Connesso a", this.url);
-        });
+        _this.stompClient.connect({}, () => {
+            // Connessione STOMP riuscita
+            console.log("[STOMP] Client connesso a:", _this.url);
 
-        this.ws.addEventListener("message", async (msg) => {
-            try {
-                // console.log("[WS] Messaggio ricevuto:", msg.data);
-                const data = JSON.parse(msg.data.toString());
-                await handleIncomingOrder(data);
-            } catch (err) {
-                console.error("[WS] Errore parsing o stampa ordine:", err);
-            }
-        });
+            // Sottoscrizione ai topic
+            _this.stompClient.subscribe(_this.greetingsTopic, (event: any) => {
+                console.log("[STOMP] Messaggio ricevuto dal server:", event.body);
+            });
 
-        this.ws.addEventListener("close", (event) => {
-            console.warn(`[WS] Connessione chiusa (code: ${event.code}).`);
+            _this.stompClient.subscribe(_this.pkmiTopic, (event: any) => {
+                const data = JSON.parse(event.body);
+                handleIncomingData(data);
+            });
+
+        }, (error: any) => {
+            // Gestione errore di connessione e tentativo di riconnessione
+            console.error("[STOMP] Errore di connessione:", error);
             this.tryReconnect();
         });
+    };
 
-        this.ws.addEventListener("error", (err) => {
-            console.error("[WS] Errore WebSocket:", err);
-            // L'evento error non chiude la connessione, quindi chiudiamo manualmente
-            this.ws?.close();
-        });
+    /*
+    // Esempio alternativo di connessione WebSocket puro (non usato)
+    private connect() {
+        this.ws = new WebSocket(this.url);
+        ...
     }
+    */
 
+    /**
+     * Gestisce la logica di riconnessione automatica.
+     * Se il numero di tentativi è -1, tenta all'infinito.
+     */
     private tryReconnect() {
         if (!this.shouldReconnect) return;
         if (this.reconnectAttempts !== -1 && this.currentAttempts >= this.reconnectAttempts) {
@@ -76,8 +116,11 @@ export class WSClientController {
         setTimeout(() => this.connect(), this.reconnectDelayMs);
     }
 
+    /**
+     * Chiude la connessione e disabilita la riconnessione automatica.
+     */
     public close() {
         this.shouldReconnect = false;
-        this.ws?.close();
+        // this.ws?.close();
     }
 }

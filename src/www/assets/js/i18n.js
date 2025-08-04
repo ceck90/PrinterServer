@@ -43,7 +43,7 @@ const getBrowserLanguage = () => {
  * @returns {Promise<Object>} A promise that resolves to an object containing all loaded dictionaries.
  */
 const loadLanguageDictionaries = async () => {
-    const languages = ['en-US', 'it-IT', 'fr-FR', 'de-DE', 'es-ES', 'pt-PT']; // Add more languages as needed
+    const languages = ['en-US', 'it-IT']; // Add more languages as needed
     const dictionaries = {};
     
     for (const lang of languages) {
