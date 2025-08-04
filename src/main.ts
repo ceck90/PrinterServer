@@ -3,7 +3,7 @@ import { DatabaseController } from './controllers/db.controller.ts';
 import { WSClientController } from './controllers/ws-client.controller.ts';
 import { loadPrintersFromDb, printerMap, savePrintersToDb } from './print-routing.config.ts';
 import { printSpecificOrder } from './dispatcher.ts';
-import { printTest } from './receipt.ts';
+// import { printTest } from './receipt.ts';
 
 // console.log("Music FestOn");
 // console.log("Backend per gestione ordini e stampa scontrini su stampanti termiche Ethernet");
@@ -20,9 +20,24 @@ const banner = `
  Email:     ceccato.roberto@alice.it
 ==============================================
 `;
+
 console.log(banner);
 
 console.log("Inizializzazione del server...");
+
+// Inizializza valori da file .env
+
+process.env.NODE_ENV = process.env.NODE_ENV || 'development';
+console.log("[MAIN] ✅ Ambiente impostato su:", process.env.NODE_ENV);
+console.log("[MAIN] ✅ Inizializzazione del server...");
+
+const dbPath: string = process.env.DB_PATH || './db.sqlite';
+console.log("[MAIN] ✅ Percorso del database:", dbPath);
+const wsClientUrl: string = process.env.WS_CLIENT_URL || 'ws://10.10.1.12:8080';
+console.log("[MAIN] ✅ URL del client WebSocket:", wsClientUrl);
+
+// Inizializza la mappa delle stampanti
+
 
 // Inizializza il controller del database
 const dbController = DatabaseController.instance;
@@ -45,6 +60,5 @@ savePrintersToDb();
 //         }
 // );
 
-// printTest();
 
 console.log("[MAIN] ✅ Server avviato con successo!");

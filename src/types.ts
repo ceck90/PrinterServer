@@ -11,6 +11,7 @@ export interface OrderItem {
 }
 
 export interface OrderPayload {
+    orderId: string;
     id: string;
     createdAt?: string;
     timestamp: string;
@@ -21,6 +22,7 @@ export interface OrderPayload {
 
 export interface ReceiptLog {
     id: string;
+    orderId: string;
     orderNumber: number;
     orderStatus: "TODO" | "PROGRESS" | "DONE" | "CANCELLED";
     destination: string;

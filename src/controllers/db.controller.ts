@@ -196,7 +196,6 @@ export class DatabaseController {
         );
     }
 
-
     public getAllReceipts(
         limit = 50,
         offset = 0,

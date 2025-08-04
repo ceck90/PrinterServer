@@ -1,6 +1,6 @@
 import type { OrderPayload } from "./types";
 import { groupBy } from "./utils";
-import { buildKitchenReceipt } from "./receipt";
+import { buildKitchenReceipt, buildKitchenReceipt_v2 } from "./receipt";
 import { sendToPrinter } from "./print";
 import { printerMap } from "./print-routing.config.ts";
 
@@ -9,6 +9,11 @@ import { DatabaseController } from "./controllers/db.controller.ts";
 
 export async function handleIncomingData(data: any) {
     console.log("[DISPATCHER] Dati ricevuti:", data);
+    
+    if(data.type != "PKMI_UPDATE") {
+        console.warn("[DISPATCHER] Tipo di dato non gestito:", data.type);
+        return;
+    }
 
     if (!data || !data.plateKitchenMenuItem || !data.plateKitchenMenuItem.menuItem) {
         // console.error("Dati non validi ricevuti:", data);
@@ -38,6 +43,7 @@ export async function handleIncomingData(data: any) {
 
     const order: OrderPayload = {
         id: data.plateKitchenMenuItem.id,
+        orderId: data.plateKitchenMenuItem.id,
         status: data.plateKitchenMenuItem.status,
         createdAt: data.plateKitchenMenuItem.menuItem.createdDate || new Date().toISOString(),
         timestamp: new Date().toISOString(),
@@ -78,6 +84,7 @@ export async function handleIncomingOrder(order: OrderPayload) {
         try {
             // console.log(order);
             const buffer = await buildKitchenReceipt(order, dest, items);
+            // const buffer = await buildKitchenReceipt_v2(order, dest, items);
             if(printer.active) {
                 console.log(`[DISPATCHER] Stampa ordine ${order.id} a ${printer.destination} (${printer.ip}:${printer.port})`);
                 await sendToPrinter(printer.destination, printer.ip, printer.port, buffer);
@@ -85,6 +92,7 @@ export async function handleIncomingOrder(order: OrderPayload) {
 
             DatabaseController.instance.saveReceipt({
                 id: order.id,
+                orderId: order.orderId,
                 orderNumber: order.orderNumber,
                 orderStatus: order.status,
                 destination: dest,
@@ -103,6 +111,7 @@ export async function handleIncomingOrder(order: OrderPayload) {
             console.error(`Errore stampando ${dest}:`, err);
             DatabaseController.instance.saveReceipt({
                 id: order.id,
+                orderId: order.orderId,
                 orderNumber: order.orderNumber,
                 orderStatus: order.status,
                 destination: dest,
