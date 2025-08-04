@@ -2,43 +2,34 @@ import type { OrderPayload } from "./types";
 import { groupBy } from "./utils";
 import { buildKitchenReceipt, buildKitchenReceipt_v2 } from "./receipt";
 import { sendToPrinter } from "./print";
-import { printerMap } from "./print-routing.config.ts";
-
-type PrinterDest = keyof typeof printerMap;
-import { DatabaseController } from "./controllers/db.controller.ts";
+import { printers } from "./print-routing.config";
+import type { PrinterConfig } from "./print-routing.config";
+import { DatabaseController } from "./controllers/db.controller";
 
 export async function handleIncomingData(data: any) {
     console.log("[DISPATCHER] Dati ricevuti:", data);
-    
-    if(data.type != "PKMI_UPDATE") {
+
+    if (data.type != "PKMI_UPDATE") {
         console.warn("[DISPATCHER] Tipo di dato non gestito:", data.type);
         return;
     }
 
     if (!data || !data.plateKitchenMenuItem || !data.plateKitchenMenuItem.menuItem) {
-        // console.error("Dati non validi ricevuti:", data);
         return;
     }
 
     switch (data.plateKitchenMenuItem.status) {
         case "TODO":
-            // console.log("[DISPATCHER] Nuovo ordine ricevuto:", data.plateKitchenMenuItem);
-            // return; // Non gestiamo ordini "TODO" qui, ma in un altro punto
         case "PROGRESS":
-            // console.log("[DISPATCHER] Ordine in lavorazione:", data.plateKitchenMenuItem);
-            if( data.plateKitchenMenuItem.plate != null && data.plateKitchenMenuItem.plate != undefined) {
-                break;
-            }
-            else {
+            if (data.plateKitchenMenuItem.plate == null) {
                 console.warn("[DISPATCHER] Ordine in lavorazione senza destinazione:", data.plateKitchenMenuItem);
                 return;
             }
+            break;
         case "DONE":
-            // console.log("[DISPATCHER] Ordine completato:", data.plateKitchenMenuItem);
-            // return; // Non gestiamo ordini "DONE" qui, ma in un altro punto
         case "CANCELLED":
             console.log(`[DISPATCHER] Ordine cancellato: ${data.plateKitchenMenuItem.orderNumber} - ${data.plateKitchenMenuItem.plate.name}/${data.plateKitchenMenuItem.menuItem.name}`);
-            // return; // Non gestiamo ordini cancellati
+            return;
     }
 
     const order: OrderPayload = {
@@ -47,7 +38,7 @@ export async function handleIncomingData(data: any) {
         status: data.plateKitchenMenuItem.status,
         createdAt: data.plateKitchenMenuItem.menuItem.createdDate || new Date().toISOString(),
         timestamp: new Date().toISOString(),
-        orderNumber : data.plateKitchenMenuItem.orderNumber || 0,
+        orderNumber: data.plateKitchenMenuItem.orderNumber || 0,
         items: [{
             dest: data.plateKitchenMenuItem.plate.name,
             name: data.plateKitchenMenuItem.menuItem.name,
@@ -67,25 +58,23 @@ export async function handleIncomingOrder(order: OrderPayload) {
     console.log("[DISPATCHER] Gestione ordine:", order);
     const grouped = groupBy(order.items, i => i.dest);
     for (const [dest, items] of Object.entries(grouped)) {
-        const printer = printerMap[dest as PrinterDest];
+        // Cerca la stampante nell'array
+        const printer = printers.find(p => p.destination === dest || p.name === dest);
         if (!printer) {
             console.warn(`Nessuna stampante configurata per la destinazione: ${dest}`);
             continue;
         }
 
-        if (order.status == "TODO" || order.status == "DONE"){
+        if (order.status == "TODO" || order.status == "DONE") {
             console.warn(`[DISPATCHER] Ordine ${order.id} con stato ${order.status} non gestito per la destinazione: ${dest}`);
             continue;
         }
 
         console.log(`[DISPATCHER] Gestione ordine: ${order.id} con stato: ${order.status} su ${dest}`);
 
-        const id = `${order.id}-${dest}`;
         try {
-            // console.log(order);
             const buffer = await buildKitchenReceipt(order, dest, items);
-            // const buffer = await buildKitchenReceipt_v2(order, dest, items);
-            if(printer.active) {
+            if (printer.active) {
                 console.log(`[DISPATCHER] Stampa ordine ${order.id} a ${printer.destination} (${printer.ip}:${printer.port})`);
                 await sendToPrinter(printer.destination, printer.ip, printer.port, buffer);
             }
@@ -136,19 +125,18 @@ export async function printSpecificOrder(orderNumber: number) {
         console.warn(`[DISPATCHER] Nessuna ticket trovata per ordine ${orderNumber}`);
         return;
     }
-    const printer = printerMap[receipt.destination as PrinterDest];
+    const printer = printers.find(p => p.destination === receipt.destination || p.name === receipt.destination);
     if (!printer) {
         console.warn(`[DISPATCHER] Nessuna stampante configurata per la destinazione: ${receipt.destination}`);
         return;
     }
     try {
         console.log(`[DISPATCHER] Ristampo ticket per ordine ${receipt.id} su ${receipt.destination}`);
-        if(printer.active) {
+        if (printer.active) {
             await sendToPrinter(printer.destination, printer.ip, printer.port, receipt.printData);
             await DatabaseController.instance.updateReceiptReprint(receipt.id, "PRINTED");
             console.log(`[DISPATCHER] Ricevuta per ordine ${receipt.id} ristampata su ${receipt.destination}`);
-        }
-        else {
+        } else {
             console.warn(`[DISPATCHER] Stampante ${receipt.destination} non attiva, non posso ristampare il ticket per ordine ${receipt.id}`);
             await DatabaseController.instance.updateReceiptReprint(receipt.id, "FAILED");
         }

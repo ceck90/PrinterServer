@@ -1,7 +1,7 @@
 import { HttpServerController } from './controllers/httpserver.controller.ts';
 import { DatabaseController } from './controllers/db.controller.ts';
 import { WSClientController } from './controllers/ws-client.controller.ts';
-import { loadPrintersFromDb, printerMap, savePrintersToDb } from './print-routing.config.ts';
+import { loadPrintersFromDb, seedPrintersIfDbEmpty } from './print-routing.config.ts';
 import { printSpecificOrder } from './dispatcher.ts';
 // import { printTest } from './receipt.ts';
 
@@ -54,8 +54,7 @@ const WSClientOptions = {
 const wsClientController = WSClientController.getInstance(WSClientOptions);
 
 // Inizializza la mappa delle stampanti
-// savePrintersToDb();
-
+seedPrintersIfDbEmpty();
 loadPrintersFromDb();
 
 console.log("[MAIN] ✅ Server avviato con successo!");

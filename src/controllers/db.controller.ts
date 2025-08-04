@@ -2,7 +2,6 @@ import { Database } from "bun:sqlite";
 import type { ReceiptLog } from "../types";
 import { $ } from "bun";
 import { existsSync } from "fs";
-import { savePrintersToDb } from "../print-routing.config";
 
 const DB_FILE = "data/receipts.sqlite";
 const BACKUP_FILE = "data/receipts_backup.sqlite";
@@ -121,7 +120,7 @@ export class DatabaseController {
         ).get(key);
     }
 
-    public savePrinterSettings(printers: { key:string, printerName: string, printerIp: string, printerPort: number, printerDestinations: string, active: boolean, description: string }) {
+    public savePrinterSettings(printer: { key: string, printerName: string, printerIp: string, printerPort: number, printerDestinations: string, active: boolean, description: string }) {
         this.db.run(
             `INSERT INTO printers (key, printerName, printerIp, printerPort, printerDestinations, active, description)
             VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -133,13 +132,13 @@ export class DatabaseController {
                 active = excluded.active,
                 description = excluded.description`,
             [
-                printers.key,
-                printers.printerName,
-                printers.printerIp,
-                printers.printerPort,
-                printers.printerDestinations,
-                printers.active,
-                printers.description
+                printer.key,
+                printer.printerName,
+                printer.printerIp,
+                printer.printerPort,
+                printer.printerDestinations,
+                printer.active,
+                printer.description
             ]
         );
 
