@@ -3,6 +3,7 @@ import { DatabaseController } from './controllers/db.controller.ts';
 import { WSClientController } from './controllers/ws-client.controller.ts';
 import { loadPrintersFromDb, printerMap, savePrintersToDb } from './print-routing.config.ts';
 import { printSpecificOrder } from './dispatcher.ts';
+import { printTest } from './receipt.ts';
 
 // console.log("Music FestOn");
 // console.log("Backend per gestione ordini e stampa scontrini su stampanti termiche Ethernet");
@@ -30,16 +31,6 @@ const httpServerController = HttpServerController.instance;
 // Inizializza il client WebSocket
 const wsClientController = WSClientController.getInstance();
 
-// console.log(dbController.getAllReceipts(100, "PRINTED"));
-
-// printerMap = loadPrintersFromDb().then((loadedMap) => {
-//     console.log("[PRINT] Stampanti caricate dal database:", loadedMap);
-//     return loadedMap;
-// }).catch(err => {
-//     console.error("[PRINT] Errore durante il caricamento delle stampantidal database:", err);
-//     return printerMap; // Ritorna la mappa originale in caso di errore
-// });
-
 // printSpecificOrder(5);
 
 savePrintersToDb();
@@ -53,5 +44,7 @@ savePrintersToDb();
 //                 // Ritorna la mappa originale in caso di errore
 //         }
 // );
+
+// printTest();
 
 console.log("[MAIN] ✅ Server avviato con successo!");
