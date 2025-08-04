@@ -109,9 +109,10 @@ export class DatabaseController {
     }
 
     public getPrinterSettings() {
-        return this.db.query(
-            `SELECT * FROM printers`
-        ).get();
+        const result = this.db.query(
+            `SELECT key as name, printerIp as ip, printerPort as port, printerDestinations as destination, active, description FROM printers`
+        ).all();
+        return Array.isArray(result) ? result : [];
     }
 
     public getPrinterSettingsByKey(key: string) {

@@ -40,8 +40,8 @@ export async function savePrintersToDb() {
     }
 }
 
-export async function loadPrintersFromDb() {
-    const printers = await DatabaseController.instance.getPrinterSettings() as Array<{ name: string; ip: string; port: number; destination?: string; active: boolean; description?: string }>;
+export function loadPrintersFromDb() {
+    const printers = DatabaseController.instance.getPrinterSettings() as Array<{ name: string; ip: string; port: number; destination?: string; active: boolean; description?: string }> || [];
     const loadedMap: typeof printerMap = {} as any;
     for (const printer of printers) {
         loadedMap[printer.name as PrinterDest] = {
@@ -49,7 +49,7 @@ export async function loadPrintersFromDb() {
             ip: printer.ip,
             port: printer.port,
             destination: printer.destination ?? printer.name,
-            active: printer.active, // Assuming all loaded printers are active by default
+            active: printer.active,
             description: printer.description ?? "",
         };
         console.log(`[PRINT] Stampante caricata: ${printer.name} (${printer.ip}:${printer.port})`);

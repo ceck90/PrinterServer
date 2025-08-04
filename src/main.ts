@@ -34,6 +34,8 @@ console.log("[MAIN] ✅ Inizializzazione del server...");
 const dbPath: string = process.env.DB_PATH || './db.sqlite';
 console.log("[MAIN] ✅ Percorso del database:", dbPath);
 const wsClientUrl: string = process.env.WS_CLIENT_URL || 'ws://10.10.1.12:8080';
+const wsReconnectAttempts: number = parseInt(process.env.WS_CLIENT_RECONNECT_ATTEMPTS || '-1', 10);
+const wsReconnectDelayMs: number = parseInt(process.env.WS_CLIENT_RECONNECT_DELAY_MS || '2000', 10);
 console.log("[MAIN] ✅ URL del client WebSocket:", wsClientUrl);
 
 // Inizializza la mappa delle stampanti
@@ -44,21 +46,16 @@ const dbController = DatabaseController.instance;
 // Inizializza il server HTTP
 const httpServerController = HttpServerController.instance;
 // Inizializza il client WebSocket
-const wsClientController = WSClientController.getInstance();
+const WSClientOptions = {
+    reconnectAttempts: wsReconnectAttempts, // Numero massimo di tentativi di riconnessione
+    reconnectDelayMs: wsReconnectDelayMs, // Millisecondi tra i tentativi di riconnessione
+    url: wsClientUrl // URL del server WebSocket
+};
+const wsClientController = WSClientController.getInstance(WSClientOptions);
 
-// printSpecificOrder(5);
+// Inizializza la mappa delle stampanti
+// savePrintersToDb();
 
-savePrintersToDb();
-
-// loadPrintersFromDb().then((loadedMap) => {
-//         // Object.assign(printerMap, loadedMap);
-//         console.log("[PRINT] Stampanti caricate dal database:", printerMap);
-//         }).catch(err => {
-//                 console.error("[PRINT] Errore durante il caricamento delle stampanti dal database:", err);
-//                 console.warn("[PRINT] Utilizzo della mappa stampanti predefinita.");
-//                 // Ritorna la mappa originale in caso di errore
-//         }
-// );
-
+loadPrintersFromDb();
 
 console.log("[MAIN] ✅ Server avviato con successo!");
