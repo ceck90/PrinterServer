@@ -6,10 +6,17 @@ import { existsSync } from "fs";
 const DB_FILE = "data/receipts.sqlite";
 const BACKUP_FILE = "data/receipts_backup.sqlite";
 
+/**
+ * Controller singleton per la gestione del database SQLite.
+ * Gestisce backup, integrità, CRUD per ticket e stampanti.
+ */
 export class DatabaseController {
     static #instance: DatabaseController;
     private db: Database;
 
+    /**
+     * Costruttore privato: inizializza il database e verifica integrità.
+     */
     private constructor() {
         this.db = new Database(DB_FILE);
         console.log("[DB] Database initialized with file:", DB_FILE);
@@ -21,15 +28,11 @@ export class DatabaseController {
             }
         }
         this.initializeDatabase();
-
-        // savePrintersToDb().then(() => {
-        //     console.log("[DB] Printers saved to database.");
-        // }).catch(err => {
-        //     console.error("[DB] Error saving printers to database:", err);
-        // });
     }
 
-
+    /**
+     * Ritorna l'istanza singleton del controller.
+     */
     public static get instance(): DatabaseController {
         if (!DatabaseController.#instance) {
             DatabaseController.#instance = new DatabaseController();
@@ -37,6 +40,10 @@ export class DatabaseController {
         return DatabaseController.#instance;
     }
 
+    /**
+     * Esegue il backup del database su un file specificato.
+     * @param backupPath Percorso del file di backup
+     */
     public backupDatabase(backupPath: string) {
         if (existsSync(backupPath)) {
             console.warn(`[DB] Backup file already exists at: ${backupPath}. Overwriting...`);
@@ -45,6 +52,10 @@ export class DatabaseController {
         console.log(`[DB] Database backup created at: ${backupPath}`);
     }
 
+    /**
+     * Esegue un controllo di integrità sul database.
+     * @returns true se il database è integro, false altrimenti
+     */
     public checkIntegrity(): boolean {
         const result = this.db.query(`PRAGMA integrity_check;`).get() as { integrity_check?: string } | undefined;
         if (result?.integrity_check === "ok") {
@@ -56,9 +67,13 @@ export class DatabaseController {
         }
     }
 
+    /**
+     * Inizializza lo schema del database (crea tabelle e indici se non esistono).
+     */
     private initializeDatabase() {
         console.log("[DB] Initializing database schema...");
 
+        // Tabella ricevute
         this.db.run(`
             CREATE TABLE IF NOT EXISTS receipts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -81,10 +96,12 @@ export class DatabaseController {
             );
         `);
 
+        // Indice per ricerca rapida su orderNumber
         this.db.run(`
             CREATE INDEX IF NOT EXISTS idx_receipts_orderNumber ON receipts (orderNumber);
         `);
 
+        // Tabella stampanti
         this.db.run(`
             CREATE TABLE IF NOT EXISTS printers (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,   
@@ -98,6 +115,7 @@ export class DatabaseController {
             );
         `);
 
+        // Tabella impostazioni generiche
         this.db.run(`
             CREATE TABLE IF NOT EXISTS settings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT  
@@ -107,6 +125,10 @@ export class DatabaseController {
         // savePrintersToDb();
     }
 
+    /**
+     * Restituisce tutte le stampanti configurate.
+     * @returns Array di stampanti dal DB
+     */
     public getPrinterSettings() {
         const result = this.db.query(
             `SELECT key as name, printerIp as ip, printerPort as port, printerDestinations as destination, active, description FROM printers`
@@ -114,12 +136,21 @@ export class DatabaseController {
         return Array.isArray(result) ? result : [];
     }
 
+    /**
+     * Restituisce le impostazioni di una stampante tramite la chiave.
+     * @param key Chiave univoca della stampante
+     * @returns Oggetto stampante o undefined
+     */
     public getPrinterSettingsByKey(key: string) {
         return this.db.query(
             `SELECT * FROM printers WHERE key = ?`
         ).get(key);
     }
 
+    /**
+     * Salva o aggiorna le impostazioni di una stampante.
+     * @param printer Oggetto con i dati della stampante
+     */
     public savePrinterSettings(printer: { key: string, printerName: string, printerIp: string, printerPort: number, printerDestinations: string, active: boolean, description: string }) {
         this.db.run(
             `INSERT INTO printers (key, printerName, printerIp, printerPort, printerDestinations, active, description)
@@ -145,18 +176,32 @@ export class DatabaseController {
         // console.log("[DB] Printer settings saved:", settings);
     }
 
+    /**
+     * Restituisce una stampante tramite la chiave (id).
+     * @param id Chiave della stampante
+     * @returns Oggetto stampante o undefined
+     */
     public getPrinterById(id: string) {
         return this.db.query(
             `SELECT * FROM printers WHERE key = ${id}`
         ).get();
     }
 
+    /**
+     * Restituisce una stampante tramite la destinazione.
+     * @param dest Nome destinazione
+     * @returns Oggetto stampante o undefined
+     */
     public getPrinterByDestination(dest: string) {
         return this.db.query(
             `SELECT * FROM printers WHERE printerDestinations LIKE ${dest}`
         ).get();
     }
 
+    /**
+     * Salva o aggiorna una ricevuta nel database.
+     * @param log Oggetto ReceiptLog con i dati della ricevuta
+     */
     public saveReceipt(log: ReceiptLog) {
         this.db.run(
             `INSERT INTO receipts (
@@ -196,6 +241,15 @@ export class DatabaseController {
         );
     }
 
+    /**
+     * Restituisce tutte le ricevute, con filtri opzionali.
+     * @param limit Numero massimo di risultati
+     * @param offset Offset per la paginazione
+     * @param printStatus Filtro per stato stampa
+     * @param startDate Data inizio filtro
+     * @param endDate Data fine filtro
+     * @returns Array di ReceiptLog
+     */
     public getAllReceipts(
         limit = 50,
         offset = 0,
@@ -247,19 +301,35 @@ export class DatabaseController {
         return this.db.query(query).all(...params) as ReceiptLog[];
     }
 
-
+    /**
+     * Restituisce tutte le ricevute stampate tra due date.
+     * @param startDate Data inizio
+     * @param endDate Data fine
+     * @param limit Numero massimo risultati
+     * @returns Array di ReceiptLog
+     */
     public getReceiptsByDate(startDate: Date, endDate: Date, limit = 50) {
         return this.db.query(
             `SELECT * FROM receipts WHERE printedAt BETWEEN ${startDate.toISOString()} AND ${endDate.toISOString()} ORDER BY printedAt DESC LIMIT ${limit}`
         ).all() as ReceiptLog[];
     }
 
+    /**
+     * Restituisce una ricevuta tramite ID.
+     * @param id ID della ricevuta
+     * @returns Oggetto ReceiptLog o undefined
+     */
     public getReceiptById(id: number) {
         return this.db.query(
             `SELECT * FROM receipts WHERE id = ?`
         ).get(id);
     }
 
+    /**
+     * Aggiorna lo stato di stampa di una ricevuta.
+     * @param id ID della ricevuta
+     * @param printStatus Nuovo stato stampa
+     */
     public async updateReceiptStatus(id: number, printStatus: string) {
         this.db.run(
             `UPDATE receipts SET printStatus = ?, printed = ? WHERE id = ?`,
@@ -267,6 +337,11 @@ export class DatabaseController {
         );
     }
 
+    /**
+     * Aggiorna lo stato di ristampa di una ricevuta.
+     * @param id ID della ricevuta
+     * @param printStatus Nuovo stato stampa
+     */
     public async updateReceiptReprint(id: number, printStatus: string) {
         this.db.run(
             `UPDATE receipts SET printStatus = ?, reprintedAt = ?, reprinted = ? WHERE id = ?`,
@@ -274,6 +349,10 @@ export class DatabaseController {
         );
     }
 
+    /**
+     * Elimina una ricevuta dal database.
+     * @param id ID della ricevuta
+     */
     public async deleteReceipt(id: string) {
         this.db.run(
             `DELETE FROM receipts WHERE id = ?`,

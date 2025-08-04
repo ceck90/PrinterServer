@@ -1,36 +1,49 @@
 import { DatabaseController } from './controllers/db.controller.ts';
 
-// Tipo stampante
+/**
+ * Tipo che rappresenta la configurazione di una stampante.
+ */
 export type PrinterConfig = {
-    key: string;
-    name: string;
-    ip: string;
-    port: number;
-    destination: string;
-    active: boolean;
-    description?: string;
+    key: string;           // Chiave univoca della stampante
+    name: string;          // Nome descrittivo (usato come riferimento logico)
+    ip: string;            // Indirizzo IP della stampante
+    port: number;          // Porta TCP della stampante (tipicamente 9100)
+    destination: string;   // Destinazione logica (es: "CUCINA", "BAR", ecc.)
+    active: boolean;       // Se la stampante è attiva o meno
+    description?: string;  // Descrizione opzionale
 };
 
-// Array popolato dal DB
+/**
+ * Array globale che contiene tutte le stampanti caricate dal database.
+ * Questo array viene popolato all'avvio tramite loadPrintersFromDb()
+ * e usato in tutto il sistema per routing e stampa.
+ */
 export let printers: PrinterConfig[] = [];
 
-// Mappa legacy SOLO per seed iniziale
+/**
+ * Mappa di configurazione stampanti usata SOLO per il seed iniziale del database.
+ * Le chiavi sono i nomi logici delle stampanti.
+ * Questo oggetto NON viene usato a runtime, ma solo se la tabella printers è vuota.
+ */
 const printerMapSeed: Record<string, Omit<PrinterConfig, "name">> = {
-    "PIADINE": { key: "piadine", ip: "10.10.1.95", port: 9100, destination: "PIADINE", active: true, description: "" },
-    "FORNO": { key: "forno", ip: "10.10.1.95", port: 9100, destination: "FORNO", active: true, description: "" },
-    "PANINI": { key: "panini", ip: "10.10.1.95", port: 9100, destination: "PANINI", active: true, description: "" },
-    "TOAST": { key: "toast", ip: "10.10.1.95", port: 9100, destination: "TOAST", active: true, description: "" },
-    "PIATTI UNICI": { key: "piattiunici", ip: "10.10.1.95", port: 9100, destination: "PIATTI UNICI", active: true, description: "" }
+    "PIADINE":     { key: "piadine",     ip: "10.10.1.95", port: 9100, destination: "PIADINE",     active: true, description: "" },
+    "FORNO":       { key: "forno",       ip: "10.10.1.95", port: 9100, destination: "FORNO",       active: true, description: "" },
+    "PANINI":      { key: "panini",      ip: "10.10.1.95", port: 9100, destination: "PANINI",      active: true, description: "" },
+    "TOAST":       { key: "toast",       ip: "10.10.1.95", port: 9100, destination: "TOAST",       active: true, description: "" },
+    "PIATTI UNICI":{ key: "piattiunici", ip: "10.10.1.95", port: 9100, destination: "PIATTI UNICI",active: true, description: "" }
 };
 
-// Popola la tabella printers se vuota
+/**
+ * Popola la tabella printers nel database se è vuota, usando la mappa seed.
+ * Da chiamare una sola volta all'avvio, prima di caricare le stampanti dal DB.
+ */
 export function seedPrintersIfDbEmpty() {
     const existing = DatabaseController.instance.getPrinterSettings();
     if (!existing || existing.length === 0) {
         for (const [name, config] of Object.entries(printerMapSeed)) {
             DatabaseController.instance.savePrinterSettings({
                 key: config.key,
-                printerName: name,
+                printerName: name, // nome logico come chiave primaria
                 printerIp: config.ip,
                 printerPort: config.port,
                 printerDestinations: config.destination,
@@ -42,11 +55,15 @@ export function seedPrintersIfDbEmpty() {
     }
 }
 
-// Carica le stampanti dal DB nell'array printers
+/**
+ * Carica tutte le stampanti dal database e aggiorna l'array globale printers.
+ * Da chiamare dopo il seed e ogni volta che si aggiornano le stampanti.
+ * Ogni stampante viene loggata in console.
+ */
 export function loadPrintersFromDb() {
     const dbPrinters = DatabaseController.instance.getPrinterSettings() as Array<any> || [];
     printers = dbPrinters.map(printer => ({
-        key: printer.name,
+        key: printer.name, // 'name' corrisponde a 'key' nel DB
         name: printer.name,
         ip: printer.ip,
         port: printer.port,

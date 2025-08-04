@@ -6,21 +6,29 @@ import { printers } from "./print-routing.config";
 import type { PrinterConfig } from "./print-routing.config";
 import { DatabaseController } from "./controllers/db.controller";
 
+/**
+ * Gestisce i dati in ingresso dal WebSocket o da altre fonti.
+ * Filtra solo i messaggi di tipo PKMI_UPDATE e costruisce l'oggetto ordine.
+ */
 export async function handleIncomingData(data: any) {
     console.log("[DISPATCHER] Dati ricevuti:", data);
 
+    // Ignora tipi di messaggio non gestiti
     if (data.type != "PKMI_UPDATE") {
         console.warn("[DISPATCHER] Tipo di dato non gestito:", data.type);
         return;
     }
 
+    // Controlla la presenza dei dati minimi necessari
     if (!data || !data.plateKitchenMenuItem || !data.plateKitchenMenuItem.menuItem) {
         return;
     }
 
+    // Gestione degli stati dell'ordine
     switch (data.plateKitchenMenuItem.status) {
         case "TODO":
         case "PROGRESS":
+            // Se manca la destinazione, ignora l'ordine
             if (data.plateKitchenMenuItem.plate == null) {
                 console.warn("[DISPATCHER] Ordine in lavorazione senza destinazione:", data.plateKitchenMenuItem);
                 return;
@@ -28,10 +36,12 @@ export async function handleIncomingData(data: any) {
             break;
         case "DONE":
         case "CANCELLED":
+            // Logga gli ordini completati o cancellati e ignora
             console.log(`[DISPATCHER] Ordine cancellato: ${data.plateKitchenMenuItem.orderNumber} - ${data.plateKitchenMenuItem.plate.name}/${data.plateKitchenMenuItem.menuItem.name}`);
             return;
     }
 
+    // Costruisce l'oggetto ordine da processare
     const order: OrderPayload = {
         id: data.plateKitchenMenuItem.id,
         orderId: data.plateKitchenMenuItem.id,
@@ -51,20 +61,30 @@ export async function handleIncomingData(data: any) {
         }],
     };
 
+    // Passa l'ordine alla funzione di gestione principale
     await handleIncomingOrder(order);
 }
 
+/**
+ * Gestisce la logica di stampa e salvataggio per ogni ordine ricevuto.
+ * Raggruppa gli item per destinazione e invia i dati alla stampante corretta.
+ */
 export async function handleIncomingOrder(order: OrderPayload) {
     console.log("[DISPATCHER] Gestione ordine:", order);
+
+    // Raggruppa gli item per destinazione (es: CUCINA, BAR, ecc.)
     const grouped = groupBy(order.items, i => i.dest);
+
+    // Cicla su ogni gruppo/destinazione
     for (const [dest, items] of Object.entries(grouped)) {
-        // Cerca la stampante nell'array
+        // Cerca la stampante nell'array globale printers
         const printer = printers.find(p => p.destination === dest || p.name === dest);
         if (!printer) {
             console.warn(`Nessuna stampante configurata per la destinazione: ${dest}`);
             continue;
         }
 
+        // Gestisce solo stati specifici
         if (order.status == "TODO" || order.status == "DONE") {
             console.warn(`[DISPATCHER] Ordine ${order.id} con stato ${order.status} non gestito per la destinazione: ${dest}`);
             continue;
@@ -73,12 +93,16 @@ export async function handleIncomingOrder(order: OrderPayload) {
         console.log(`[DISPATCHER] Gestione ordine: ${order.id} con stato: ${order.status} su ${dest}`);
 
         try {
+            // Costruisce il buffer di stampa (es. ESC/POS)
             const buffer = await buildKitchenReceipt(order, dest, items);
+
+            // Se la stampante è attiva, invia i dati
             if (printer.active) {
                 console.log(`[DISPATCHER] Stampa ordine ${order.id} a ${printer.destination} (${printer.ip}:${printer.port})`);
                 await sendToPrinter(printer.destination, printer.ip, printer.port, buffer);
             }
 
+            // Salva la ricevuta nel database (stato PRINTED o FAILED)
             DatabaseController.instance.saveReceipt({
                 id: order.id,
                 orderId: order.orderId,
@@ -97,6 +121,7 @@ export async function handleIncomingOrder(order: OrderPayload) {
                 takeAway: order.items[0].takeAway
             });
         } catch (err) {
+            // In caso di errore di stampa, salva comunque la ricevuta come FAILED
             console.error(`Errore stampando ${dest}:`, err);
             DatabaseController.instance.saveReceipt({
                 id: order.id,
@@ -119,6 +144,10 @@ export async function handleIncomingOrder(order: OrderPayload) {
     }
 }
 
+/**
+ * Ristampa una ricevuta specifica dato il numero d'ordine.
+ * Cerca la ricevuta e la stampante, invia i dati e aggiorna lo stato nel DB.
+ */
 export async function printSpecificOrder(orderNumber: number) {
     const receipt = await DatabaseController.instance.getReceiptById(orderNumber) as { id: number, printData: Buffer, destination: string } | null;
     if (!receipt) {
@@ -146,6 +175,10 @@ export async function printSpecificOrder(orderNumber: number) {
     }
 }
 
+/**
+ * Aggiorna lo stato di stampa di una ricevuta dato il numero d'ordine.
+ * Utile per segnare come PRINTED o FAILED dopo una ristampa.
+ */
 export async function handleOrderStatusUpdate(orderNumber: number, status: "PRINTED" | "FAILED") {
     console.log(`[DISPATCHER] Aggiornamento stato ordine ${orderNumber} a ${status}`);
     const receipt = await DatabaseController.instance.getReceiptById(orderNumber) as { id: number } | null;
@@ -156,15 +189,25 @@ export async function handleOrderStatusUpdate(orderNumber: number, status: "PRIN
     }
 }
 
+/**
+ * Elimina una ricevuta dal database dato il suo ID.
+ */
 export async function handleReceiptDeletion(receiptId: string) {
     console.log(`[DISPATCHER] Eliminazione ricevuta ${receiptId}`);
     await DatabaseController.instance.deleteReceipt(receiptId);
 }
 
+/**
+ * Aggiorna le impostazioni di una stampante nel database.
+ */
 export async function handlePrinterSettingsUpdate(settings: { key: string, printerName: string, printerIp: string, printerPort: number, printerDestinations: string, active: boolean, description: string }) {
     console.log(`[DISPATCHER] Aggiornamento impostazioni stampante ${settings.key}`);
     await DatabaseController.instance.savePrinterSettings(settings);
 }
+
+/**
+ * Recupera le impostazioni di una stampante tramite la sua chiave.
+ */
 export async function handlePrinterSettingsRetrieval(key: string) {
     console.log(`[DISPATCHER] Recupero impostazioni stampante per ${key}`);
     return DatabaseController.instance.getPrinterSettingsByKey(key);
