@@ -44,12 +44,12 @@
             <div class="container-fluid flex-grow-1 overflow-y-auto mh-100 py-1">
                 <div class="card text-auto bg-auto border-0 shadow-lg rounded-4 mb-3" style="backdrop-filter: blur(6px);">
                     <div class="card-header d-flex justify-content-between">
-                        <h5 class="mb-0" data-i18n="ticket.title"></h5>
-                        <small class="text-muted" id="ticket-count">0</small>
-                    </div>
-                    <div class="card-body">
                         <div class="d-flex justify-content-between">
-                            <div class="input-group mb-3" style="max-width: 350px;">
+                            <h5 class="" data-i18n="tickets.title"></h5>
+                            <h5 class="text-muted ms-2" id="ticket-count">0</h5>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <div class="input-group me-3" style="max-width: 350px;">
                                 <input type="text" id="table-search" class="form-control" placeholder="Cerca..." />
                                 <button class="btn btn-outline-secondary" type="button" id="btn-search">
                                     <i class="bi bi-search"></i>
@@ -58,11 +58,13 @@
                                     <i class="bi bi-x-circle"></i>
                                 </button>
                             </div>
-                            <div class="input-group mb-3" style="max-width: 350px;">
+                            <div class="input-group" style="max-width: 350px;">
                                 <input type="text" id="date-range" class="form-control" placeholder="Filtro Date" />
                                 <span class="input-group-text"><i class="bi bi-calendar-range" type="button" id="btn-date-range"></i></span>
                             </div>
                         </div>
+                    </div>
+                    <div class="card-body">
                         <table class="table table-hover  mb-0" id="ticket-list">
                             <thead>
                                 <tr>

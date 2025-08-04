@@ -51,14 +51,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     });
 
-    const input = document.getElementById('table-search');
+    const search_text = document.getElementById('table-search');
     const btnSearch = document.getElementById('btn-search');
     const btnClear = document.getElementById('btn-clear');
     var tableRows = document.querySelectorAll('#ticket-list-body tr');
 
     btnSearch.addEventListener('click', () => {
         // console.log("Search button clicked");
-        const query = input.value.trim().toLowerCase();
+        const query = search_text.value.trim().toLowerCase();
         // console.log("Search query:", query);
         // console.log("Total rows:", tableRows.length);
         tableRows.forEach(row => {
@@ -69,11 +69,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     btnClear.addEventListener('click', () => {
-        input.value = '';
+        search_text.value = '';
         tableRows.forEach(row => (row.style.display = ''));
     });
 
-    
+    search_text.addEventListener('keyup', (e) => {
+        if (e.key === 'Enter') {
+            btnSearch.click();
+        } else if (e.key === 'Escape') {
+            search_text.value = '';
+            tableRows.forEach(row => (row.style.display = ''));
+        }
+    });
+
     const themeItems = document.querySelectorAll('.theme-item');
 
     themeItems.forEach(item => {
@@ -399,41 +407,35 @@ document.addEventListener("DOMContentLoaded", async () => {
                         `;
                         if( ticket.printStatus === "PRINTED" ){
                             row.innerHTML += `<td>
-                                <div class="d-flex justify-content-center">
-                                    <button class="btn btn-success bi bi-printer" id="print-btn-${ticket.id}"></button>
-                                </div>
+                                <button class="btn btn-success bi bi-printer" id="print-btn-${ticket.id}"></button>
                             </td>`;
                             // row.innerHTML += `<td class="text-center"><span class="badge bg-${ticket.printed ? 'success' : 'secondary'}">${ticket.printed ? translate('ticket.printed') : translate('ticket.notPrinted')}</span></td>`;
                         }
                         else {
                             if(ticket.printed || ticket.reprinted){
                                 row.innerHTML += `<td>
-                                    <div class="d-flex justify-content-center">
-                                        <button class="btn btn-warning bi bi-printer" id="print-btn-${ticket.id}"></button>
-                                    </div>
+                                    <button class="btn btn-warning bi bi-printer" id="print-btn-${ticket.id}"></button>
                                 </td>`;
                             }
                             else {
                                 row.innerHTML += `<td>
-                                    <div class="d-flex justify-content-center">
-                                        <button class="btn btn-danger bi bi-printer" id="print-btn-${ticket.id}"></button>
-                                    </div>
+                                    <button class="btn btn-danger bi bi-printer" id="print-btn-${ticket.id}"></button>
                                 </td>`;
                                 row.classList.add('table-danger');
                             }
                             // row.innerHTML += `<td class="text-center"><span class="badge bg-secondary">${translate('ticket.notPrinted')}</span></td>`;
                         }
                         if(ticket.takeAway) {
-                            row.innerHTML += `<td>
-                            <div class="align-middle text-center">
+                            row.innerHTML += `
+                            <td>
                                 <span class="badge bg-warning">${translate('ticket.take_away')}</span>
-                            </div></td>`;
+                            </td>`;
                         }
                         else {
-                            row.innerHTML += `<td>
-                            <div class="align-middle text-center" style="height: 100%;">
+                            row.innerHTML += `
+                            <td>                            
                                 <span class="badge bg-secondary">${translate('ticket.dine_in')}</span>
-                            </div></td>`;
+                            </td>`;
                         }
 
                         ticketList.appendChild(row);
