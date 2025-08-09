@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="title-setup"></title>
+    <link href="assets/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+    <link href="assets/bootstrap/css/bootstrap-icons.min.css" rel="stylesheet">
+    <script src="assets/bootstrap/js/bootstrap.min.js"></script>
+    <script src="assets/bootstrap/js/popper.min.js"></script>
+    <link href="assets/css/styles.css" rel="stylesheet">
+    <link rel="icon" href="assets/img/favicon/favicon.ico" type="image/x-icon">
+</head>
+
+<body>
+    <!-- TOP Header -->
+    <div class="container-fluid d-flex justify-content-between align-middle p-3 bg-auto text-auto">
+        <b><label class="text-auto" id="device-hostname"></label></b>
+        <span class="bi bi-circle-half icon-theme fs-4 theme-item" type="button" alt="Theme"></span>
+    </div>
+    <!-- Printer Card -->
+    <div class="container py-2">
+        <div class="card text-auto bg-auto border-0 shadow-lg rounded-4 mb-3" style="backdrop-filter: blur(6px);">
+            <div class="card-header d-flex justify-content-between">
+                <h5 class="mb-0" data-i18n="printers"></h5>
+                <span class="button bi bi-arrow-clockwise fs-5 cursor-pointer update-button" type="button"></span>
+            </div>
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-2">
+                    <span class="bi bi-printer fs-1 me-3 text-info" id="printer-icon"></span>
+                    <!-- <div>
+                        <span id="printer-status" class="badge bg-secondary" data-i18n="connecting"></span>
+                    </div> -->
+                    <div class="ms-auto">
+                        <span id="pulse-dot" class="pulse-dot"></span>
+                    </div>
+                </div>
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th scope="col" data-i18n="printerName"></th>
+                            <th scope="col" data-i18n="printerIp"></th>
+                            <th scope="col" data-i18n="printerPort"></th>
+                            <th scope="col" data-i18n="printerDestination"></th>
+                            <th scope="col" data-i18n="printerActive"></th>
+                            <th scope="col" data-i18n="printerDescription"></th>
+                            <th scope="col" data-i18n="printerActions"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="printers-table-body">
+                        <!-- Le righe verranno popolate dinamicamente via JS -->
+                    </tbody>
+                </table>
+                <div class="d-flex justify-content-between mt-3">
+                    <button class="btn btn-success mt-3" id="add-printer-btn" type="button" data-i18n="printerAdd"></button>
+                    <button class="btn btn-primary mt-3" id="save-printers-btn" type="button" data-i18n="save"></button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Utility Card -->
+    <!-- <div class="container py-2">
+        <div class="card text-auto bg-auto border-0 shadow-lg rounded-4 mb-3" style="backdrop-filter: blur(6px);">
+            <div class="card-header d-flex justify-content-between">
+                <h5 class="mb-0" data-i18n="utility"></h5>
+                <span class="button bi bi-arrow-clockwise fs-5 update-button" type="button"></span>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="mb-1 me-4" for="apiRestartButton" data-i18n="apiRestart"></label>
+                    <button class="btn btn-primary bi bi-arrow-clockwise" id="apiRestartButton"></button>
+                </div>
+            </div>
+        </div>
+    </div> -->
+</body>
+<!-- <script src="assets/js/i18n.js" type="module"></script> -->
+<script src="assets/js/settings.js" type="module"></script>
+
+</html>

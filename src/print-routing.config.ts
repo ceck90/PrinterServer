@@ -72,6 +72,6 @@ export function loadPrintersFromDb() {
         description: printer.description ?? ""
     }));
     for (const printer of printers) {
-        console.log(`[PRINT] Stampante caricata: ${printer.name} (${printer.ip}:${printer.port})`);
+        console.log(`[PRINT] Stampante caricata: ${printer.name} (${printer.ip}:${printer.port} --> ${printer.destination}) - ${printer.active ? 'Attiva' : 'Inattiva'}`);
     }
 }

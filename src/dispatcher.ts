@@ -54,7 +54,7 @@ export async function handleIncomingData(data: any) {
         return;
     }
 
-    console.log(`[DISPATCHER] Ricevuto PKMI_UPDATE per ordine ${data.plateKitchenMenuItem.orderNumber} - ${data.plateKitchenMenuItem.plate.name}/${data.plateKitchenMenuItem.menuItem.name}`);
+    // console.log(`[DISPATCHER] Ricevuto PKMI_UPDATE per ordine ${data.plateKitchenMenuItem.orderNumber} - ${data.plateKitchenMenuItem.plate.name}/${data.plateKitchenMenuItem.menuItem.name}`);
 
     // Gestione degli stati dell'ordine
     switch (data.plateKitchenMenuItem.status) {
@@ -67,6 +67,8 @@ export async function handleIncomingData(data: any) {
             }
             break;
         case "DONE":
+            console.log(`[DISPATCHER] Ordine completato: ${data.plateKitchenMenuItem.orderNumber} - ${data.plateKitchenMenuItem.plate.name}/${data.plateKitchenMenuItem.menuItem.name}`);
+            return;
         case "CANCELLED":
             // Logga gli ordini completati o cancellati e ignora
             console.log(`[DISPATCHER] Ordine cancellato: ${data.plateKitchenMenuItem.orderNumber} - ${data.plateKitchenMenuItem.plate.name}/${data.plateKitchenMenuItem.menuItem.name}`);

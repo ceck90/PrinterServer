@@ -36,6 +36,16 @@ export class HttpServerController {
                 return new Response("File status.html Not found", { status: 404 });
             }
         });
+        
+        // Route per la pagina di stato
+        this.app.get("/settings", () => {
+            try {
+                const html = readFileSync(join(import.meta.dir, "../www/settings.html"), "utf8");
+                return new Response(html, { headers: { "Content-Type": "text/html" } });
+            } catch (err) {
+                return new Response("File settings.html Not found", { status: 404 });
+            }
+        });
 
         // Route per servire asset statici (js, css, immagini, ecc.)
         this.app.get("/assets/*", ({ request }) => {
@@ -117,6 +127,73 @@ export class HttpServerController {
             console.log("[API] Ristampa ticket @ ID:", params.id);
             printSpecificOrder(parseInt(params.id));
         });
+
+        this.app.get("/api/printers/getAll", async () => {
+            try {
+                const printers = await DatabaseController.instance.getPrinterSettings();
+                return new Response(JSON.stringify(printers), { headers: { "Content-Type": "application/json" } });
+            } catch (err) {
+                console.error("[API] Error fetching printers:", err);
+                return new Response("Internal Server Error", { status: 500 });
+            }
+        });
+
+        this.app.get("/api/printers/delete/:key", async ({ params }) => {
+            try {
+                const key = params.key;
+                if (!key) {
+                    return new Response("Printer key is required", { status: 400 });
+                }
+                await DatabaseController.instance.deletePrinter(key);
+                return new Response("Printer deleted successfully", { status: 200 });
+            } catch (err) {
+                console.error("[API] Error deleting printer:", err);
+                return new Response("Internal Server Error", { status: 500 });
+            }
+        });
+
+        this.app.post("/api/printers/update", async ({ request }) => {
+            try {
+                const data = await request.json();
+                if (!data || !data.key || !data.printerName || !data.printerIp || !data.printerPort) {
+                    return new Response("Invalid printer data", { status: 400 });
+                }
+                await DatabaseController.instance.updatePrinterSettings({
+                    key: data.key,
+                    printerName: data.printerName,
+                    printerIp: data.printerIp,
+                    printerPort: data.printerPort,
+                    printerDestinations: data.printerDestinations || "",
+                    active: data.active || false,
+                    description: data.description || ""
+                });
+                return new Response("Printer saved successfully", { status: 200 });
+            } catch (err) {
+                console.error("[API] Error saving printer:", err);
+                return new Response("Internal Server Error", { status: 500 });
+            }
+        });
+
+        this.app.post("/api/printers/add", async ({ request }) => {
+            try {
+                const data = await request.json();
+                if (!data || !data.printerName || !data.printerIp || !data.printerPort) {
+                    return new Response("Invalid printer data", { status: 400 });
+                }
+                await DatabaseController.instance.addPrinterSettings({
+                    printerName: data.printerName,
+                    printerIp: data.printerIp,
+                    printerPort: data.printerPort,
+                    printerDestinations: data.printerDestinations || "",
+                    active: data.active || false,
+                    description: data.description || ""
+                });
+                return new Response("Printer added successfully", { status: 200 });
+            } catch (err) {
+                console.error("[API] Error adding printer:", err);
+                return new Response("Internal Server Error", { status: 500 });
+            }
+        }); 
 
         // Avvia il server HTTP sulla porta 4000
         this.app.listen(4000);
