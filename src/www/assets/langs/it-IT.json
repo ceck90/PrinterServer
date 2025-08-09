@@ -41,7 +41,7 @@
     "printerName": "Nome",
     "printerIp": "Indirizzo IP",
     "printerPort": "Porta",
-    "printerDestination": "Destinazione",
+    "printerDestination": "Nome Piastra",
     "printerActive": "Attiva",
     "printerDescription": "Descrizione",
     "printerStatus": "Stato",
