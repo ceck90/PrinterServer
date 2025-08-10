@@ -140,7 +140,7 @@ export class HttpServerController {
             }
         });
 
-        this.app.get("/api/printers/delete/:key", async ({ params }) => {
+        this.app.post("/api/printers/delete/:key", async ({ params }) => {
             try {
                 const key = params.key;
                 if (!key) {
@@ -201,6 +201,37 @@ export class HttpServerController {
                 return new Response("Internal Server Error", { status: 500 });
             }
         }); 
+
+        this.app.post("/api/printers/saveAll", async ({ request }) => {
+            try {   
+                const data = await request.json();
+                if (!Array.isArray(data) || data.length === 0) {
+                    return new Response("Invalid printer data", { status: 400 });
+                }
+                // console.log("[API] Saving all printers", data);
+                for (const printer of data) {
+                    if (!printer.key || !printer.name || !printer.ip || !printer.port) {
+                        console.error("[API] Invalid printer data:", printer);
+                        return new Response("Invalid printer data", { status: 400 });
+                    }
+                    await DatabaseController.instance.savePrinterSettings({
+                        key: printer.key,
+                        printerName: printer.name,
+                        printerIp: printer.ip,
+                        printerPort: printer.port,
+                        printerDestinations: printer.destination || "",
+                        active: printer.active || false,
+                        description: printer.description || ""
+                    });
+                    console.log("[API] Printer saved:", printer.name);
+                }
+                loadPrintersFromDb(); // Ricarica le stampanti dopo il salvataggio
+                return new Response("All printers saved successfully", { status: 200 });
+            } catch (err) {
+                console.error("[API] Error saving all printers:", err);
+                return new Response("Internal Server Error", { status: 500 });
+            }
+        });
 
         // Avvia il server HTTP sulla porta 4000
         this.app.listen(4000);
