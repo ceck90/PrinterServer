@@ -131,7 +131,7 @@ export class DatabaseController {
      */
     public getPrinterSettings() {
         const result = this.db.query(
-            `SELECT key as name, printerIp as ip, printerPort as port, printerDestinations as destination, active, description FROM printers`
+            `SELECT key as key, printerName as name, printerIp as ip, printerPort as port, printerDestinations as destination, active, description FROM printers`
         ).all();
         return Array.isArray(result) ? result : [];
     }

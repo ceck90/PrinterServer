@@ -1,3 +1,4 @@
+
 import { translate, updateTranslate, initI18n, getLanguageFromLocalStorage } from './i18n.js';
 import { getThemeFromLocalStorage, setThemeInLocalStorage } from './theme.js';
 
@@ -24,7 +25,6 @@ let lang = "en-US"; // Default language
 
 document.addEventListener("DOMContentLoaded", async () => {
 
-    
     const themeItems = document.querySelectorAll('.theme-item');
 
     themeItems.forEach(item => {
@@ -79,7 +79,6 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
         });
     }
-
     
     const fetchPrinters = async () => {
         try {
@@ -95,6 +94,110 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     };
 
+    const addPrinter = async (printer) => {
+        try {
+            const response = await fetch('/api/printers/add', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(printer)
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const result = await response.json();
+            console.log("Add printer result:", result);
+            if (result.success) {
+                alert(translate('Printer added successfully'));
+                await fillPrinterTable(); // Refresh the table after adding
+            } else {
+                alert(translate('Error adding printer: ') + result.message);
+            }
+        } catch (error) {
+            console.error("Error adding printer:", error);
+            alert(translate('Error adding printer: ') + error.message);
+        }
+    };
+
+    const deletePrinter = async (prinetKey) => {
+        try {
+            const response = await fetch(`/api/printers/delete/${prinetKey}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            console.log("Delete printer result:", response);
+            if (response) {
+                alert(translate('Printer deleted successfully'));
+                await fillPrinterTable(); // Refresh the table after deletion
+            } else {
+                alert(translate('Error deleting printer: ') + response);
+            }
+        } catch (error) {
+            console.error("Error deleting printer:", error);
+            alert(translate('Error deleting printer: ') + error.message);
+        }
+    };
+
+    const saveAllPrinters = async () => {
+        const printerTableBody = document.getElementById('printers-table-body');
+        if (!printerTableBody) {
+            console.error("Printer table body not found");
+            return;
+        }
+        const printers = [];
+        const rows = printerTableBody.querySelectorAll('tr');
+        rows.forEach(row => {
+            const key = row.querySelector('input[id^="printer-key-"]');
+            const nameInput = row.querySelector('input[id^="printer-name-"]');
+            const ipInput = row.querySelector('input[id^="printer-ip-"]');
+            const portInput = row.querySelector('input[id^="printer-port-"]');
+            const destinationInput = row.querySelector('input[id^="printer-destination-"]');
+            const activeCheckbox = row.querySelector('input[id^="printer-active-"]');
+            const descriptionInput = row.querySelector('input[id^="printer-description-"]');
+            if (nameInput && ipInput && portInput && destinationInput && activeCheckbox && descriptionInput) {
+                const printer = {
+                    key: key.value.trim(),
+                    name: nameInput.value.trim(),
+                    ip: ipInput.value.trim(),
+                    port: parseInt(portInput.value.trim(), 10),
+                    destination: destinationInput.value.trim(),
+                    active: activeCheckbox.checked,
+                    description: descriptionInput.value.trim()
+                };
+                printers.push(printer);
+            }
+        });
+        try {
+            const response = await fetch('/api/printers/saveAll', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(printers)
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            console.log("Save result:", response);
+            if (response) {
+                alert(translate('Printers saved successfully'));
+                await fillPrinterTable(); // Refresh the table after saving
+            } else {
+                alert(translate('Error saving printers: ') + response);
+            }
+        } catch (error) {
+            console.error("Error saving printers:", error);
+            alert(translate('Error saving printers: ') + error.message);
+        }
+    };
+
     const fillPrinterTable = async () => {
         const printerTableBody = document.getElementById('printers-table-body');
         if (!printerTableBody) {
@@ -106,56 +209,43 @@ document.addEventListener("DOMContentLoaded", async () => {
         printers.forEach(printer => {
             const row = document.createElement('tr');
             row.innerHTML = `
-                <td><input type="text" class="form-control" id="printer-name-${printer.name}" value="${printer.name}"></td>
-                <td><input type="text" class="form-control" id="printer-ip-${printer.name}" value="${printer.ip}"></td>
-                <td><input type="number" class="form-control" id="printer-port-${printer.name}" value="${printer.port}"></td>
-                <td><input type="text" class="form-control" id="printer-destination-${printer.name}" value="${printer.destination}"></td>
+                <td><input type="text" class="form-control" id="printer-key-${printer.key}" value="${printer.key}"></td>
+                <td><input type="text" class="form-control" id="printer-name-${printer.key}" value="${printer.name}"></td>
+                <td><input type="text" class="form-control" id="printer-ip-${printer.key}" value="${printer.ip}"></td>
+                <td><input type="number" class="form-control" id="printer-port-${printer.key}" value="${printer.port}"></td>
+                <td><input type="text" class="form-control" id="printer-destination-${printer.key}" value="${printer.destination}"></td>
                 <td>
-                    <input type="checkbox" class="form-check-input printer-active-checkbox" id="printer-active-${printer.name}" ${printer.active ? 'checked' : ''}>
+                    <input type="checkbox" class="form-check-input printer-active-checkbox" id="printer-active-${printer.key}" ${printer.active ? 'checked' : ''}>
                 </td>
-                <td><input type="text" class="form-control" id="printer-description-${printer.name}" value="${printer.description}"></td>
+                <td><input type="text" class="form-control" id="printer-description-${printer.key}" value="${printer.description}"></td>
                 <td>
-                    <button class="btn btn-danger btn-sm btn-delete" id="btn-delete-${printer.name}" data-printer="${printer.name}" title="Delete">
+                    <button class="btn btn-danger btn-sm btn-delete" id="btn-delete-${printer.key}" data-printer="${printer.key}" title="Delete">
                         <i class="bi bi-trash"></i>
                     </button>
                 </td>
             `;
-
-            // Make cells editable except for the action buttons
-            const cells = row.querySelectorAll('td');
-            // name, ip, port, destination, active, description
-            // cells[0] = name, cells[1] = ip, cells[2] = port, cells[3] = destination, cells[4] = active, cells[5] = description
-
-            // Make editable except for action buttons (cells[6])
-            [0, 1, 2, 3, 5].forEach(idx => {
-                cells[idx].setAttribute('contenteditable', 'true');
-            });
-
-            // Replace 'active' cell with a checkbox
-            const activeCell = cells[4];
-            activeCell.innerHTML = `
-                <input type="checkbox" class="form-check-input printer-active-checkbox" ${printer.active ? 'checked' : ''}>
-            `;
             printerTableBody.appendChild(row);
         });
+        await addTableEventListeners(); // Re-add event listeners for new rows
     };
 
     const addEventListeners = async () => {
         const addPrinterBtn = document.getElementById('add-printer-btn');
         if (addPrinterBtn) {
             addPrinterBtn.addEventListener('click', async () => {
-                const newPrinterName = prompt("Enter printer name:");
-                if (newPrinterName) {
+                const newPrinterKey = prompt("Enter printer key:");
+                if (newPrinterKey) {
                     const newRow = document.createElement('tr');
                     newRow.innerHTML = `
-                        <td><input type="text" class="form-control" id="printer-name-${newPrinterName}" value="${newPrinterName}"></td>
-                        <td><input type="text" class="form-control" id="printer-ip-${newPrinterName}" value=""></td>
-                        <td><input type="number" class="form-control" id="printer-port-${newPrinterName}" value=""></td>
-                        <td><input type="text" class="form-control" id="printer-destination-${newPrinterName}" value=""></td>
-                        <td><input type="checkbox" class="form-check-input printer-active-checkbox" id="printer-active-${newPrinterName}"></td>
-                        <td><input type="text" class="form-control" id="printer-description-${newPrinterName}" value=""></td>
+                        <td><input type="text" class="form-control" id="printer-key-${newPrinterKey}" value="${newPrinterKey}"></td>
+                        <td><input type="text" class="form-control" id="printer-name-${newPrinterKey}" value="${newPrinterKey.toUpperCase()}"></td>
+                        <td><input type="text" class="form-control" id="printer-ip-${newPrinterKey}" value=""></td>
+                        <td><input type="number" class="form-control" id="printer-port-${newPrinterKey}" value="9100"></td>
+                        <td><input type="text" class="form-control" id="printer-destination-${newPrinterKey}" value="${newPrinterKey.toUpperCase()}"></td>
+                        <td><input type="checkbox" class="form-check-input printer-active-checkbox" id="printer-active-${newPrinterKey}"></td>
+                        <td><input type="text" class="form-control" id="printer-description-${newPrinterKey}" value=""></td>
                         <td>
-                            <button class="btn btn-danger btn-sm btn-delete" id="btn-delete-${newPrinterName}" data-printer="${newPrinterName}" title="Delete">
+                            <button class="btn btn-danger btn-sm btn-delete" id="btn-delete-${newPrinterKey}" data-printer="${newPrinterKey}" title="Delete">
                                 <i class="bi bi-trash"></i>
                             </button> 
                         </td>
@@ -168,9 +258,9 @@ document.addEventListener("DOMContentLoaded", async () => {
                     const deleteButton = newRow.querySelector('.btn-delete');
                     if (deleteButton) {
                         deleteButton.addEventListener('click', async () => {
-                            const printerName = deleteButton.dataset.printer;
-                            if (printerName) {
-                                await deletePrinter(printerName);
+                            const printerKey = deleteButton.dataset.printer;
+                            if (printerKey) {
+                                await deletePrinter(printerKey);
                             }
                         });
                     }
@@ -181,10 +271,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         const deleteButtons = document.querySelectorAll('.btn-delete');
         deleteButtons.forEach(button => {
             button.addEventListener('click', async () => {
-                const printerName = button.dataset.printer;
-                if (printerName) {
-                    console.log("Deleting printer:", printerName);
-                    await deletePrinter(printerName);
+                const printerKey = button.dataset.printer;
+                if (printerKey) {
+                    console.log("Deleting printer:", printerKey);
+                    await deletePrinter(printerKey);
                 }
             });
         });
@@ -193,6 +283,19 @@ document.addEventListener("DOMContentLoaded", async () => {
         saveButtons.forEach(button => {
             button.addEventListener('click', async () => {
                 await saveAllPrinters();
+            });
+        });
+    };
+
+    const addTableEventListeners = async () => {
+        const deleteButtons = document.querySelectorAll('.btn-delete');
+        deleteButtons.forEach(button => {
+            button.addEventListener('click', async () => {
+                const printerKey = button.dataset.printer;
+                if (printerKey) {
+                    console.log("Deleting printer:", printerKey);
+                    await deletePrinter(printerKey);
+                }
             });
         });
     };
