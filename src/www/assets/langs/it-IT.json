@@ -39,6 +39,7 @@
     "printerList": "Elenco Stampanti",
     "printerSettings": "Impostazioni Stampante",
     "printerName": "Nome",
+    "printerKey": "Chiave DB",
     "printerIp": "Indirizzo IP",
     "printerPort": "Porta",
     "printerDestination": "Nome Piastra",

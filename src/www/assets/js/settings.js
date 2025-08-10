@@ -219,9 +219,14 @@ document.addEventListener("DOMContentLoaded", async () => {
                 </td>
                 <td><input type="text" class="form-control" id="printer-description-${printer.key}" value="${printer.description}"></td>
                 <td>
-                    <button class="btn btn-danger btn-sm btn-delete" id="btn-delete-${printer.key}" data-printer="${printer.key}" title="Delete">
-                        <i class="bi bi-trash"></i>
-                    </button>
+                    <div class="d-flex justify-content-center align-items-center">
+                        <button class="btn btn-primary btn-sm me-2" id="btn-test-${printer.key}" data-printer="${printer.key}" title="TEST">
+                            <i class="bi bi-printer-fill"></i>
+                        </button>
+                        <button class="btn btn-danger btn-sm btn-delete" id="btn-delete-${printer.key}" data-printer="${printer.key}" title="Delete">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
                 </td>
             `;
             printerTableBody.appendChild(row);
@@ -245,39 +250,23 @@ document.addEventListener("DOMContentLoaded", async () => {
                         <td><input type="checkbox" class="form-check-input printer-active-checkbox" id="printer-active-${newPrinterKey}"></td>
                         <td><input type="text" class="form-control" id="printer-description-${newPrinterKey}" value=""></td>
                         <td>
-                            <button class="btn btn-danger btn-sm btn-delete" id="btn-delete-${newPrinterKey}" data-printer="${newPrinterKey}" title="Delete">
-                                <i class="bi bi-trash"></i>
-                            </button> 
+                            <div class="d-flex justify-content-center align-items-center">
+                                <button class="btn btn-primary btn-sm me-2" id="btn-test-${newPrinterKey}" data-printer="${newPrinterKey}" title="TEST">
+                                    <i class="bi bi-printer-fill"></i>
+                                </button>
+                                <button class="btn btn-danger btn-sm btn-delete" id="btn-delete-${newPrinterKey}" data-printer="${newPrinterKey}" title="Delete">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
                         </td>
                     `;
                     const printerTableBody = document.getElementById('printers-table-body');
                     if (printerTableBody) {
                         printerTableBody.appendChild(newRow);
                     }
-                    // Add event listeners for the new row's buttons
-                    const deleteButton = newRow.querySelector('.btn-delete');
-                    if (deleteButton) {
-                        deleteButton.addEventListener('click', async () => {
-                            const printerKey = deleteButton.dataset.printer;
-                            if (printerKey) {
-                                await deletePrinter(printerKey);
-                            }
-                        });
-                    }
                 }
             });
         }
-
-        const deleteButtons = document.querySelectorAll('.btn-delete');
-        deleteButtons.forEach(button => {
-            button.addEventListener('click', async () => {
-                const printerKey = button.dataset.printer;
-                if (printerKey) {
-                    console.log("Deleting printer:", printerKey);
-                    await deletePrinter(printerKey);
-                }
-            });
-        });
 
         const saveButtons = document.querySelectorAll('#save-printers-btn');
         saveButtons.forEach(button => {
@@ -295,6 +284,30 @@ document.addEventListener("DOMContentLoaded", async () => {
                 if (printerKey) {
                     console.log("Deleting printer:", printerKey);
                     await deletePrinter(printerKey);
+                }
+            });
+        });
+
+        const testButtons = document.querySelectorAll('[id^="btn-test-"]');
+        testButtons.forEach(button => {
+            button.addEventListener('click', async () => {
+                const printerKey = button.dataset.printer;
+                if (printerKey) {
+                    console.log("Testing printer:", printerKey);
+                    const response = await fetch(`/api/printers/test/${printerKey}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    if(response) {
+                        alert(translate('Printer test successful: ') + printerKey);
+                    }
+                    // Implement the test functionality here
+                    // alert(translate('Testing printer: ') + printerKey);
                 }
             });
         });

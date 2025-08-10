@@ -202,6 +202,30 @@ export class HttpServerController {
             }
         }); 
 
+        this.app.post("/api/printers/test/:key", async ({ params }) => {
+            try {
+                const key = params.key;
+                if (!key) {
+                    return new Response("Printer key is required", { status: 400 });
+                }
+                const printer = await DatabaseController.instance.getPrinterSettingsByKey(key) as {
+                    printerName: string;
+                    printerIp: string;
+                    printerPort: number;
+                } | null;
+                if (!printer) {
+                    return new Response("Printer not found", { status: 404 });
+                }
+                // Simula la stampa di un test
+                console.log(`[API] Testing printer: ${printer.printerName} (${printer.printerIp}:${printer.printerPort})`);
+                // In un'applicazione reale, qui si invierebbe un comando di stampa al printer
+                return new Response(`Test print sent to ${printer.printerName}`, { status: 200 });
+            } catch (err) {
+                console.error("[API] Error testing printer:", err);
+                return new Response("Internal Server Error", { status: 500 });
+            }
+        });
+
         this.app.post("/api/printers/saveAll", async ({ request }) => {
             try {   
                 const data = await request.json();
