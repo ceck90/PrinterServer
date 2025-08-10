@@ -3,6 +3,8 @@ import { DatabaseController } from './controllers/db.controller.ts';
 import { WSClientController } from './controllers/ws-client.controller.ts';
 import { loadPrintersFromDb, seedPrintersIfDbEmpty } from './print-routing.config.ts';
 import { printSpecificOrder } from './dispatcher.ts';
+import * as fs from 'fs';
+import * as path from 'path';
 // import { printTest } from './receipt.ts';
 
 /**
@@ -28,6 +30,19 @@ console.log("Inizializzazione del server...");
 // Inizializzazione ambiente e variabili globali
 // ==================
 
+const envPath = path.resolve(process.cwd(), '.env');
+if (!fs.existsSync(envPath)) {
+    const defaultEnv = `# Default .env file
+        DB_PATH=./db.sqlite
+        WS_CLIENT_URL=http://10.10.1.12:8080
+        WS_CLIENT_RECONNECT_ATTEMPTS=-1
+        WS_CLIENT_RECONNECT_DELAY_MS=2000
+        NODE_ENV=development
+    `;
+    fs.writeFileSync(envPath, defaultEnv, { encoding: 'utf8' });
+    console.log("[MAIN] ⚠️  File .env non trovato. Creato file .env di default.");
+}
+
 /**
  * Imposta la variabile d'ambiente NODE_ENV se non già presente.
  */
@@ -44,7 +59,7 @@ console.log("[MAIN] ✅ Percorso del database:", dbPath);
 /**
  * Parametri di connessione WebSocket, configurabili tramite variabili d'ambiente.
  */
-const wsClientUrl: string = process.env.WS_CLIENT_URL || 'ws://10.10.1.12:8080';
+const wsClientUrl: string = process.env.WS_CLIENT_URL || 'http://10.10.1.12:8080';
 const wsReconnectAttempts: number = parseInt(process.env.WS_CLIENT_RECONNECT_ATTEMPTS || '-1', 10);
 const wsReconnectDelayMs: number = parseInt(process.env.WS_CLIENT_RECONNECT_DELAY_MS || '2000', 10);
 console.log("[MAIN] ✅ URL del client WebSocket:", wsClientUrl);

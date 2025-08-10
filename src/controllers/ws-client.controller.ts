@@ -1,4 +1,4 @@
-import { handleIncomingData } from "../dispatcher";
+import { handleIncomingData, handleSingleOrderData as handleSyncOrderData, handleSyncOrders } from "../dispatcher";
 import Stomp from "stompjs";
 import SockJS from "sockjs-client";
 
@@ -38,16 +38,27 @@ export class WSClientController {
      * @param options Opzioni di configurazione
      */
     private constructor(options: WSClientOptions = {}) {
-        this.url = options.url ?? "http://10.10.1.12:8080/ws";
+        this.url = options.url ?? "http://10.10.1.12:8080";
 
         // Permette connessioni wss anche con certificati self-signed in Node.js
-        if (this.url.startsWith("wss://")) {
+        if (this.url.startsWith("https://")) {
             // @ts-ignore
             process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
         }
         this.reconnectAttempts = options.reconnectAttempts ?? -1;
         this.reconnectDelayMs = options.reconnectDelayMs ?? 2000;
         this.connect();
+
+        // Attendi l'esecuzione del fetch iniziale degli items
+        this.fetchItems().then(async data => {
+            // console.log("[SOCK] parsing data:", data);
+            if (Array.isArray(data)) {
+                console.log("[SOCK] Items fetched:", data.length, "items");
+                await handleSyncOrderData(data);
+            }
+        }).catch(error => {
+            console.error("[SOCK] Error fetching items:", error);   
+        });
     }
 
     /**
@@ -66,9 +77,9 @@ export class WSClientController {
      * Gestisce anche la riconnessione automatica in caso di errore.
      */
     connect() {
-        console.log("[WS] Initialize WebSocket Connection to: " + this.url);
-        let ws = new SockJS(this.url);
-        console.log("[WS] WebSocket creato con URL:", this.url);
+        console.log("[SOCK] Initialize WebSocket Connection to: " + this.url);
+        let ws = new SockJS(this.url+"/ws");
+        console.log("[SOCK] WebSocket creato con URL:", this.url);
         this.stompClient = Stomp.over(ws);
         const _this = this;
 
@@ -93,14 +104,6 @@ export class WSClientController {
         });
     };
 
-    /*
-    // Esempio alternativo di connessione WebSocket puro (non usato)
-    private connect() {
-        this.ws = new WebSocket(this.url);
-        ...
-    }
-    */
-
     /**
      * Gestisce la logica di riconnessione automatica.
      * Se il numero di tentativi è -1, tenta all'infinito.
@@ -108,11 +111,11 @@ export class WSClientController {
     private tryReconnect() {
         if (!this.shouldReconnect) return;
         if (this.reconnectAttempts !== -1 && this.currentAttempts >= this.reconnectAttempts) {
-            console.error("[WS] Numero massimo di tentativi di riconnessione raggiunto.");
+            console.error("[SOCK] Numero massimo di tentativi di riconnessione raggiunto.");
             return;
         }
         this.currentAttempts++;
-        console.log(`[WS] Tentativo di riconnessione #${this.currentAttempts} tra ${this.reconnectDelayMs}ms...`);
+        console.log(`[SOCK] Tentativo di riconnessione #${this.currentAttempts} tra ${this.reconnectDelayMs}ms...`);
         setTimeout(() => this.connect(), this.reconnectDelayMs);
     }
 
@@ -122,5 +125,67 @@ export class WSClientController {
     public close() {
         this.shouldReconnect = false;
         // this.ws?.close();
+    }
+
+    /**
+     * Recupera tutti gli elementi dal server Kitchen-management-server,
+     * paginando automaticamente se necessario.
+     * 
+     * @param statuses Array di status da filtrare (es: ["TODO", "PROGRESS"])
+     * @param pageSize Numero di elementi per pagina (default: 10)
+     * @returns Array di elementi aggregati da tutte le pagine
+     */
+    public async fetchItems(
+        statuses: string[] = ["TODO", "PROGRESS"],
+        pageSize: number = 10
+    ) {
+        const statusParam = statuses.join(",");
+        const baseUrl = this.url.replace(/(ws|wss):\/\//, "http://").replace(/\/ws$/, "");
+        let allElements: any[] = [];
+        let totalPage = 0;
+        let offset = 0;
+
+        try {
+            // Prima richiesta per ottenere totalPage
+            const url = `${baseUrl}/plate-item?statuses=${statusParam}&offset=${offset}&size=${pageSize}`;
+            console.log("[REST] Fetching items from:", url);
+            const response = await fetch(url, {
+                method: "GET",
+                headers: { "Content-Type": "application/json" }
+            });
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const data = await response.json();
+            if (Array.isArray(data.elements)) {
+                allElements = data.elements;
+            }
+            totalPage = data.totalPage + 1 || 0;
+
+            // Se ci sono più pagine, scarica anche le altre
+            const requests: Promise<any>[] = [];
+            for (let page = 1; page < totalPage; page++) {
+                const pageOffset = page * pageSize;
+                const pageUrl = `${baseUrl}/plate-item?statuses=${statusParam}&offset=${pageOffset}&size=${pageSize}`;
+                requests.push(
+                    fetch(pageUrl, {
+                        method: "GET",
+                        headers: { "Content-Type": "application/json" }
+                    }).then(res => res.json())
+                );
+            }
+            if (requests.length > 0) {
+                const results = await Promise.all(requests);
+                for (const result of results) {
+                    if (Array.isArray(result.elements)) {
+                        allElements = allElements.concat(result.elements);
+                    }
+                }
+            }
+
+            console.log("[REST] Items totali:", allElements.length);
+            return allElements;
+        } catch (error) {
+            console.error("[REST] Error fetching items:", error);
+            return [];
+        }
     }
 }
