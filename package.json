@@ -24,6 +24,6 @@
     "build": "bun build src/main.ts --outdir=dist --target=node",
     "start": "bun run build && bun dist/main.js",
     "test": "bun test",
-    "watch": "bun src/main.ts --watch"
+    "watch": "bun --watch src/main.ts"
   }
 }

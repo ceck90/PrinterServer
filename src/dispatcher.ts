@@ -220,6 +220,69 @@ export async function printSpecificOrder(orderNumber: number) {
     }
 }
 
+export async function regenerateSpecificReceipt(orderNumber: number) {
+    const receipt = await DatabaseController.instance.getReceiptById(orderNumber) as {
+        id: number; 
+        orderId: string;
+        tableNumber: string;
+        orderNumber: number;
+        orderStatus: string;
+        clientName: string;
+        itemName: string;
+        itemNote: string;
+        orderNotes: string;
+        takeAway: boolean; 
+        printData: Buffer;
+        destination: string;
+} | null;
+
+    console.log(`[DISPATCHER] Rigenerazione ricevuta per ordine`, receipt);
+    if (!receipt) {
+        console.warn(`[DISPATCHER] Nessuna ricevuta trovata per ordine ${orderNumber}`);
+        return;
+    }
+    const printer = printers.find(p => p.destination === receipt.destination || p.name === receipt.destination);
+    if (!printer) {
+        console.warn(`[DISPATCHER] Nessuna stampante configurata per la destinazione: ${receipt.destination}`);
+        return;
+    }
+    try {
+        console.log(`[DISPATCHER] Rigenero ricevuta per ordine ${receipt.id} su ${receipt.destination}`);
+        if (printer.active) {
+            // Rigenera il buffer di stampa
+            const order: OrderPayload = {
+                id: receipt.id.toString(),
+                orderId: receipt.orderId,
+                status: receipt.orderStatus as "TODO" | "PROGRESS" | "DONE" | "CANCELLED",
+                createdAt: new Date().toISOString(),
+                timestamp: new Date().toISOString(),
+                orderNumber: receipt.orderNumber,
+                items: [{
+                    dest: receipt.destination,
+                    name: receipt.itemName,
+                    qty: 1,
+                    tableNumber: receipt.tableNumber,
+                    clientName: receipt.clientName,
+                    itemNote: receipt.itemNote,
+                    orderNotes: receipt.orderNotes,
+                    takeAway: receipt.takeAway
+                }]
+            };
+            const buffer = await buildKitchenReceipt(order, receipt.destination, order.items);
+            await sendToPrinter(printer.destination, printer.ip, printer.port, buffer);
+            console.log(`[DISPATCHER] Ricevuta per ordine ${receipt.id} rigenerata e stampata su ${receipt.destination}`);
+        } else {
+            console.warn(`[DISPATCHER] Stampante ${receipt.destination} non attiva, non posso rigenerare il ticket per ordine ${receipt.id}`);
+        }
+    } catch (err) {
+        console.error(`[DISPATCHER] Errore nella rigenerazione del ticket per ordine ${receipt.id}`);
+    }
+    // Attendi un breve periodo per evitare sovraccarichi
+    // await sleep(1000);
+    // Aggiorna lo stato della ricevuta nel database
+    await DatabaseController.instance.updateReceiptStatus(receipt.id, "PRINTED");
+}
+
 /**
  * Aggiorna lo stato di stampa di una ricevuta dato il numero d'ordine.
  * Utile per segnare come PRINTED o FAILED dopo una ristampa.

@@ -199,6 +199,63 @@ export class DatabaseController {
     }
 
     /**
+     * Elimina una stampante dal database.
+     * @param key Chiave della stampante da eliminare
+     */
+    public async deletePrinter(key: string) {
+        this.db.run(
+            `DELETE FROM printers WHERE key = ?`,
+            [key]
+        );
+    }   
+
+    /**
+     * Aggiorna le impostazioni di una stampante esistente.
+     * @param printer Oggetto con i dati della stampante
+     */
+    public async updatePrinterSettings(printer: { key: string, printerName: string, printerIp: string, printerPort: number, printerDestinations: string, active: boolean, description: string }) {
+        this.db.run(
+            `UPDATE printers SET
+                printerName = ?,
+                printerIp = ?,
+                printerPort = ?,
+                printerDestinations = ?,
+                active = ?,
+                description = ?
+            WHERE key = ?`,
+            [
+                printer.printerName,
+                printer.printerIp,
+                printer.printerPort,
+                printer.printerDestinations,
+                printer.active,
+                printer.description,
+                printer.key
+            ]
+        );
+    }   
+
+    /**
+     * Aggiunge una nuova stampante nel database.
+     * @param printer Oggetto con i dati della stampante
+     */
+    public async addPrinter(printer: { key: string, printerName: string, printerIp: string, printerPort: number, printerDestinations: string, active: boolean, description: string }) {
+        this.db.run(
+            `INSERT INTO printers (key, printerName, printerIp, printerPort, printerDestinations, active, description)
+            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [
+                printer.key,
+                printer.printerName,
+                printer.printerIp,
+                printer.printerPort,
+                printer.printerDestinations,
+                printer.active,
+                printer.description
+            ]
+        );
+    }
+
+    /**
      * Salva o aggiorna una ricevuta nel database.
      * @param log Oggetto ReceiptLog con i dati della ricevuta
      */

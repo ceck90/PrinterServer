@@ -2,7 +2,8 @@ import Elysia from "elysia";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { DatabaseController } from "./db.controller";
-import { printSpecificOrder } from "../dispatcher";
+import { printSpecificOrder, regenerateSpecificReceipt } from "../dispatcher";
+import { loadPrintersFromDb } from "../print-routing.config";
 
 /**
  * Controller singleton per la gestione del server HTTP tramite Elysia.
@@ -125,7 +126,8 @@ export class HttpServerController {
         // API: ristampa una ricevuta tramite ID
         this.app.post("/api/receipts/:id/print", ({ params }) => {
             console.log("[API] Ristampa ticket @ ID:", params.id);
-            printSpecificOrder(parseInt(params.id));
+            // printSpecificOrder(parseInt(params.id));
+            regenerateSpecificReceipt(parseInt(params.id));
         });
 
         this.app.get("/api/printers/getAll", async () => {
@@ -145,6 +147,7 @@ export class HttpServerController {
                     return new Response("Printer key is required", { status: 400 });
                 }
                 await DatabaseController.instance.deletePrinter(key);
+                loadPrintersFromDb(); // Ricarica le stampanti dopo la cancellazione
                 return new Response("Printer deleted successfully", { status: 200 });
             } catch (err) {
                 console.error("[API] Error deleting printer:", err);
@@ -158,7 +161,7 @@ export class HttpServerController {
                 if (!data || !data.key || !data.printerName || !data.printerIp || !data.printerPort) {
                     return new Response("Invalid printer data", { status: 400 });
                 }
-                await DatabaseController.instance.updatePrinterSettings({
+                await DatabaseController.instance.savePrinterSettings({
                     key: data.key,
                     printerName: data.printerName,
                     printerIp: data.printerIp,
@@ -167,6 +170,7 @@ export class HttpServerController {
                     active: data.active || false,
                     description: data.description || ""
                 });
+                loadPrintersFromDb(); // Ricarica stampanti dopo l'update
                 return new Response("Printer saved successfully", { status: 200 });
             } catch (err) {
                 console.error("[API] Error saving printer:", err);
@@ -180,7 +184,8 @@ export class HttpServerController {
                 if (!data || !data.printerName || !data.printerIp || !data.printerPort) {
                     return new Response("Invalid printer data", { status: 400 });
                 }
-                await DatabaseController.instance.addPrinterSettings({
+                await DatabaseController.instance.savePrinterSettings({
+                    key: data.key,
                     printerName: data.printerName,
                     printerIp: data.printerIp,
                     printerPort: data.printerPort,
@@ -188,6 +193,8 @@ export class HttpServerController {
                     active: data.active || false,
                     description: data.description || ""
                 });
+
+                loadPrintersFromDb(); // Ricarica le stampanti dopo l'aggiunta
                 return new Response("Printer added successfully", { status: 200 });
             } catch (err) {
                 console.error("[API] Error adding printer:", err);
