@@ -130,7 +130,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     }
 
-    const handleScannerInput = (event) => {
+    const handleScannerInput = async (event) => {
         const input = event.target.value;
         // Do something with the scanned input
         console.log("Scanned input: " + input);
@@ -148,15 +148,32 @@ document.addEventListener("DOMContentLoaded", async () => {
             const resultsTable = document.getElementById('scanner-results');
             const newRow = resultsTable.insertRow();
             newRow.innerHTML = `
-            <td>${input}</td>
-            <td>${id}</td>
-            <td>${new Date().toLocaleString()}</td>
-            <td><span class="badge bg-success">Scanned</span></td>
+                <td>${input}</td>
+                <td>${id}</td>
+                <td>${new Date().toLocaleString()}</td>
+                <td><span class="badge bg-success">Scanned</span></td>
             `;
+            await saveScannedBarcode(input, id);
         }
         // Clear the input field after processing
         event.target.value = '';
         event.target.focus();
+    };
+
+    const saveScannedBarcode = async (input, id) => {
+        try {
+            const response = await fetch(`/api/barcodes/add/${id}`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ code: id, timestamp: new Date().toISOString(), success: true })
+            });
+            if (!response.ok) throw new Error("Network response was not ok");
+            console.log("Saved scanned barcode:", response);
+        } catch (error) {
+            console.error("Error saving scanned barcode:", error);
+        }
     };
 
     const addEventListeners = async () => {
@@ -168,6 +185,13 @@ document.addEventListener("DOMContentLoaded", async () => {
                 }
             });
         }
+
+        const codeReloadButton = document.getElementById('code-reload-button');
+        if (codeReloadButton) {
+            codeReloadButton.addEventListener('click', async () => {
+                await fillBarcodeTable();
+            });
+        }
     };
 
     setInterval(() => {
@@ -177,10 +201,42 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     }, 2000);
 
+    const fetchBarcodes = async () => {
+        try {
+            const response = await fetch("/api/barcodes/getAll");
+            if (!response.ok) throw new Error("Network response was not ok");
+            const data = await response.json();
+            return data; // Return the fetched barcodes
+            // console.log("Fetched barcodes:", data);
+        } catch (error) {
+            console.error("Error fetching barcodes:", error);
+        }
+    };
+
+    const fillBarcodeTable = async () => { // Accept barcodes as a parameter
+        const tableBody = document.getElementById('scanner-results');
+        tableBody.innerHTML = ''; // Clear existing rows
+        const barcodes = await fetchBarcodes();
+        console.log("Fetched barcodes:", barcodes);
+        barcodes.forEach(barcode => {
+            console.log("Processing barcode:", barcode);
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>MFO-${barcode.code}</td>
+                <td>${barcode.code}</td>
+                <td>${barcode.timestamp.toLocaleString()}</td>
+                <td><span class="badge bg-success">${barcode.success ? 'Scanned' : 'Error'}</span></td>
+            `;
+            tableBody.appendChild(row);
+        });
+    };
+
     lang = await initI18n();
     applyThemeFromLocalStorage();
 
     await updateTranslate();
+
+    await fillBarcodeTable();
 
     await addEventListeners();
 });

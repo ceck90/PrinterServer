@@ -3,8 +3,8 @@ import type { ReceiptLog } from "../types";
 import { $ } from "bun";
 import { existsSync } from "fs";
 
-const DB_FILE = "data/receipts.sqlite";
-const BACKUP_FILE = "data/receipts_backup.sqlite";
+const DB_FILE = "data/db.sqlite";
+const BACKUP_FILE = "data/db_backup.sqlite";
 
 /**
  * Controller singleton per la gestione del database SQLite.
@@ -119,6 +119,16 @@ export class DatabaseController {
         this.db.run(`
             CREATE TABLE IF NOT EXISTS settings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT  
+            );
+        `);
+
+        //tabella barcode
+        this.db.run(`
+            CREATE TABLE IF NOT EXISTS barcodes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                code TEXT UNIQUE,
+                timestamp TEXT,
+                success BOOLEAN
             );
         `);
 
@@ -435,6 +445,29 @@ export class DatabaseController {
             `DELETE FROM receipts WHERE id = ?`,
             [id]
         );
+    }
+
+    public async addOrUpdateBarcode(code: string, success: boolean) {
+        this.db.run(
+            `INSERT INTO barcodes (code, timestamp, success)
+            VALUES (?, ?, ?)
+            ON CONFLICT(code) DO UPDATE SET
+                timestamp = excluded.timestamp,
+                success = excluded.success`,
+            [code, new Date().toISOString(), success ? 1 : 0]
+        );
+    }
+
+    public async getBarcode(code: string) {
+        return this.db.query(
+            `SELECT * FROM barcodes WHERE code = ?`
+        ).get(code);
+    }
+
+    public async getAllBarcodes() {
+        return this.db.query(
+            `SELECT * FROM barcodes`
+        ).all();
     }
 }
 

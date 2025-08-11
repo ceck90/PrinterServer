@@ -267,6 +267,29 @@ export class HttpServerController {
             }
         });
 
+        this.app.get("/api/barcodes/getAll", async () => {
+            try {
+                const barcodes = await DatabaseController.instance.getAllBarcodes();
+                return new Response(JSON.stringify(barcodes), { status: 200, headers: { "Content-Type": "application/json" } });
+            } catch (err) {
+                console.error("[API] Error getting all barcodes:", err);
+                return new Response("Internal Server Error", { status: 500 });
+            }
+        });
+
+        this.app.post("/api/barcodes/add/:id", async ({ request, params }) => {
+            try {
+                if (params.id) {
+                    const id = params.id;
+                    await DatabaseController.instance.addOrUpdateBarcode(id, true);
+                }
+                return new Response("Barcode added successfully", { status: 201 });
+            } catch (err) {
+                console.error("[API] Error adding barcode:", err);
+                return new Response("Internal Server Error", { status: 500 });
+            }
+        });
+
         // Avvia il server HTTP sulla porta 4000
         this.app.listen(4000);
         console.log("[WWW] ✅ HTTP server su http://localhost:4000");
