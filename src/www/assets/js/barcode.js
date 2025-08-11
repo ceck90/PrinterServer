@@ -192,6 +192,19 @@ document.addEventListener("DOMContentLoaded", async () => {
                 await fillBarcodeTable();
             });
         }
+
+        const toggleBtn = document.getElementById('toggle-barcode-table');
+        const tableContainer = document.getElementById('barcode-table-container');
+        let isVisible = tableContainer.style.display !== 'none';
+        toggleBtn.classList.toggle('bi-eye-slash', isVisible);
+        toggleBtn.classList.toggle('bi-eye', !isVisible);
+
+        toggleBtn.addEventListener('click', () => {
+            isVisible = !isVisible;
+            tableContainer.style.display = isVisible ? '' : 'none';
+            toggleBtn.classList.toggle('bi-eye-slash', isVisible);
+            toggleBtn.classList.toggle('bi-eye', !isVisible);
+        });
     };
 
     setInterval(() => {

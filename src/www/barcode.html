@@ -52,7 +52,7 @@
                     <div class="d-flex align-items-center justify-content-between">
                         <span class="bi bi-upc-scan fs-1 me-3 text-success pulse" id="scanner-icon"></span>
                         <label for="scanner-input" class="fs-4 col-3 text-end me-4" data-i18n="scanner.input"></label>
-                        <input type="text" id="scanner-input" class="form-control" placeholder="Scan qrcode..." />
+                        <input type="text" id="scanner-input" class="form-control" placeholder="Scan QR Code..." />
                     </div>
                 </div>
             </div>
@@ -68,7 +68,7 @@
                     <span class="button bi bi-chevron-up fs-5 cursor-pointer" id="toggle-barcode-table" type="button" title="Nascondi/Mostra"></span>
                 </div>
             </div>
-            <div class="card-table m-1 mb-3" id="barcode-table-container">
+            <div class="card-table m-1 mb-3" id="barcode-table-container" style="display: none;">
                 <table class="table table-hover align-middle mb-0">
                     <thead>
                         <tr>
@@ -85,17 +85,6 @@
             </div>
         </div>
     </div>
-    <script>
-        const toggleBtn = document.getElementById('toggle-barcode-table');
-        const tableContainer = document.getElementById('barcode-table-container');
-        let isVisible = true;
-        toggleBtn.addEventListener('click', () => {
-            isVisible = !isVisible;
-            tableContainer.style.display = isVisible ? '' : 'none';
-            toggleBtn.classList.toggle('bi-chevron-up', isVisible);
-            toggleBtn.classList.toggle('bi-chevron-down', !isVisible);
-        });
-    </script>
 
 </body>
 <script src="assets/js/i18n.js" type="module"></script>
