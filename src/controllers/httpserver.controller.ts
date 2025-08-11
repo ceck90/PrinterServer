@@ -47,6 +47,16 @@ export class HttpServerController {
                 return new Response("File settings.html Not found", { status: 404 });
             }
         });
+        
+        // Route per la pagina di stato
+        this.app.get("/barcode", () => {
+            try {
+                const html = readFileSync(join(import.meta.dir, "../www/barcode.html"), "utf8");
+                return new Response(html, { headers: { "Content-Type": "text/html" } });
+            } catch (err) {
+                return new Response("File barcode.html Not found", { status: 404 });
+            }
+        });
 
         // Route per servire asset statici (js, css, immagini, ecc.)
         this.app.get("/assets/*", ({ request }) => {

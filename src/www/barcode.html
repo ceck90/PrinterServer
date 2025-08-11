@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="title-barcode"></title>
+    <link href="assets/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+    <link href="assets/bootstrap/css/bootstrap-icons.min.css" rel="stylesheet">
+    <script src="assets/bootstrap/js/bootstrap.min.js"></script>
+    <script src="assets/bootstrap/js/popper.min.js"></script>
+    <link href="assets/css/styles.css" rel="stylesheet">
+    <link rel="icon" href="assets/img/favicon/favicon.ico" type="image/x-icon">
+</head>
+
+<body>
+    <!-- TOP Header -->
+    <div class="container-fluid d-flex justify-content-between align-middle p-3 bg-auto text-auto">
+        <!-- <b><label class="text-auto" id="device-hostname"></label></b> -->
+        <span class="bi bi-house icon-theme fs-4" id="home-button" onclick="location.href='/'" type="button" alt="Home"></span>
+        <span class="bi bi-circle-half icon-theme fs-4 theme-item" type="button" alt="Theme"></span>
+    </div>
+
+    <!-- Bootstrap Toast for notifications -->
+    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100">
+        <div id="notification-toast" class="toast align-items-center text-bg-primary border-0" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body" id="toast-container">
+                    <!-- Notification message will appear here -->
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scanner Card -->
+    <div class="container py-2">
+        <div class="card text-auto bg-auto border-0 shadow-lg rounded-4 mb-3" style="backdrop-filter: blur(6px);">
+            <div class="card-header d-flex justify-content-between">
+                <h5 class="mb-0" data-i18n="scanner.title"></h5>
+                <span class="button bi bi-arrow-clockwise fs-5 cursor-pointer update-button" type="button"></span>
+            </div>
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-2">
+                    <span class="bi bi-upc-scan fs-1 me-3 text-success pulse" id="scanner-icon"></span>
+                </div>
+                <div>
+                    <label for="scanner-input" class="fs-3" data-i18n="scanner.input"></label>
+                    <input type="text" id="scanner-input" class="form-control" placeholder="Scan qrcode..." />
+                </div>
+            </div>
+            <div class="card-table m-1 mb-3">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th scope="col" data-i18n="scanner.value"></th>
+                            <th scope="col" data-i18n="scanner.id"></th>
+                            <th scope="col" data-i18n="scanner.timestamp"></th>
+                            <th scope="col" data-i18n="scanner.status"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="scanner-results">
+                        <!-- Scanned results will be appended here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</body>
+<script src="assets/js/i18n.js" type="module"></script>
+<script src="assets/js/barcode.js" type="module"></script>
+
+</html>

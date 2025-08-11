@@ -79,7 +79,7 @@ export async function buildKitchenReceipt(order: OrderPayload, dest: string, ite
             await printer.writeln(`___________________`);
         })
 
-    await printer.qrcode(order.orderId.toString(), 4);
+    await printer.qrcode("MFO-" + order.orderId.toString(), 4);
     await printer.feed(5)
     await printer.buzzer()
     await printer.cutter(Cut.Full)
