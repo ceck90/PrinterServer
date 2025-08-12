@@ -4,6 +4,7 @@ import { join } from "path";
 import { DatabaseController } from "./db.controller";
 import { printSpecificOrder, regenerateSpecificReceipt } from "../dispatcher";
 import { loadPrintersFromDb } from "../print-routing.config";
+import { KitchenManagementController } from "./kitchenmgmt.controller";
 
 /**
  * Controller singleton per la gestione del server HTTP tramite Elysia.
@@ -282,6 +283,7 @@ export class HttpServerController {
                 if (params.id) {
                     const id = params.id;
                     await DatabaseController.instance.addOrUpdateBarcode(id, true);
+                    await KitchenManagementController.getInstance().updateOrderStatus(id, "DONE");
                 }
                 return new Response("Barcode added successfully", { status: 201 });
             } catch (err) {
