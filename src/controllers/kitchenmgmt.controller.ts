@@ -223,29 +223,11 @@ export class KitchenManagementController {
         }
     }
 
-    public async fetchPlates() {
-        try {
-            const url = `${this.url}/plate`;
-            console.log("[REST] Fetching plates from:", url);
-            const response = await fetch(url, {
-                method: "GET",
-                headers: { "Content-Type": "application/json" }
-            });
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            const data = await response.json();
-            return data;
-        } catch (error) {
-            console.error("[REST] Error fetching plates:", error);
-            return [];
-        }
-    }
-
-    public getPlateByName(plateName: string) {
-        return this.fetchPlates().then(plates => {
-            return plates.find((plate: any) => plate.name === plateName) || null;
-        });
-    }
-
+    /**
+     * Recupera un singolo elemento (plate-item) dal server tramite ID.
+     * @param id ID dell'elemento da recuperare
+     * @returns L'elemento corrispondente oppure null in caso di errore
+     */
     public async fetchItemById(id: string) {
         try {
             const url = `${this.url}/plate-item/${id}`;
@@ -263,6 +245,44 @@ export class KitchenManagementController {
         }
     }
 
+    /**
+     * Recupera tutti i piatti dal server Kitchen-management-server.
+     * @returns Array di piatti disponibili oppure [] in caso di errore.
+     */
+    public async fetchPlates() {
+        try {
+            const url = `${this.url}/plate`;
+            console.log("[REST] Fetching plates from:", url);
+            const response = await fetch(url, {
+                method: "GET",
+                headers: { "Content-Type": "application/json" }
+            });
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error("[REST] Error fetching plates:", error);
+            return [];
+        }
+    }
+
+    /**
+     * Restituisce un piatto dato il suo nome.
+     * @param plateName Nome del piatto da cercare
+     * @returns Il piatto corrispondente oppure null se non trovato
+     */
+    public getPlateByName(plateName: string) {
+        return this.fetchPlates().then(plates => {
+            return plates.find((plate: any) => plate.name === plateName) || null;
+        });
+    }
+
+    /**
+     * Aggiorna lo stato di un ordine (plate-item) tramite il suo ID.
+     * @param id ID dell'elemento da aggiornare
+     * @param status Nuovo stato da impostare (TODO, DONE, PROGRESS, CANCELLED)
+     * @returns L'elemento aggiornato oppure null in caso di errore
+     */
     public async updateOrderStatus(id: string, status: string) {
         try {
 
@@ -295,6 +315,12 @@ export class KitchenManagementController {
         }
     }
 
+    /**
+     * Cambia il piatto associato a un ordine (plate-item) tramite il suo ID.
+     * @param id ID dell'elemento da aggiornare
+     * @param newPlate Nome del nuovo piatto da associare
+     * @returns L'elemento aggiornato oppure null in caso di errore
+     */
     public async changeOrderPlate(id: string, newPlate: string) {
         try {
             // Recupera l'item corrente

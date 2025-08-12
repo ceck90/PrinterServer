@@ -283,7 +283,15 @@ export class HttpServerController {
                 if (params.id) {
                     const id = params.id;
                     await DatabaseController.instance.addOrUpdateBarcode(id, true);
-                    await KitchenManagementController.getInstance().updateOrderStatus(id, "DONE");
+                    //se plate == PANINI cambia plate in FORNO, altrimenti completa con l'ordine in DONE
+                    const item = await KitchenManagementController.getInstance().fetchItemById(id);
+
+                    console.log("[API] Item fetched:", item.plate.name);
+                    if (item && item.plate.name === "PANINI") {
+                        await KitchenManagementController.getInstance().changeOrderPlate(id, "FORNO");
+                    } else {
+                        await KitchenManagementController.getInstance().updateOrderStatus(id, "DONE");
+                    }
                 }
                 return new Response("Barcode added successfully", { status: 201 });
             } catch (err) {
@@ -309,6 +317,7 @@ export class HttpServerController {
 
     /**
      * Ritorna l'istanza dell'app Elysia (per test o estensioni).
+     * @returns Istanza dell'applicazione Elysia
      */
     public getApp() {
         return this.app;

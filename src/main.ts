@@ -82,15 +82,19 @@ const dbController = DatabaseController.instance;
 const httpServerController = HttpServerController.instance;
 
 /**
- * Inizializza il client WebSocket (singleton) con le opzioni di riconnessione.
- * Si connette al server WebSocket per ricevere ordini in tempo reale.
+ * Opzioni per il controller di gestione della cucina (singleton).
+ * Configurazione dell'URL del server di gestione della cucina.
  */
-
 const kitchenManagementOptions = {
     url: kitchenMgmtServerUrl
 };
 
 const kitchenManagementController = KitchenManagementController.getInstance(kitchenManagementOptions);
+
+/**
+ * Inizializza il client WebSocket STOMP (singleton) con le opzioni di riconnessione.
+ * Si connette al server STOMP per ricevere ordini in tempo reale.
+ */
 
 const WSClientOptions = {
     reconnectAttempts: wsReconnectAttempts, // Numero massimo di tentativi di riconnessione
