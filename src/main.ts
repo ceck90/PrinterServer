@@ -53,7 +53,7 @@ console.log("[MAIN] ✅ Inizializzazione del server...");
 /**
  * Percorso del database, configurabile tramite variabile d'ambiente.
  */
-const dbPath: string = process.env.DB_PATH || './db.sqlite';
+const dbPath: string = process.env.DB_PATH || './data/db.sqlite';
 console.log("[MAIN] ✅ Percorso del database:", dbPath);
 
 /**
@@ -73,7 +73,7 @@ console.log("[MAIN] ✅ URL del client WebSocket:", kitchenMgmtServerUrl);
  * Inizializza il controller del database (singleton).
  * Questo crea le tabelle e prepara il DB.
  */
-const dbController = DatabaseController.instance;
+const dbController = DatabaseController.getInstance(dbPath);
 
 /**
  * Inizializza il server HTTP (singleton).

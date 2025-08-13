@@ -79,7 +79,7 @@ export async function buildKitchenReceipt(order: OrderPayload, dest: string, ite
             await printer.writeln(`___________________`);
         })
 
-    await printer.qrcode("MFO-" + order.orderId.toString(), 4);
+    await printer.qrcode("MFO" + order.orderId.toString(), 4);
     await printer.feed(5)
     await printer.buzzer()
     await printer.cutter(Cut.Full)
@@ -101,9 +101,7 @@ export async function buildKitchenReceipt_v2(order: OrderPayload, dest: string, 
         }
     });
 
-    // printer.beep();
-
-    // await printer.printImage('src/www/assets/img/mfo-logo.png');
+    await printer.printImage(path.join(__dirname, 'www/assets/img/mfo-logo-bw.png'));
 
     // Prints table with custom settings (text, align, width, cols, bold)
     printer.tableCustom([                                       

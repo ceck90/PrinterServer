@@ -3,8 +3,6 @@ import type { ReceiptLog } from "../types";
 import { $ } from "bun";
 import { existsSync } from "fs";
 
-const DB_FILE = "data/db.sqlite";
-const BACKUP_FILE = "data/db_backup.sqlite";
 
 /**
  * Controller singleton per la gestione del database SQLite.
@@ -14,15 +12,21 @@ export class DatabaseController {
     static #instance: DatabaseController;
     private db: Database;
 
+    private dbPath: string;
+
     /**
      * Costruttore privato: inizializza il database e verifica integrità.
      */
-    private constructor() {
-        this.db = new Database(DB_FILE);
-        console.log("[DB] Database initialized with file:", DB_FILE);
-        if (existsSync(DB_FILE)) {
+    private constructor(dbPath: string) {
+        if (!dbPath) {
+            throw new Error("[DB] dbPath is required.");
+        }
+        this.db = new Database(dbPath);
+        this.dbPath = dbPath;
+        console.log("[DB] Database initialized with file:", this.dbPath);
+        if (existsSync(this.dbPath)) {
             if (this.checkIntegrity()) {
-                this.backupDatabase(BACKUP_FILE);
+                this.backupDatabase(this.dbPath + ".backup");
             } else {
                 throw new Error("[DB] Database integrity check failed. Aborting initialization.");
             }
@@ -33,9 +37,9 @@ export class DatabaseController {
     /**
      * Ritorna l'istanza singleton del controller.
      */
-    public static get instance(): DatabaseController {
+    public static getInstance(dbPath?: string): DatabaseController {
         if (!DatabaseController.#instance) {
-            DatabaseController.#instance = new DatabaseController();
+            DatabaseController.#instance = new DatabaseController(dbPath || './data/db.sqlite');
         }
         return DatabaseController.#instance;
     }
@@ -48,7 +52,7 @@ export class DatabaseController {
         if (existsSync(backupPath)) {
             console.warn(`[DB] Backup file already exists at: ${backupPath}. Overwriting...`);
         }
-        Bun.write(backupPath, Bun.file(DB_FILE));
+        Bun.write(backupPath, Bun.file(this.dbPath));
         console.log(`[DB] Database backup created at: ${backupPath}`);
     }
 

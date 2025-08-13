@@ -126,7 +126,7 @@ export class HttpServerController {
                 const type: "PRINTED" | "FAILED" | undefined = allowedTypes.includes(typeParam as any) ? (typeParam as "PRINTED" | "FAILED") : undefined;
 
                 // Query al database
-                const receipts = await DatabaseController.instance.getAllReceipts(limit, offset, type, startDate, endDate);
+                const receipts = await DatabaseController.getInstance().getAllReceipts(limit, offset, type, startDate, endDate);
                 return new Response(JSON.stringify(receipts), { headers: { "Content-Type": "application/json" } });
             } catch (err) {
                 console.error("[API] Error fetching receipts:", err);
@@ -143,7 +143,7 @@ export class HttpServerController {
 
         this.app.get("/api/printers/getAll", async () => {
             try {
-                const printers = await DatabaseController.instance.getPrinterSettings();
+                const printers = await DatabaseController.getInstance().getPrinterSettings();
                 return new Response(JSON.stringify(printers), { headers: { "Content-Type": "application/json" } });
             } catch (err) {
                 console.error("[API] Error fetching printers:", err);
@@ -157,7 +157,7 @@ export class HttpServerController {
                 if (!key) {
                     return new Response("Printer key is required", { status: 400 });
                 }
-                await DatabaseController.instance.deletePrinter(key);
+                await DatabaseController.getInstance().deletePrinter(key);
                 loadPrintersFromDb(); // Ricarica le stampanti dopo la cancellazione
                 return new Response("Printer deleted successfully", { status: 200 });
             } catch (err) {
@@ -172,7 +172,7 @@ export class HttpServerController {
                 if (!data || !data.key || !data.printerName || !data.printerIp || !data.printerPort) {
                     return new Response("Invalid printer data", { status: 400 });
                 }
-                await DatabaseController.instance.savePrinterSettings({
+                await DatabaseController.getInstance().savePrinterSettings({
                     key: data.key,
                     printerName: data.printerName,
                     printerIp: data.printerIp,
@@ -195,7 +195,7 @@ export class HttpServerController {
                 if (!data || !data.printerName || !data.printerIp || !data.printerPort) {
                     return new Response("Invalid printer data", { status: 400 });
                 }
-                await DatabaseController.instance.savePrinterSettings({
+                await DatabaseController.getInstance().savePrinterSettings({
                     key: data.key,
                     printerName: data.printerName,
                     printerIp: data.printerIp,
@@ -219,7 +219,7 @@ export class HttpServerController {
                 if (!key) {
                     return new Response("Printer key is required", { status: 400 });
                 }
-                const printer = await DatabaseController.instance.getPrinterSettingsByKey(key) as {
+                const printer = await DatabaseController.getInstance().getPrinterSettingsByKey(key) as {
                     printerName: string;
                     printerIp: string;
                     printerPort: number;
@@ -249,7 +249,7 @@ export class HttpServerController {
                         console.error("[API] Invalid printer data:", printer);
                         return new Response("Invalid printer data", { status: 400 });
                     }
-                    await DatabaseController.instance.savePrinterSettings({
+                    await DatabaseController.getInstance().savePrinterSettings({
                         key: printer.key,
                         printerName: printer.name,
                         printerIp: printer.ip,
@@ -270,7 +270,7 @@ export class HttpServerController {
 
         this.app.get("/api/barcodes/getAll", async () => {
             try {
-                const barcodes = await DatabaseController.instance.getAllBarcodes();
+                const barcodes = await DatabaseController.getInstance().getAllBarcodes();
                 return new Response(JSON.stringify(barcodes), { status: 200, headers: { "Content-Type": "application/json" } });
             } catch (err) {
                 console.error("[API] Error getting all barcodes:", err);
@@ -282,7 +282,7 @@ export class HttpServerController {
             try {
                 if (params.id) {
                     const id = params.id;
-                    await DatabaseController.instance.addOrUpdateBarcode(id, true);
+                    await DatabaseController.getInstance().addOrUpdateBarcode(id, true);
                     //se plate == PANINI cambia plate in FORNO, altrimenti completa con l'ordine in DONE
                     const item = await KitchenManagementController.getInstance().fetchItemById(id);
 

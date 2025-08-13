@@ -38,10 +38,10 @@ const printerMapSeed: Record<string, Omit<PrinterConfig, "name">> = {
  * Da chiamare una sola volta all'avvio, prima di caricare le stampanti dal DB.
  */
 export function seedPrintersIfDbEmpty() {
-    const existing = DatabaseController.instance.getPrinterSettings();
+    const existing = DatabaseController.getInstance().getPrinterSettings();
     if (!existing || existing.length === 0) {
         for (const [name, config] of Object.entries(printerMapSeed)) {
-            DatabaseController.instance.savePrinterSettings({
+            DatabaseController.getInstance().savePrinterSettings({
                 key: config.key,
                 printerName: name, // nome logico come chiave primaria
                 printerIp: config.ip,
@@ -61,7 +61,7 @@ export function seedPrintersIfDbEmpty() {
  * Ogni stampante viene loggata in console.
  */
 export function loadPrintersFromDb() {
-    const dbPrinters = DatabaseController.instance.getPrinterSettings() as Array<any> || [];
+    const dbPrinters = DatabaseController.getInstance().getPrinterSettings() as Array<any> || [];
     printers = dbPrinters.map(printer => ({
         key: printer.name, // 'name' corrisponde a 'key' nel DB
         name: printer.name,

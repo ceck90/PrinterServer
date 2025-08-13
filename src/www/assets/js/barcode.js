@@ -135,14 +135,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         // Do something with the scanned input
         console.log("Scanned input: " + input);
         // check pattern matching
-        const pattern = /^MFO-\w{24}$/;
+        const pattern = /^MFO\w{24}$/;
         if (!pattern.test(input)) {
-            console.log("Input does not match required format (MFO- followed by 24 alphanumeric characters)");
+            console.log("Input does not match required format (MFO followed by 24 alphanumeric characters)");
             return;
         }
         else {
             console.log("Valid input:", input);
-            const id = input.replace(/^MFO-/, '');
+            const id = input.replace(/^MFO/, '');
             console.log("Extracted ID:", id);
             // Add the scanned result to the table
             const resultsTable = document.getElementById('scanner-results');
@@ -235,7 +235,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             console.log("Processing barcode:", barcode);
             const row = document.createElement('tr');
             row.innerHTML = `
-                <td>MFO-${barcode.code}</td>
+                <td>MFO${barcode.code}</td>
                 <td>${barcode.code}</td>
                 <td>${barcode.timestamp.toLocaleString()}</td>
                 <td><span class="badge bg-success">${barcode.success ? 'Scanned' : 'Error'}</span></td>
