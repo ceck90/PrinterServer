@@ -282,6 +282,7 @@ export class HttpServerController {
             try {
                 if (params.id) {
                     const id = params.id;
+                    console.log(id);
                     await DatabaseController.getInstance().addOrUpdateBarcode(id, true);
                     //se plate == PANINI cambia plate in FORNO, altrimenti completa con l'ordine in DONE
                     const item = await KitchenManagementController.getInstance().fetchItemById(id);

@@ -1,7 +1,5 @@
-
 import { translate, updateTranslate, initI18n, getLanguageFromLocalStorage } from './i18n.js';
 import { getThemeFromLocalStorage, setThemeInLocalStorage } from './theme.js';
-// import { Toast } from 'bootstrap';
 
 // import { flatpickr } from '../flatpickr/js/flatpickr.js';
 
@@ -153,16 +151,52 @@ document.addEventListener("DOMContentLoaded", async () => {
                 <td>${new Date().toLocaleString()}</td>
                 <td><span class="badge bg-success">Scanned</span></td>
             `;
-            await saveScannedBarcode(input, id);
+            try {
+                const source = localStorage.getItem('source') || '';
+                await saveScannedBarcode(input, id, source);
+            } catch (error) {
+                console.error("Failed to save scanned barcode:", error);
+                Swal.fire({
+                    title: "Error",
+                    text: "Failed to save scanned barcode.",
+                    icon: "error",
+                    confirmButtonText: "OK"
+                });
+                // showToast("Error saving scanned barcode.", { delay: 4000, autohide: true });
+            }
+            let timerInterval;
+            Swal.fire({
+                title: "Processing...",
+                // html: "I will close in <b></b> milliseconds.",
+                timer: 1000,
+                icon: "success",
+                // timerProgressBar: true,
+                didOpen: () => {
+                    // Swal.showLoading();
+                    // const timer = Swal.getPopup().querySelector("b");
+                    // timerInterval = setInterval(() => {
+                        // timer.textContent = `${Swal.getTimerLeft()}`;
+                    // }, 100);
+                },
+                willClose: () => {
+                    clearInterval(timerInterval);
+                }
+            }).then((result) => {
+                /* Read more about handling dismissals below */
+                if (result.dismiss === Swal.DismissReason.timer) {
+                    // console.log("I was closed by the timer");
+                }
+            });
+
         }
         // Clear the input field after processing
         event.target.value = '';
         event.target.focus();
     };
 
-    const saveScannedBarcode = async (input, id) => {
+    const saveScannedBarcode = async (input, id, source) => {
         try {
-            const response = await fetch(`/api/barcodes/add/${id}`, {
+            const response = await fetch(`/api/barcodes/add/${id}?source=${encodeURIComponent(source)}`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"
