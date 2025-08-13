@@ -23,10 +23,10 @@ Tutte le variabili di ambiente sono definite nel file `.env`:
 NODE_ENV=development
 
 # Configurazione Database
-DB_PATH=.data/receipts.sqlite
+DB_PATH=.data/db.sqlite
 
 # Configurazione WebSocket Client
-KITCHEN_MGMT_SERVER_URL=http://10.10.1.12:8080/ws
+KITCHEN_MGMT_SERVER_URL=http://127.0.0.1:8080
 WS_CLIENT_RECONNECT_ATTEMPTS=-1
 WS_CLIENT_RECONNECT_DELAY_MS=2000
 ```
