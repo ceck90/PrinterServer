@@ -26,14 +26,14 @@ NODE_ENV=development
 DB_PATH=.data/receipts.sqlite
 
 # Configurazione WebSocket Client
-WS_CLIENT_URL=http://10.10.1.12:8080/ws
+KITCHEN_MGMT_SERVER_URL=http://10.10.1.12:8080/ws
 WS_CLIENT_RECONNECT_ATTEMPTS=-1
 WS_CLIENT_RECONNECT_DELAY_MS=2000
 ```
 
 - **NODE_ENV**: Modalità ambiente (`development`, `production`, ecc.)
 - **DB_PATH**: Percorso del file database SQLite (verrà creato se non esiste)
-- **WS_CLIENT_URL**: Endpoint WebSocket per ricevere ordini in tempo reale
+- **KITCHEN_MGMT_SERVER_URL**: Endpoint WebSocket per ricevere ordini in tempo reale
 - **WS_CLIENT_RECONNECT_ATTEMPTS**: Numero massimo tentativi di riconnessione WebSocket (`-1` = infinito)
 - **WS_CLIENT_RECONNECT_DELAY_MS**: Millisecondi tra i tentativi di riconnessione
 

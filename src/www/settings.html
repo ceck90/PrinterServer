@@ -15,11 +15,32 @@
 
 <body>
     <!-- TOP Header -->
-    <div class="container-fluid d-flex justify-content-between align-middle p-3 bg-auto text-auto">
+    <div class="container-fluid d-flex justify-content-between align-middle p-3 bg-dark text-light">
         <!-- <b><label class="text-auto" id="device-hostname"></label></b> -->
-        <span class="bi bi-house icon-theme fs-4" id="home-button" onclick="location.href='/'" type="button" alt="Home"></span>
-        <span class="bi bi-circle-half icon-theme fs-4 theme-item" type="button" alt="Theme"></span>
+        <div>
+            <img class="img-fluid me-3" src="assets/img/mfo-logo.png" alt="" style="height: 30px;">
+            <b><label class="text-auto" id="title" data-i18n="title"></label></b>
+        </div>
+        <div>
+            <span class="bi bi-house text-light fs-4 me-4" id="home-button" onclick="location.href='/'" type="button" alt="Home"></span>
+            <span class="bi bi-upc-scan text-light fs-4 me-4" id="barcode-button" onclick="location.href='/barcode'" type="button" alt="Barcode"></span>
+            <span class="bi bi-info-square text-light fs-4 me-4" id="status-button" onclick="location.href='/status'" type="button" alt="Status"></span>
+            <span class="bi bi-circle-half text-light fs-4 theme-item" type="button" alt="Theme"></span>
+        </div>
     </div>
+
+    <!-- Bootstrap Toast for notifications -->
+    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100">
+        <div id="notification-toast" class="toast align-items-center text-bg-primary border-0" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body" id="toast-container">
+                    <!-- Notification message will appear here -->
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
+
     <!-- Printer Card -->
     <div class="container py-2">
         <div class="card text-auto bg-auto border-0 shadow-lg rounded-4 mb-3" style="backdrop-filter: blur(6px);">
@@ -29,10 +50,10 @@
             </div>
             <div class="card-body">
                 <div class="d-flex align-items-center mb-2">
-                    <span class="bi bi-printer fs-1 me-3 text-info" id="printer-icon"></span>
-                    <!-- <div>
-                        <span id="printer-status" class="badge bg-secondary" data-i18n="connecting"></span>
-                    </div> -->
+                    <!-- <div class="align-items-center"> -->
+                        <span class="bi bi-printer fs-1 me-3 text-info" id="printer-icon"></span>
+                        <label for="printer-input" class="fs-4 col-3 ms-4" data-i18n="printerList"></label>
+                    <!-- </div> -->
                     <div class="ms-auto">
                         <span id="pulse-dot" class="pulse-dot"></span>
                     </div>

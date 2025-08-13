@@ -129,7 +129,7 @@ export async function handleIncomingOrder(order: OrderPayload) {
         // console.log(`[DISPATCHER] Gestione ordine: ${order.id} con stato: ${order.status} su ${dest}`);
 
         // Verifica se l'ordine è già registrato nel DB per questa destinazione
-        const existingReceipt = await DatabaseController.instance.getReceiptByIdAndStatus(order.orderId, order.status);
+        const existingReceipt = await DatabaseController.getInstance().getReceiptByIdAndStatus(order.orderId, order.status);
         if (existingReceipt) {
             // console.log(`[DISPATCHER] Ordine ${order.id} già registrato per la destinazione ${dest}, salto la stampa.`);
             continue;
@@ -148,7 +148,7 @@ export async function handleIncomingOrder(order: OrderPayload) {
             }
 
             // Salva la ricevuta nel database (stato PRINTED o FAILED)
-            DatabaseController.instance.saveReceipt({
+            DatabaseController.getInstance().saveReceipt({
                 id: order.id,
                 orderId: order.orderId,
                 orderNumber: order.orderNumber,
@@ -168,7 +168,7 @@ export async function handleIncomingOrder(order: OrderPayload) {
         } catch (err) {
             // In caso di errore di stampa, salva comunque la ricevuta come FAILED
             console.error(`Errore stampando ${dest}:`, err);
-            DatabaseController.instance.saveReceipt({
+            DatabaseController.getInstance().saveReceipt({
                 id: order.id,
                 orderId: order.orderId,
                 orderNumber: order.orderNumber,
@@ -194,7 +194,7 @@ export async function handleIncomingOrder(order: OrderPayload) {
  * Cerca la ricevuta e la stampante, invia i dati e aggiorna lo stato nel DB.
  */
 export async function printSpecificOrder(orderNumber: number) {
-    const receipt = await DatabaseController.instance.getReceiptById(orderNumber) as { id: number, printData: Buffer, destination: string } | null;
+    const receipt = await DatabaseController.getInstance().getReceiptById(orderNumber) as { id: number, printData: Buffer, destination: string } | null;
     if (!receipt) {
         console.warn(`[DISPATCHER] Nessuna ticket trovato per ordine ${orderNumber}`);
         return;
@@ -208,20 +208,20 @@ export async function printSpecificOrder(orderNumber: number) {
         console.log(`[DISPATCHER] Ristampo ticket per ordine ${receipt.id} su ${receipt.destination}`);
         if (printer.active) {
             await sendToPrinter(printer.destination, printer.ip, printer.port, receipt.printData);
-            await DatabaseController.instance.updateReceiptReprint(receipt.id, "PRINTED");
+            await DatabaseController.getInstance().updateReceiptReprint(receipt.id, "PRINTED");
             console.log(`[DISPATCHER] Ricevuta per ordine ${receipt.id} ristampata su ${receipt.destination}`);
         } else {
             console.warn(`[DISPATCHER] Stampante ${receipt.destination} non attiva, non posso ristampare il ticket per ordine ${receipt.id}`);
-            await DatabaseController.instance.updateReceiptReprint(receipt.id, "FAILED");
+            await DatabaseController.getInstance().updateReceiptReprint(receipt.id, "FAILED");
         }
     } catch (err) {
         console.error(`[DISPATCHER] Errore nella ristampa del ticket per ordine ${receipt.id}`);
-        await DatabaseController.instance.updateReceiptStatus(receipt.id, "FAILED");
+        await DatabaseController.getInstance().updateReceiptStatus(receipt.id, "FAILED");
     }
 }
 
 export async function regenerateSpecificReceipt(orderNumber: number) {
-    const receipt = await DatabaseController.instance.getReceiptById(orderNumber) as {
+    const receipt = await DatabaseController.getInstance().getReceiptById(orderNumber) as {
         id: number; 
         orderId: string;
         tableNumber: string;
@@ -280,7 +280,7 @@ export async function regenerateSpecificReceipt(orderNumber: number) {
     // Attendi un breve periodo per evitare sovraccarichi
     // await sleep(1000);
     // Aggiorna lo stato della ricevuta nel database
-    await DatabaseController.instance.updateReceiptStatus(receipt.id, "PRINTED");
+    await DatabaseController.getInstance().updateReceiptStatus(receipt.id, "PRINTED");
 }
 
 /**
@@ -289,9 +289,9 @@ export async function regenerateSpecificReceipt(orderNumber: number) {
  */
 export async function handleOrderStatusUpdate(orderNumber: number, status: "PRINTED" | "FAILED") {
     console.log(`[DISPATCHER] Aggiornamento stato ordine ${orderNumber} a ${status}`);
-    const receipt = await DatabaseController.instance.getReceiptById(orderNumber) as { id: number } | null;
+    const receipt = await DatabaseController.getInstance().getReceiptById(orderNumber) as { id: number } | null;
     if (receipt) {
-        await DatabaseController.instance.updateReceiptStatus(receipt.id, status);
+        await DatabaseController.getInstance().updateReceiptStatus(receipt.id, status);
     } else {
         console.warn(`[DISPATCHER] Ricevuta non trovata per l'ordine ${orderNumber}`);
     }
@@ -302,7 +302,7 @@ export async function handleOrderStatusUpdate(orderNumber: number, status: "PRIN
  */
 export async function handleReceiptDeletion(receiptId: string) {
     console.log(`[DISPATCHER] Eliminazione ricevuta ${receiptId}`);
-    await DatabaseController.instance.deleteReceipt(receiptId);
+    await DatabaseController.getInstance().deleteReceipt(receiptId);
 }
 
 /**
@@ -310,7 +310,7 @@ export async function handleReceiptDeletion(receiptId: string) {
  */
 export async function handlePrinterSettingsUpdate(settings: { key: string, printerName: string, printerIp: string, printerPort: number, printerDestinations: string, active: boolean, description: string }) {
     console.log(`[DISPATCHER] Aggiornamento impostazioni stampante ${settings.key}`);
-    await DatabaseController.instance.savePrinterSettings(settings);
+    await DatabaseController.getInstance().savePrinterSettings(settings);
 }
 
 /**
@@ -318,7 +318,7 @@ export async function handlePrinterSettingsUpdate(settings: { key: string, print
  */
 export async function handlePrinterSettingsRetrieval(key: string) {
     console.log(`[DISPATCHER] Recupero impostazioni stampante per ${key}`);
-    return DatabaseController.instance.getPrinterSettingsByKey(key);
+    return DatabaseController.getInstance().getPrinterSettingsByKey(key);
 }
 
 export async function handleSyncOrders(syncData: any) {

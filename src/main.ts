@@ -1,6 +1,6 @@
 import { HttpServerController } from './controllers/httpserver.controller.ts';
 import { DatabaseController } from './controllers/db.controller.ts';
-import { WSClientController } from './controllers/ws-client.controller.ts';
+import { KitchenManagementController, WSClientController } from './controllers/kitchenmgmt.controller.ts';
 import { loadPrintersFromDb, seedPrintersIfDbEmpty } from './print-routing.config.ts';
 import { printSpecificOrder } from './dispatcher.ts';
 import * as fs from 'fs';
@@ -34,7 +34,7 @@ const envPath = path.resolve(process.cwd(), '.env');
 if (!fs.existsSync(envPath)) {
     const defaultEnv = `# Default .env file
         DB_PATH=./db.sqlite
-        WS_CLIENT_URL=http://10.10.1.12:8080
+        KITCHEN_MGMT_SERVER_URL=http://127.0.0.1:8080
         WS_CLIENT_RECONNECT_ATTEMPTS=-1
         WS_CLIENT_RECONNECT_DELAY_MS=2000
         NODE_ENV=development
@@ -53,16 +53,17 @@ console.log("[MAIN] ✅ Inizializzazione del server...");
 /**
  * Percorso del database, configurabile tramite variabile d'ambiente.
  */
-const dbPath: string = process.env.DB_PATH || './db.sqlite';
+const dbPath: string = process.env.DB_PATH || './data/db.sqlite';
 console.log("[MAIN] ✅ Percorso del database:", dbPath);
 
 /**
  * Parametri di connessione WebSocket, configurabili tramite variabili d'ambiente.
  */
-const wsClientUrl: string = process.env.WS_CLIENT_URL || 'http://10.10.1.12:8080';
+
+const kitchenMgmtServerUrl: string = process.env.KITCHEN_MGMT_SERVER_URL || 'http://127.0.0.1:8080';
 const wsReconnectAttempts: number = parseInt(process.env.WS_CLIENT_RECONNECT_ATTEMPTS || '-1', 10);
 const wsReconnectDelayMs: number = parseInt(process.env.WS_CLIENT_RECONNECT_DELAY_MS || '2000', 10);
-console.log("[MAIN] ✅ URL del client WebSocket:", wsClientUrl);
+console.log("[MAIN] ✅ URL del client WebSocket:", kitchenMgmtServerUrl);
 
 // ==================
 // Inizializzazione componenti principali
@@ -72,7 +73,7 @@ console.log("[MAIN] ✅ URL del client WebSocket:", wsClientUrl);
  * Inizializza il controller del database (singleton).
  * Questo crea le tabelle e prepara il DB.
  */
-const dbController = DatabaseController.instance;
+const dbController = DatabaseController.getInstance(dbPath);
 
 /**
  * Inizializza il server HTTP (singleton).
@@ -81,15 +82,27 @@ const dbController = DatabaseController.instance;
 const httpServerController = HttpServerController.instance;
 
 /**
- * Inizializza il client WebSocket (singleton) con le opzioni di riconnessione.
- * Si connette al server WebSocket per ricevere ordini in tempo reale.
+ * Opzioni per il controller di gestione della cucina (singleton).
+ * Configurazione dell'URL del server di gestione della cucina.
  */
+const kitchenManagementOptions = {
+    url: kitchenMgmtServerUrl
+};
+
+const kitchenManagementController = KitchenManagementController.getInstance(kitchenManagementOptions);
+
+/**
+ * Inizializza il client WebSocket STOMP (singleton) con le opzioni di riconnessione.
+ * Si connette al server STOMP per ricevere ordini in tempo reale.
+ */
+
 const WSClientOptions = {
     reconnectAttempts: wsReconnectAttempts, // Numero massimo di tentativi di riconnessione
     reconnectDelayMs: wsReconnectDelayMs,   // Millisecondi tra i tentativi di riconnessione
-    url: wsClientUrl                        // URL del server WebSocket
+    url: kitchenMgmtServerUrl                        // URL del server WebSocket
 };
 const wsClientController = WSClientController.getInstance(WSClientOptions);
+
 
 // ==================
 // Inizializzazione e caricamento stampanti

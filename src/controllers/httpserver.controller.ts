@@ -4,6 +4,7 @@ import { join } from "path";
 import { DatabaseController } from "./db.controller";
 import { printSpecificOrder, regenerateSpecificReceipt } from "../dispatcher";
 import { loadPrintersFromDb } from "../print-routing.config";
+import { KitchenManagementController } from "./kitchenmgmt.controller";
 
 /**
  * Controller singleton per la gestione del server HTTP tramite Elysia.
@@ -45,6 +46,16 @@ export class HttpServerController {
                 return new Response(html, { headers: { "Content-Type": "text/html" } });
             } catch (err) {
                 return new Response("File settings.html Not found", { status: 404 });
+            }
+        });
+        
+        // Route per la pagina di stato
+        this.app.get("/barcode", () => {
+            try {
+                const html = readFileSync(join(import.meta.dir, "../www/barcode.html"), "utf8");
+                return new Response(html, { headers: { "Content-Type": "text/html" } });
+            } catch (err) {
+                return new Response("File barcode.html Not found", { status: 404 });
             }
         });
 
@@ -115,7 +126,7 @@ export class HttpServerController {
                 const type: "PRINTED" | "FAILED" | undefined = allowedTypes.includes(typeParam as any) ? (typeParam as "PRINTED" | "FAILED") : undefined;
 
                 // Query al database
-                const receipts = await DatabaseController.instance.getAllReceipts(limit, offset, type, startDate, endDate);
+                const receipts = await DatabaseController.getInstance().getAllReceipts(limit, offset, type, startDate, endDate);
                 return new Response(JSON.stringify(receipts), { headers: { "Content-Type": "application/json" } });
             } catch (err) {
                 console.error("[API] Error fetching receipts:", err);
@@ -132,7 +143,7 @@ export class HttpServerController {
 
         this.app.get("/api/printers/getAll", async () => {
             try {
-                const printers = await DatabaseController.instance.getPrinterSettings();
+                const printers = await DatabaseController.getInstance().getPrinterSettings();
                 return new Response(JSON.stringify(printers), { headers: { "Content-Type": "application/json" } });
             } catch (err) {
                 console.error("[API] Error fetching printers:", err);
@@ -146,7 +157,7 @@ export class HttpServerController {
                 if (!key) {
                     return new Response("Printer key is required", { status: 400 });
                 }
-                await DatabaseController.instance.deletePrinter(key);
+                await DatabaseController.getInstance().deletePrinter(key);
                 loadPrintersFromDb(); // Ricarica le stampanti dopo la cancellazione
                 return new Response("Printer deleted successfully", { status: 200 });
             } catch (err) {
@@ -161,7 +172,7 @@ export class HttpServerController {
                 if (!data || !data.key || !data.printerName || !data.printerIp || !data.printerPort) {
                     return new Response("Invalid printer data", { status: 400 });
                 }
-                await DatabaseController.instance.savePrinterSettings({
+                await DatabaseController.getInstance().savePrinterSettings({
                     key: data.key,
                     printerName: data.printerName,
                     printerIp: data.printerIp,
@@ -184,7 +195,7 @@ export class HttpServerController {
                 if (!data || !data.printerName || !data.printerIp || !data.printerPort) {
                     return new Response("Invalid printer data", { status: 400 });
                 }
-                await DatabaseController.instance.savePrinterSettings({
+                await DatabaseController.getInstance().savePrinterSettings({
                     key: data.key,
                     printerName: data.printerName,
                     printerIp: data.printerIp,
@@ -202,6 +213,30 @@ export class HttpServerController {
             }
         }); 
 
+        this.app.post("/api/printers/test/:key", async ({ params }) => {
+            try {
+                const key = params.key;
+                if (!key) {
+                    return new Response("Printer key is required", { status: 400 });
+                }
+                const printer = await DatabaseController.getInstance().getPrinterSettingsByKey(key) as {
+                    printerName: string;
+                    printerIp: string;
+                    printerPort: number;
+                } | null;
+                if (!printer) {
+                    return new Response("Printer not found", { status: 404 });
+                }
+                // Simula la stampa di un test
+                console.log(`[API] Testing printer: ${printer.printerName} (${printer.printerIp}:${printer.printerPort})`);
+                // In un'applicazione reale, qui si invierebbe un comando di stampa al printer
+                return new Response(`Test print sent to ${printer.printerName}`, { status: 200 });
+            } catch (err) {
+                console.error("[API] Error testing printer:", err);
+                return new Response("Internal Server Error", { status: 500 });
+            }
+        });
+
         this.app.post("/api/printers/saveAll", async ({ request }) => {
             try {   
                 const data = await request.json();
@@ -214,7 +249,7 @@ export class HttpServerController {
                         console.error("[API] Invalid printer data:", printer);
                         return new Response("Invalid printer data", { status: 400 });
                     }
-                    await DatabaseController.instance.savePrinterSettings({
+                    await DatabaseController.getInstance().savePrinterSettings({
                         key: printer.key,
                         printerName: printer.name,
                         printerIp: printer.ip,
@@ -230,6 +265,50 @@ export class HttpServerController {
             } catch (err) {
                 console.error("[API] Error saving all printers:", err);
                 return new Response("Internal Server Error", { status: 500 });
+            }
+        });
+
+        this.app.get("/api/barcodes/getAll", async () => {
+            try {
+                const barcodes = await DatabaseController.getInstance().getAllBarcodes();
+                return new Response(JSON.stringify(barcodes), { status: 200, headers: { "Content-Type": "application/json" } });
+            } catch (err) {
+                console.error("[API] Error getting all barcodes:", err);
+                return new Response("Internal Server Error", { status: 500 });
+            }
+        });
+
+        this.app.post("/api/barcodes/add/:id", async ({ request, params }) => {
+            try {
+            const url = new URL(request.url);
+            const role = url.searchParams.get("role");
+            console.log("[API] Adding barcode for ID:", params.id, "Role:", role);
+            if (params.id) {
+                const id = params.id;
+                console.log(id);
+                await DatabaseController.getInstance().addOrUpdateBarcode(id, true);
+                // se plate == PANINI cambia plate in FORNO, altrimenti completa con l'ordine in DONE
+                const item = await KitchenManagementController.getInstance().fetchItemById(id);
+
+                console.log("[API] Item fetched:", item.plate.name);
+
+                switch(role) {
+                    case "pass":
+                        await KitchenManagementController.getInstance().updateOrderStatus(id, "DONE");
+                        break;
+                    case "kitchen":
+                        if (item && item.plate.name === "PANINI") {
+                            await KitchenManagementController.getInstance().changeOrderPlate(id, "FORNO");
+                        }
+                        break;
+                    default:
+                        console.warn("[API] Unknown role:", role);
+                }
+            }
+            return new Response("Barcode added successfully", { status: 201 });
+            } catch (err) {
+            console.error("[API] Error adding barcode:", err);
+            return new Response("Internal Server Error", { status: 500 });
             }
         });
 
@@ -250,6 +329,7 @@ export class HttpServerController {
 
     /**
      * Ritorna l'istanza dell'app Elysia (per test o estensioni).
+     * @returns Istanza dell'applicazione Elysia
      */
     public getApp() {
         return this.app;
