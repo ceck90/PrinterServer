@@ -46,9 +46,15 @@
     <!-- Scanner Card -->
     <div class="container py-2">
             <div class="card text-auto bg-auto border-0 shadow-lg rounded-4 mb-3" style="backdrop-filter: blur(6px);">
-                <div class="card-header d-flex justify-content-between">
+                <div class="card-header d-flex justify-content-between align-middle">
                     <h5 class="mb-0" data-i18n="scanner.title"></h5>
-                    <span class="button bi bi-arrow-clockwise fs-5 cursor-pointer update-button" type="button"></span>
+                    <!-- <span class="button bi bi-arrow-clockwise fs-5 cursor-pointer update-button" type="button"></span> -->
+                    <div class="btn-group me-3" role="group" aria-label="Role Switch">
+                        <input type="radio" class="btn-check" name="role-switch" id="role-kitchen" autocomplete="off" checked>
+                        <label class="btn btn-outline-light" for="role-kitchen" id="label-kitchen">Kitchen</label>
+                        <input type="radio" class="btn-check" name="role-switch" id="role-pass" autocomplete="off">
+                        <label class="btn btn-outline-light" for="role-pass" id="label-pass">Pass</label>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between">

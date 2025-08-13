@@ -280,24 +280,35 @@ export class HttpServerController {
 
         this.app.post("/api/barcodes/add/:id", async ({ request, params }) => {
             try {
-                if (params.id) {
-                    const id = params.id;
-                    console.log(id);
-                    await DatabaseController.getInstance().addOrUpdateBarcode(id, true);
-                    //se plate == PANINI cambia plate in FORNO, altrimenti completa con l'ordine in DONE
-                    const item = await KitchenManagementController.getInstance().fetchItemById(id);
+            const url = new URL(request.url);
+            const role = url.searchParams.get("role");
+            console.log("[API] Adding barcode for ID:", params.id, "Role:", role);
+            if (params.id) {
+                const id = params.id;
+                console.log(id);
+                await DatabaseController.getInstance().addOrUpdateBarcode(id, true);
+                // se plate == PANINI cambia plate in FORNO, altrimenti completa con l'ordine in DONE
+                const item = await KitchenManagementController.getInstance().fetchItemById(id);
 
-                    console.log("[API] Item fetched:", item.plate.name);
-                    if (item && item.plate.name === "PANINI") {
-                        await KitchenManagementController.getInstance().changeOrderPlate(id, "FORNO");
-                    } else {
+                console.log("[API] Item fetched:", item.plate.name);
+
+                switch(role) {
+                    case "pass":
                         await KitchenManagementController.getInstance().updateOrderStatus(id, "DONE");
-                    }
+                        break;
+                    case "kitchen":
+                        if (item && item.plate.name === "PANINI") {
+                            await KitchenManagementController.getInstance().changeOrderPlate(id, "FORNO");
+                        }
+                        break;
+                    default:
+                        console.warn("[API] Unknown role:", role);
                 }
-                return new Response("Barcode added successfully", { status: 201 });
+            }
+            return new Response("Barcode added successfully", { status: 201 });
             } catch (err) {
-                console.error("[API] Error adding barcode:", err);
-                return new Response("Internal Server Error", { status: 500 });
+            console.error("[API] Error adding barcode:", err);
+            return new Response("Internal Server Error", { status: 500 });
             }
         });
 

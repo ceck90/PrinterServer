@@ -116,6 +116,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         console.log("Apply theme: " + storedTheme);
     };
 
+    const applyRoleFromLocalStorage = () => {
+        const storedRole = localStorage.getItem('role') || 'none';
+        document.body.setAttribute('data-role', storedRole);
+        
+        console.log("Apply role: " + storedRole);
+    };
+
     const languageDropdown = document.getElementById('languageDropdown');
     if (languageDropdown) {
         const dropdownItems = document.querySelectorAll('.dropdown-item');
@@ -152,8 +159,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                 <td><span class="badge bg-success">Scanned</span></td>
             `;
             try {
-                const source = localStorage.getItem('source') || '';
-                await saveScannedBarcode(input, id, source);
+                const role = localStorage.getItem('role') || 'none';
+                await saveScannedBarcode(input, id, role);
             } catch (error) {
                 console.error("Failed to save scanned barcode:", error);
                 Swal.fire({
@@ -194,9 +201,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         event.target.focus();
     };
 
-    const saveScannedBarcode = async (input, id, source) => {
+    const saveScannedBarcode = async (input, id, role) => {
         try {
-            const response = await fetch(`/api/barcodes/add/${id}?source=${encodeURIComponent(source)}`, {
+            const response = await fetch(`/api/barcodes/add/${id}?role=${encodeURIComponent(role)}`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"
@@ -239,6 +246,17 @@ document.addEventListener("DOMContentLoaded", async () => {
             toggleBtn.classList.toggle('bi-eye-slash', isVisible);
             toggleBtn.classList.toggle('bi-eye', !isVisible);
         });
+
+        document.getElementById('role-kitchen').addEventListener('change', function() {
+            // Handle kitchen role selection
+            document.body.setAttribute('data-role', 'kitchen');
+            localStorage.setItem('role', 'kitchen');
+        });
+        document.getElementById('role-pass').addEventListener('change', function() {
+            // Handle pass role selection
+            document.body.setAttribute('data-role', 'pass');
+            localStorage.setItem('role', 'pass');
+        });
     };
 
     setInterval(() => {
@@ -280,6 +298,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     lang = await initI18n();
     applyThemeFromLocalStorage();
+
+    applyRoleFromLocalStorage();
 
     await updateTranslate();
 
