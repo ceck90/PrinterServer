@@ -164,6 +164,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             } catch (error) {
                 console.error("Failed to save scanned barcode:", error);
                 Swal.fire({
+                    theme: "auto",
                     title: "Error",
                     text: "Failed to save scanned barcode.",
                     icon: "error",
@@ -173,6 +174,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
             let timerInterval;
             Swal.fire({
+                theme: "auto",
                 title: "Processing...",
                 // html: "I will close in <b></b> milliseconds.",
                 timer: 1000,

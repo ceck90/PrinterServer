@@ -87,10 +87,10 @@ export async function buildKitchenReceipt(order: OrderPayload, dest: string, ite
     return connection.buffer();
 }
 
-export async function buildKitchenReceipt_v2(order: OrderPayload, dest: string, items: OrderItem[]): Promise<Buffer> {
+export async function buildKitchenReceipt_v2(order: OrderPayload, dest: string, items: OrderItem[], upsideDown: boolean = false): Promise<Buffer> {
     const printer = new ThermalPrinter({
         type: PrinterTypes.EPSON,                                 // Printer type: 'star' or 'epson'
-        width: 48,                                                // Number of characters in one line
+        width: 80,                                                // Number of characters in one line
         interface: 'tcp://127.0.0.1:9100',                       // Printer interface
         characterSet: CharacterSet.PC850_MULTILINGUAL,                    // Printer character set
         removeSpecialCharacters: true, 
@@ -101,25 +101,133 @@ export async function buildKitchenReceipt_v2(order: OrderPayload, dest: string, 
         }
     });
 
-    await printer.printImage(path.join(__dirname, 'www/assets/img/mfo-logo-bw.png'));
+    console.log("[PRINT] Building ticket...");
+    if(upsideDown) console.log("[PRINT] Stampa capovolta");
+
+    await printer.upsideDown(upsideDown);
+
+    // await printer.printImage(path.join(__dirname, 'www/assets/img/mfo-logo-bw.png'));
 
     // Prints table with custom settings (text, align, width, cols, bold)
-    printer.tableCustom([                                       
-        { text: "Left", align: "LEFT", width: 0.5 },
-        { text: "Center", align: "CENTER", width: 0.5, bold: true },
-        { text: "Right", align: "RIGHT", width: 0.5 }
-    ]);
+    // printer.tableCustom([                                       
+    //     { text: "Left", align: "LEFT", width: 0.5 },
+    //     { text: "Center", align: "CENTER", width: 0.5, bold: true },
+    //     { text: "Right", align: "RIGHT", width: 0.5 }
+    // ]);
 
-    printer.printQR(order.orderId.toString());
+    // console.log(items);
 
-    printer.partialCut();
+    printer.alignCenter();
+
+    printer.setTextNormal();
+    printer.setTextSize(0, 0);
+    printer.bold(true);
+    printer.underline(false);
+
+    // INTESTAZIONE
+    const currentYear = new Date().getFullYear();
+    printer.setTextSize(1, 0);
+    printer.underlineThick(true);
+    printer.println(` -- Music FestOn ${currentYear} --`);
+    printer.underlineThick(false);
+    printer.setTextSize(0, 0);
+    // printer.drawLine("_");
+    
+    printer.newLine();
+
+    // ASPORTO
+    // if( items[0].takeAway ) {
+    //     printer.alignCenter();
+    //     printer.bold(true);
+    //     printer.invert(true);
+    //     printer.setTextSize(2, 0);
+    //     printer.println(` -- ASPORTO -- `);
+    //     printer.setTextSize(0, 0);
+    //     printer.invert(false);
+
+    //     printer.setTextNormal();
+    //     printer.alignLeft();
+    // }
+
+    // TIPO DI PIATTO E CATEGORIA
+    // printer.invert(false);
+    printer.alignCenter();
+    printer.setTextSize(1, 1);
+    printer.underlineThick(true);
+    printer.println(`${dest} - ${order.items[0].name}`);
+    printer.setTextSize(0, 0);
+    printer.underlineThick(false);
+    // printer.drawLine("_");
+    // printer.invert(false);
+
+    // INFORMAZIONI ORDINE
+    printer.alignLeft();
+    printer.setTextSize(1, 0);
+    printer.println(`ORDINE: ${order.orderNumber} TAVOLO: ${items[0].tableNumber}`);
+    printer.println(`CLIENTE: ${items[0].clientName}`);
+
+    //SEZIONE NOTE
+    printer.setTextSize(0, 0);
+    if( items[0].itemNote ) {
+        printer.println(`NOTE PIATTO: ${items[0].itemNote}`);
+    }
+    if( items[0].orderNotes ) {
+        
+        printer.alignCenter();
+        printer.println(`- ${items[0].orderNotes} -`);
+    }
+    printer.setTextSize(0, 0);
+
+    printer.newLine();
+
+    // ASPORTO
+    if( items[0].takeAway ) {
+        printer.alignCenter();
+        printer.bold(true);
+        printer.invert(true);
+        printer.setTextSize(2, 0);
+        printer.println(` -- ASPORTO -- `);
+        printer.setTextSize(0, 0);
+        printer.invert(false);
+
+        printer.setTextNormal();
+        printer.alignLeft();
+    }
+
+    printer.alignCenter();
+    // printer.printQR("MFO" + order.orderId.toString(), 
+    //     { 
+    //         cellSize: 6, 
+    //         correction: "H",
+    //     }
+    // );
+
+    // printer.printBarcode(`MFO${order.orderId.toString()}`, 8, {
+
+    //     hriFont: 1,
+    //     hriPos: 2
+    // });
+
+    // printer.code128(`MFO${order.orderId.toString()}`, {
+    //     height:50,
+    //     text: 1
+    // });
+
+    printer.pdf417(`MFO${order.orderId.toString()}`, {
+        rowHeight: 3,            // 2 - 8
+        width: 3,                // 2 - 8
+        correction: 1,           // Ratio: 1 - 40
+        truncated: false,        // boolean
+        columns: 0               // 1 - 30, 0 auto
+    });
+
+    printer.newLine();
+
+    printer.partialCut({ verticalTabAmount: 1 });
     // printer.beep(3, 1);
-
 
     var buffer = printer.getBuffer();
 
-    // console.log("Buffer size:", buffer.length);
-    // console.log("Buffer content:", buffer.toString('hex'));
 
     return buffer;
 

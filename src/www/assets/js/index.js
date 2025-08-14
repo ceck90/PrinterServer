@@ -401,7 +401,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                             <td>${ticket.tableNumber}</td>
                             <td>${ticket.destination}</td>
                             <td>${ticket.itemName}</td>
-                            <td>${ticket.note ? ticket.note : ''}</td>
+                            <td>${ticket.itemNote ? ticket.itemNote : ''}</td>
                             <td>${ticket.orderNotes ? ticket.orderNotes : ''}</td>
                             
                         `;
