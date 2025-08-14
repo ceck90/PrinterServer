@@ -180,6 +180,7 @@ export class HttpServerController {
                     printerDestinations: data.printerDestinations || "",
                     active: data.active || false,
                     upsideDown: data.upsideDown || false,
+                    beepEnable: data.beepEnable || false,
                     description: data.description || ""
                 });
                 loadPrintersFromDb(); // Ricarica stampanti dopo l'update
@@ -204,6 +205,7 @@ export class HttpServerController {
                     printerDestinations: data.printerDestinations || "",
                     active: data.active || false,
                     upsideDown: data.upsideDown || false,
+                    beepEnable: data.beepEnable || false,
                     description: data.description || ""
                 });
 
@@ -259,6 +261,7 @@ export class HttpServerController {
                         printerDestinations: printer.destination || "",
                         active: printer.active || false,
                         upsideDown: printer.upsideDown || false,
+                        beepEnable: printer.beepEnable || false,
                         description: printer.description || ""
                     });
                     console.log("[API] Printer saved:", printer.name);

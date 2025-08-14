@@ -11,6 +11,7 @@ export type PrinterConfig = {
     destination: string;   // Destinazione logica (es: "CUCINA", "BAR", ecc.)
     active: boolean;       // Se la stampante è attiva o meno
     upsideDown: boolean;   // Se la stampa deve essere capovolta
+    beepEnable: boolean;   // Se il beep della stampante è abilitato
     description?: string;  // Descrizione opzionale
 };
 
@@ -27,11 +28,11 @@ export let printers: PrinterConfig[] = [];
  * Questo oggetto NON viene usato a runtime, ma solo se la tabella printers è vuota.
  */
 const printerMapSeed: Record<string, Omit<PrinterConfig, "name">> = {
-    "PIADINE":     { key: "piadine",     ip: "10.10.1.95", port: 9100, destination: "PIADINE",     active: true, upsideDown: false, description: "" },
-    "FORNO":       { key: "forno",       ip: "10.10.1.95", port: 9100, destination: "FORNO",       active: true, upsideDown: false, description: "" },
-    "PANINI":      { key: "panini",      ip: "10.10.1.95", port: 9100, destination: "PANINI",      active: true, upsideDown: false, description: "" },
-    "TOAST":       { key: "toast",       ip: "10.10.1.95", port: 9100, destination: "TOAST",       active: true, upsideDown: false, description: "" },
-    "PIATTI UNICI":{ key: "piattiunici", ip: "10.10.1.95", port: 9100, destination: "PIATTI UNICI",active: true, upsideDown: false, description: "" }
+    "PIADINE":     { key: "piadine",     ip: "10.10.1.95", port: 9100, destination: "PIADINE",     active: true, upsideDown: false, beepEnable: false, description: "" },
+    "FORNO":       { key: "forno",       ip: "10.10.1.95", port: 9100, destination: "FORNO",       active: true, upsideDown: false, beepEnable: false, description: "" },
+    "PANINI":      { key: "panini",      ip: "10.10.1.95", port: 9100, destination: "PANINI",      active: true, upsideDown: false, beepEnable: false, description: "" },
+    "TOAST":       { key: "toast",       ip: "10.10.1.95", port: 9100, destination: "TOAST",       active: true, upsideDown: false, beepEnable: false, description: "" },
+    "PIATTI UNICI":{ key: "piattiunici", ip: "10.10.1.95", port: 9100, destination: "PIATTI UNICI",active: true, upsideDown: false, beepEnable: false, description: "" }
 };
 
 /**
@@ -50,6 +51,7 @@ export function seedPrintersIfDbEmpty() {
                 printerDestinations: config.destination,
                 active: config.active,
                 upsideDown: config.upsideDown ?? false, // Aggiunto upsideDown con valore di default
+                beepEnable: config.beepEnable ?? false, // Aggiunto beepEnable con valore di default
                 description: config.description ?? ""
             });
         }
@@ -72,9 +74,10 @@ export function loadPrintersFromDb() {
         destination: printer.destination ?? printer.name,
         active: printer.active,
         upsideDown: printer.upsideDown ?? false,
+        beepEnable: printer.beepEnable ?? false,
         description: printer.description ?? ""
     }));
     for (const printer of printers) {
-        console.log(`[PRINT] Stampante caricata: ${printer.name} (${printer.ip}:${printer.port} --> ${printer.destination}) - ${printer.active ? 'Attiva' : 'Inattiva'} - ${printer.upsideDown ? 'Capovolta' : 'Normale'}`);
+        console.log(`[PRINT] Stampante caricata: ${printer.name} (${printer.ip}:${printer.port} --> ${printer.destination}) - ${printer.active ? 'Attiva' : 'Inattiva'} - ${printer.upsideDown ? 'Capovolta' : 'Normale'} - ${printer.beepEnable ? 'Beep Abilitato' : 'Beep Disabilitato'}`);
     }
 }

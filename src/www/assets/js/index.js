@@ -49,6 +49,13 @@ document.addEventListener("DOMContentLoaded", async () => {
             const startDate = new Date(start);
             fetchTickets(startDate.toISOString().slice(0, 10), startDate.toISOString().slice(0, 10), 50, 0);
         }
+        else {
+            // Se non è selezionata alcuna data, usa la data odierna
+            const today = new Date();
+            const startDate = today;
+            console.log("No date selected, using today's date:", startDate.toISOString().slice(0, 10));
+            fetchTickets(startDate.toISOString().slice(0, 10), startDate.toISOString().slice(0, 10), 50, 0);
+        }
     });
 
     const search_text = document.getElementById('table-search');

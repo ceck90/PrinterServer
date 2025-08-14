@@ -143,7 +143,7 @@ export async function handleIncomingOrder(order: OrderPayload) {
 
         try {
             // Costruisce il buffer di stampa (es. ESC/POS)
-            const buffer = await buildKitchenReceipt_v2(order, dest, items, printer.upsideDown);
+            const buffer = await buildKitchenReceipt_v2(order, dest, items, printer.upsideDown, printer.beepEnable);
 
             // Se la stampante è attiva, invia i dati
             if (printer.active) {
@@ -273,7 +273,7 @@ export async function regenerateSpecificReceipt(orderNumber: number) {
                 }]
             };
             console.log(`[DISPATCHER] Rigenero il ticket per ordine ${receipt.id} con dati:`, order);
-            const buffer = await buildKitchenReceipt_v2(order, receipt.destination, order.items, printer.upsideDown);
+            const buffer = await buildKitchenReceipt_v2(order, receipt.destination, order.items, printer.upsideDown, printer.beepEnable);
             await sendToPrinter(printer.destination, printer.ip, printer.port, buffer);
             console.log(`[DISPATCHER] ticket per ordine ${receipt.id} rigenerata e stampata su ${receipt.destination}`);
         } else {
@@ -313,7 +313,7 @@ export async function handleReceiptDeletion(receiptId: string) {
 /**
  * Aggiorna le impostazioni di una stampante nel database.
  */
-export async function handlePrinterSettingsUpdate(settings: { key: string, printerName: string, printerIp: string, printerPort: number, printerDestinations: string, active: boolean, upsideDown: boolean, description: string }) {
+export async function handlePrinterSettingsUpdate(settings: { key: string, printerName: string, printerIp: string, printerPort: number, printerDestinations: string, active: boolean, upsideDown: boolean, beepEnable: boolean, description: string }) {
     console.log(`[DISPATCHER] Aggiornamento impostazioni stampante ${settings.key}`);
     await DatabaseController.getInstance().savePrinterSettings(settings);
 }

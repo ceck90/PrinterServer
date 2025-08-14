@@ -87,7 +87,7 @@ export async function buildKitchenReceipt(order: OrderPayload, dest: string, ite
     return connection.buffer();
 }
 
-export async function buildKitchenReceipt_v2(order: OrderPayload, dest: string, items: OrderItem[], upsideDown: boolean = false): Promise<Buffer> {
+export async function buildKitchenReceipt_v2(order: OrderPayload, dest: string, items: OrderItem[], upsideDown: boolean = false, beepEnable: boolean = false): Promise<Buffer> {
     const printer = new ThermalPrinter({
         type: PrinterTypes.EPSON,                                 // Printer type: 'star' or 'epson'
         width: 80,                                                // Number of characters in one line
@@ -224,7 +224,10 @@ export async function buildKitchenReceipt_v2(order: OrderPayload, dest: string, 
     printer.newLine();
 
     printer.partialCut({ verticalTabAmount: 1 });
-    // printer.beep(3, 1);
+    
+    if(beepEnable) {
+        printer.beep(3, 1);
+    }
 
     var buffer = printer.getBuffer();
 

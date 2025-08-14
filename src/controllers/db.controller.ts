@@ -116,6 +116,7 @@ export class DatabaseController {
                 printerDestinations TEXT,
                 active BOOLEAN DEFAULT 0,
                 upsideDown BOOLEAN DEFAULT 0,
+                beepEnable BOOLEAN DEFAULT 0,
                 description TEXT
             );
         `);
@@ -146,7 +147,7 @@ export class DatabaseController {
      */
     public getPrinterSettings() {
         const result = this.db.query(
-            `SELECT key as key, printerName as name, printerIp as ip, printerPort as port, printerDestinations as destination, active, upsideDown, description FROM printers`
+            `SELECT key as key, printerName as name, printerIp as ip, printerPort as port, printerDestinations as destination, active, upsideDown, beepEnable, description FROM printers`
         ).all();
         return Array.isArray(result) ? result : [];
     }
@@ -166,10 +167,10 @@ export class DatabaseController {
      * Salva o aggiorna le impostazioni di una stampante.
      * @param printer Oggetto con i dati della stampante
      */
-    public savePrinterSettings(printer: { key: string, printerName: string, printerIp: string, printerPort: number, printerDestinations: string, active: boolean, upsideDown: boolean, description: string }) {
+    public savePrinterSettings(printer: { key: string, printerName: string, printerIp: string, printerPort: number, printerDestinations: string, active: boolean, upsideDown: boolean, beepEnable: boolean, description: string }) {
         this.db.run(
-            `INSERT INTO printers (key, printerName, printerIp, printerPort, printerDestinations, active, upsideDown, description)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            `INSERT INTO printers (key, printerName, printerIp, printerPort, printerDestinations, active, upsideDown, beepEnable, description)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(key) DO UPDATE SET
                 printerName = excluded.printerName,
                 printerIp = excluded.printerIp,
@@ -177,6 +178,7 @@ export class DatabaseController {
                 printerDestinations = excluded.printerDestinations,
                 active = excluded.active,
                 upsideDown = excluded.upsideDown,
+                beepEnable = excluded.beepEnable,
                 description = excluded.description`,
             [
                 printer.key,
@@ -186,6 +188,7 @@ export class DatabaseController {
                 printer.printerDestinations,
                 printer.active,
                 printer.upsideDown,
+                printer.beepEnable,
                 printer.description
             ]
         );
