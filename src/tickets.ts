@@ -6,7 +6,7 @@ const path = require('path');
 
 import { ThermalPrinter, PrinterTypes, CharacterSet, BreakLine  } from "node-thermal-printer";
 
-export async function buildKitchenReceipt(order: OrderPayload, dest: string, items: OrderItem[]): Promise<Buffer> {
+export async function buildKitchenTicket(order: OrderPayload, dest: string, items: OrderItem[]): Promise<Buffer> {
     const connection = new InMemory();
     const imageManager = new ImageManager();
     const printer = await Printer.CONNECT('POS-80', connection, imageManager);
@@ -87,7 +87,7 @@ export async function buildKitchenReceipt(order: OrderPayload, dest: string, ite
     return connection.buffer();
 }
 
-export async function buildKitchenReceipt_v2(order: OrderPayload, dest: string, items: OrderItem[], upsideDown: boolean = false, beepEnable: boolean = false): Promise<Buffer> {
+export async function buildKitchenTicket_v2(order: OrderPayload, dest: string, items: OrderItem[], upsideDown: boolean = false, beepEnable: boolean = false): Promise<Buffer> {
     const printer = new ThermalPrinter({
         type: PrinterTypes.EPSON,                                 // Printer type: 'star' or 'epson'
         width: 80,                                                // Number of characters in one line
@@ -224,7 +224,7 @@ export async function buildKitchenReceipt_v2(order: OrderPayload, dest: string, 
     printer.newLine();
 
     printer.partialCut({ verticalTabAmount: 1 });
-    
+
     if(beepEnable) {
         printer.beep(3, 1);
     }
@@ -242,4 +242,42 @@ export async function buildKitchenReceipt_v2(order: OrderPayload, dest: string, 
     // } catch (e) {
     //     console.error('Print failed:', e);
     // }
+}
+
+export async function buildTestTicket(upsideDown: boolean, beepEnable: boolean){
+
+    const printer = new ThermalPrinter({
+        type: PrinterTypes.EPSON,                                 // Printer type: 'star' or 'epson'
+        width: 80,                                                // Number of characters in one line
+        interface: 'tcp://127.0.0.1:9100',                       // Printer interface
+        characterSet: CharacterSet.PC850_MULTILINGUAL,                    // Printer character set
+        removeSpecialCharacters: true, 
+        lineCharacter: "=",                                       // Set character for lines - default: "-"
+        breakLine: BreakLine.WORD,                                // Break line after WORD or CHARACTERS. Disabled with NONE - default: WORD
+        options:{                                                 // Additional options
+            timeout: 5000                                         // Connection timeout (ms) [applicable only for network printers] - default: 3000
+        }
+    });
+
+    printer.alignCenter();
+    printer.setTextSize(1, 1);
+    printer.underlineThick(true);
+    printer.println(`TEST TICKET`);
+    printer.println(`${Date.now()}`);
+    printer.setTextSize(0, 0);
+    printer.underlineThick(false);
+
+
+    if(upsideDown) {
+        printer.invert(true);
+    }
+    if(beepEnable) {
+        printer.beep(3, 1);
+    }
+
+    printer.partialCut();
+    // Costruzione del biglietto di prova
+    const buffer = printer.getBuffer();
+
+    return buffer;
 }

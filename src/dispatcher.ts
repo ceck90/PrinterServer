@@ -1,6 +1,6 @@
 import type { OrderPayload } from "./types";
 import { groupBy } from "./utils";
-import { buildKitchenReceipt, buildKitchenReceipt_v2 } from "./receipt";
+import { buildKitchenTicket, buildKitchenTicket_v2, buildTestTicket } from "./tickets";
 import { sendToPrinter } from "./print";
 import { printers } from "./print-routing.config";
 import type { PrinterConfig } from "./print-routing.config";
@@ -143,7 +143,7 @@ export async function handleIncomingOrder(order: OrderPayload) {
 
         try {
             // Costruisce il buffer di stampa (es. ESC/POS)
-            const buffer = await buildKitchenReceipt_v2(order, dest, items, printer.upsideDown, printer.beepEnable);
+            const buffer = await buildKitchenTicket_v2(order, dest, items, printer.upsideDown, printer.beepEnable);
 
             // Se la stampante è attiva, invia i dati
             if (printer.active) {
@@ -273,7 +273,7 @@ export async function regenerateSpecificReceipt(orderNumber: number) {
                 }]
             };
             console.log(`[DISPATCHER] Rigenero il ticket per ordine ${receipt.id} con dati:`, order);
-            const buffer = await buildKitchenReceipt_v2(order, receipt.destination, order.items, printer.upsideDown, printer.beepEnable);
+            const buffer = await buildKitchenTicket_v2(order, receipt.destination, order.items, printer.upsideDown, printer.beepEnable);
             await sendToPrinter(printer.destination, printer.ip, printer.port, buffer);
             console.log(`[DISPATCHER] ticket per ordine ${receipt.id} rigenerata e stampata su ${receipt.destination}`);
         } else {
@@ -286,6 +286,27 @@ export async function regenerateSpecificReceipt(orderNumber: number) {
     // await sleep(1000);
     // Aggiorna lo stato della ticket nel database
     await DatabaseController.getInstance().updateReceiptStatus(receipt.id, "PRINTED");
+}
+
+export async function printTestTicket(printerName: string) {
+
+    const printer = printers.find(p => p.destination === printerName || p.name === printerName);
+    if (!printer) {
+        console.warn(`[DISPATCHER] Nessuna stampante configurata per la destinazione: ${printerName}`);
+        return;
+    }
+    try {
+        console.log(`[DISPATCHER] Stampo ticket di test su ${printer.destination}`);
+        if (printer.active) {
+            const buffer = await buildTestTicket(printer.upsideDown, printer.beepEnable);
+            await sendToPrinter(printer.destination, printer.ip, printer.port, buffer);
+            console.log(`[DISPATCHER] ticket di test stampata su ${printer.destination}`);
+        } else {
+            console.warn(`[DISPATCHER] Stampante ${printer.destination} non attiva, non posso stampare il ticket di test`);
+        }
+    } catch (err) {
+        console.error(`[DISPATCHER] Errore nella stampa del ticket di test:`, err);
+    }
 }
 
 /**

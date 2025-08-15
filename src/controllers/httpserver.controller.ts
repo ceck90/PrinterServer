@@ -2,7 +2,7 @@ import Elysia from "elysia";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { DatabaseController } from "./db.controller";
-import { printSpecificOrder, regenerateSpecificReceipt } from "../dispatcher";
+import { printSpecificOrder, printTestTicket, regenerateSpecificReceipt } from "../dispatcher";
 import { loadPrintersFromDb } from "../print-routing.config";
 import { KitchenManagementController } from "./kitchenmgmt.controller";
 
@@ -234,6 +234,7 @@ export class HttpServerController {
                 // Simula la stampa di un test
                 console.log(`[API] Testing printer: ${printer.printerName} (${printer.printerIp}:${printer.printerPort})`);
                 // In un'applicazione reale, qui si invierebbe un comando di stampa al printer
+                printTestTicket(printer.printerName);
                 return new Response(`Test print sent to ${printer.printerName}`, { status: 200 });
             } catch (err) {
                 console.error("[API] Error testing printer:", err);
@@ -253,21 +254,26 @@ export class HttpServerController {
                         console.error("[API] Invalid printer data:", printer);
                         return new Response("Invalid printer data", { status: 400 });
                     }
-                    await DatabaseController.getInstance().savePrinterSettings({
-                        key: printer.key,
-                        printerName: printer.name,
-                        printerIp: printer.ip,
-                        printerPort: printer.port,
-                        printerDestinations: printer.destination || "",
-                        active: printer.active || false,
-                        upsideDown: printer.upsideDown || false,
-                        beepEnable: printer.beepEnable || false,
-                        description: printer.description || ""
-                    });
-                    console.log("[API] Printer saved:", printer.name);
+                    try {
+                        await DatabaseController.getInstance().savePrinterSettings({
+                            key: printer.key,
+                            printerName: printer.name,
+                            printerIp: printer.ip,
+                            printerPort: printer.port,
+                            printerDestinations: printer.destination || "",
+                            active: printer.active || false,
+                            upsideDown: printer.upsideDown || false,
+                            beepEnable: printer.beepEnable || false,
+                            description: printer.description || ""
+                        });
+                        console.log("[API] Printer saved:", printer.name);
+                        loadPrintersFromDb(); // Ricarica le stampanti dopo il salvataggio
+                        return new Response("All printers saved successfully", { status: 200 });
+                    } catch (error) {
+                        console.error("[API] Error saving printer:", error);
+                        return new Response("Internal Server Error", { status: 500 });
+                    }
                 }
-                loadPrintersFromDb(); // Ricarica le stampanti dopo il salvataggio
-                return new Response("All printers saved successfully", { status: 200 });
             } catch (err) {
                 console.error("[API] Error saving all printers:", err);
                 return new Response("Internal Server Error", { status: 500 });
@@ -292,23 +298,33 @@ export class HttpServerController {
             if (params.id) {
                 const id = params.id;
                 console.log(id);
-                await DatabaseController.getInstance().addOrUpdateBarcode(id, true);
-                // se plate == PANINI cambia plate in FORNO, altrimenti completa con l'ordine in DONE
-                const item = await KitchenManagementController.getInstance().fetchItemById(id);
+                try {
+                    await DatabaseController.getInstance().addOrUpdateBarcode(id, true);
+                    // se plate == PANINI cambia plate in FORNO, altrimenti completa con l'ordine in DONE
+                }
+                catch (error) {
+                    console.error("[API] Error adding barcode:", error);
+                }
 
-                console.log("[API] Item fetched:", item.plate.name);
-
-                switch(role) {
-                    case "pass":
-                        await KitchenManagementController.getInstance().updateOrderStatus(id, "DONE");
-                        break;
-                    case "kitchen":
-                        if (item && item.plate.name === "PANINI") {
-                            await KitchenManagementController.getInstance().changeOrderPlate(id, "FORNO");
-                        }
-                        break;
-                    default:
-                        console.warn("[API] Unknown role:", role);
+                try {
+                    // Fetch the item by ID from KitchenManagementController
+                    const item = await KitchenManagementController.getInstance().fetchItemById(id);
+                    console.log("[API] Item fetched:", item.plate.name);
+                    switch(role) {
+                        case "pass":
+                            await KitchenManagementController.getInstance().updateOrderStatus(id, "DONE");
+                            break;
+                        case "kitchen":
+                            if (item && item.plate.name === "PANINI") {
+                                await KitchenManagementController.getInstance().changeOrderPlate(id, "FORNO");
+                            }
+                            break;
+                        default:
+                            console.warn("[API] Unknown role:", role);
+                    }
+                }
+                catch (fetchError) {
+                    console.error("[API] Error fetching item:", fetchError);
                 }
             }
             return new Response("Barcode added successfully", { status: 201 });
