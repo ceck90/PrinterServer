@@ -89,6 +89,18 @@ export class HttpServerController {
         // Catch-all per tutte le altre route non definite (404)
         this.app.all("*", () => new Response("404 Not Found", { status: 404 }));
 
+        this.app.ws("/api/ws", {
+            open(ws) {
+                console.log("[WS] Client connected:", ws);
+            },
+            message(ws, message) {
+                console.log("[WS] Message from client:", message);
+            },
+            close(ws) {
+                console.log("[WS] Client disconnected:", ws);
+            }
+        });
+
         // API: restituisce le ricevute con filtri e paginazione
         this.app.get("/api/receipts", async ({ request }) => {
             try {

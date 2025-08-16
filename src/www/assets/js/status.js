@@ -269,7 +269,7 @@ document.addEventListener("DOMContentLoaded", async () => {
      */
     const startWebSocket = () => {
         console.log(translate('serverConnecting') + `${window.location.hostname}:${window.location.port}`);
-        const socket = new WebSocket(`wss://${window.location.hostname}:${window.location.port}/config/ws`);
+        const socket = new WebSocket(`ws://${window.location.hostname}:${window.location.port}/api/ws`);
         appendToConsole(translate('serverConnecting'));
 
         setServerStatus('connecting');
