@@ -298,7 +298,7 @@ export async function printTestTicket(printerName: string) {
     try {
         console.log(`[DISPATCHER] Stampo ticket di test su ${printer.destination}`);
         if (printer.active) {
-            const buffer = await buildTestTicket(printer.upsideDown, printer.beepEnable);
+            const buffer = await buildTestTicket(printer.name, printer.ip, printer.upsideDown, printer.beepEnable);
             await sendToPrinter(printer.destination, printer.ip, printer.port, buffer);
             console.log(`[DISPATCHER] ticket di test stampata su ${printer.destination}`);
         } else {

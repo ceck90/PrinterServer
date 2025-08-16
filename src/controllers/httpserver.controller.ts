@@ -248,7 +248,7 @@ export class HttpServerController {
                 if (!Array.isArray(data) || data.length === 0) {
                     return new Response("Invalid printer data", { status: 400 });
                 }
-                // console.log("[API] Saving all printers", data);
+                console.log("[API] Saving all printers", data);
                 for (const printer of data) {
                     if (!printer.key || !printer.name || !printer.ip || !printer.port) {
                         console.error("[API] Invalid printer data:", printer);
@@ -266,14 +266,14 @@ export class HttpServerController {
                             beepEnable: printer.beepEnable || false,
                             description: printer.description || ""
                         });
-                        console.log("[API] Printer saved:", printer.name);
-                        loadPrintersFromDb(); // Ricarica le stampanti dopo il salvataggio
-                        return new Response("All printers saved successfully", { status: 200 });
+                        // console.log("[API] Printer saved:", printer.name);
                     } catch (error) {
                         console.error("[API] Error saving printer:", error);
                         return new Response("Internal Server Error", { status: 500 });
                     }
                 }
+                loadPrintersFromDb(); // Ricarica le stampanti dopo il salvataggio
+                return new Response("All printers saved successfully", { status: 200 });
             } catch (err) {
                 console.error("[API] Error saving all printers:", err);
                 return new Response("Internal Server Error", { status: 500 });

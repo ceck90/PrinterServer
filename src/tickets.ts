@@ -244,7 +244,7 @@ export async function buildKitchenTicket_v2(order: OrderPayload, dest: string, i
     // }
 }
 
-export async function buildTestTicket(upsideDown: boolean, beepEnable: boolean){
+export async function buildTestTicket(printerName: string, printerIP: string, upsideDown: boolean, beepEnable: boolean){
 
     const printer = new ThermalPrinter({
         type: PrinterTypes.EPSON,                                 // Printer type: 'star' or 'epson'
@@ -260,10 +260,12 @@ export async function buildTestTicket(upsideDown: boolean, beepEnable: boolean){
     });
 
     printer.alignCenter();
+    await printer.printImage(path.join(__dirname, 'www/assets/img/mfo-logo-bw.png'));
     printer.setTextSize(1, 1);
     printer.underlineThick(true);
     printer.println(`TEST TICKET`);
-    printer.println(`${Date.now()}`);
+    printer.println(`Stampante: ${printerName} - ${printerIP}`);
+    printer.println(`${new Date().toLocaleString()}`);
     printer.setTextSize(0, 0);
     printer.underlineThick(false);
 
