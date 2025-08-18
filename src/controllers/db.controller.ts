@@ -88,7 +88,7 @@ export class DatabaseController {
                 itemName TEXT,
                 tableNumber TEXT,
                 clientName TEXT,
-                note TEXT,
+                itemNote TEXT,
                 orderNotes TEXT,
                 printData BLOB,
                 printStatus TEXT CHECK(printStatus IN ('PRINTED', 'FAILED')),
@@ -115,6 +115,8 @@ export class DatabaseController {
                 printerPort INTEGER,
                 printerDestinations TEXT,
                 active BOOLEAN DEFAULT 0,
+                upsideDown BOOLEAN DEFAULT 0,
+                beepEnable BOOLEAN DEFAULT 0,
                 description TEXT
             );
         `);
@@ -145,7 +147,7 @@ export class DatabaseController {
      */
     public getPrinterSettings() {
         const result = this.db.query(
-            `SELECT key as key, printerName as name, printerIp as ip, printerPort as port, printerDestinations as destination, active, description FROM printers`
+            `SELECT key as key, printerName as name, printerIp as ip, printerPort as port, printerDestinations as destination, active, upsideDown, beepEnable, description FROM printers`
         ).all();
         return Array.isArray(result) ? result : [];
     }
@@ -165,16 +167,18 @@ export class DatabaseController {
      * Salva o aggiorna le impostazioni di una stampante.
      * @param printer Oggetto con i dati della stampante
      */
-    public savePrinterSettings(printer: { key: string, printerName: string, printerIp: string, printerPort: number, printerDestinations: string, active: boolean, description: string }) {
+    public savePrinterSettings(printer: { key: string, printerName: string, printerIp: string, printerPort: number, printerDestinations: string, active: boolean, upsideDown: boolean, beepEnable: boolean, description: string }) {
         this.db.run(
-            `INSERT INTO printers (key, printerName, printerIp, printerPort, printerDestinations, active, description)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            `INSERT INTO printers (key, printerName, printerIp, printerPort, printerDestinations, active, upsideDown, beepEnable, description)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(key) DO UPDATE SET
                 printerName = excluded.printerName,
                 printerIp = excluded.printerIp,
                 printerPort = excluded.printerPort,
                 printerDestinations = excluded.printerDestinations,
                 active = excluded.active,
+                upsideDown = excluded.upsideDown,
+                beepEnable = excluded.beepEnable,
                 description = excluded.description`,
             [
                 printer.key,
@@ -183,6 +187,8 @@ export class DatabaseController {
                 printer.printerPort,
                 printer.printerDestinations,
                 printer.active,
+                printer.upsideDown,
+                printer.beepEnable,
                 printer.description
             ]
         );
@@ -227,7 +233,7 @@ export class DatabaseController {
      * Aggiorna le impostazioni di una stampante esistente.
      * @param printer Oggetto con i dati della stampante
      */
-    public async updatePrinterSettings(printer: { key: string, printerName: string, printerIp: string, printerPort: number, printerDestinations: string, active: boolean, description: string }) {
+    public async updatePrinterSettings(printer: { key: string, printerName: string, printerIp: string, printerPort: number, printerDestinations: string, active: boolean, upsideDown: boolean, description: string }) {
         this.db.run(
             `UPDATE printers SET
                 printerName = ?,
@@ -235,6 +241,7 @@ export class DatabaseController {
                 printerPort = ?,
                 printerDestinations = ?,
                 active = ?,
+                upsideDown = ?,
                 description = ?
             WHERE key = ?`,
             [
@@ -243,6 +250,7 @@ export class DatabaseController {
                 printer.printerPort,
                 printer.printerDestinations,
                 printer.active,
+                printer.upsideDown,
                 printer.description,
                 printer.key
             ]
@@ -253,10 +261,10 @@ export class DatabaseController {
      * Aggiunge una nuova stampante nel database.
      * @param printer Oggetto con i dati della stampante
      */
-    public async addPrinter(printer: { key: string, printerName: string, printerIp: string, printerPort: number, printerDestinations: string, active: boolean, description: string }) {
+    public async addPrinter(printer: { key: string, printerName: string, printerIp: string, printerPort: number, printerDestinations: string, active: boolean, upsideDown: boolean, description: string }) {
         this.db.run(
-            `INSERT INTO printers (key, printerName, printerIp, printerPort, printerDestinations, active, description)
-            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO printers (key, printerName, printerIp, printerPort, printerDestinations, active, upsideDown, description)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 printer.key,
                 printer.printerName,
@@ -264,6 +272,7 @@ export class DatabaseController {
                 printer.printerPort,
                 printer.printerDestinations,
                 printer.active,
+                printer.upsideDown,
                 printer.description
             ]
         );
@@ -277,7 +286,7 @@ export class DatabaseController {
         this.db.run(
             `INSERT INTO receipts (
             orderId, orderNumber, orderStatus, destination, printData, tableNumber, clientName,
-            note, orderNotes, itemName, printStatus, printedAt, reprintedAt, takeAway
+            itemNote, orderNotes, itemName, printStatus, printedAt, reprintedAt, takeAway
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(orderId) DO UPDATE SET
             orderNumber = excluded.orderNumber,
@@ -286,7 +295,7 @@ export class DatabaseController {
             printData = excluded.printData,
             tableNumber = excluded.tableNumber,
             clientName = excluded.clientName,
-            note = excluded.note,
+            itemNote = excluded.itemNote,
             orderNotes = excluded.orderNotes,
             itemName = excluded.itemName,
             printStatus = excluded.printStatus,
@@ -330,7 +339,7 @@ export class DatabaseController {
     ) {
         const fields = `
         id, orderId, orderNumber, orderStatus, destination, itemName, tableNumber, clientName,
-        note, orderNotes, printStatus, printed, printedAt, reprinted, reprintedAt, takeAway
+        itemNote, orderNotes, printStatus, printed, printedAt, reprinted, reprintedAt, takeAway
     `;
 
         // Costruzione dinamica della WHERE clause

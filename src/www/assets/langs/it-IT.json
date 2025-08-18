@@ -51,6 +51,8 @@
     "printerActions": "Azioni",
     "printerAdd": "Aggiungi Stampante",
     "printerDelete": "Elimina Stampante",
+    "printerUpsideDown": "Capovolgi",
+    "printerBeepEnable": "Buzzer",
     "reset": "Ripristina",
     "running": "IN ESECUZIONE",
     "save": "Salva",

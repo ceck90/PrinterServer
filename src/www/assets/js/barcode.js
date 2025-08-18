@@ -119,7 +119,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     const applyRoleFromLocalStorage = () => {
         const storedRole = localStorage.getItem('role') || 'none';
         document.body.setAttribute('data-role', storedRole);
-        
+
+        const pass_role = document.getElementById('role-pass');
+        if (pass_role) {
+            pass_role.checked = storedRole === 'pass';
+        }
+
+        const kitchen_role = document.getElementById('role-kitchen');
+        if (kitchen_role) {
+            kitchen_role.checked = storedRole === 'kitchen';
+        }
+
         console.log("Apply role: " + storedRole);
     };
 
@@ -152,6 +162,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             // Add the scanned result to the table
             const resultsTable = document.getElementById('scanner-results');
             const newRow = resultsTable.insertRow();
+            let response = null;
             newRow.innerHTML = `
                 <td>${input}</td>
                 <td>${id}</td>
@@ -160,10 +171,37 @@ document.addEventListener("DOMContentLoaded", async () => {
             `;
             try {
                 const role = localStorage.getItem('role') || 'none';
-                await saveScannedBarcode(input, id, role);
+                response = await saveScannedBarcode(input, id, role);
+
+                let timerInterval;
+                console.log(response)
+                Swal.fire({
+                    theme: "auto",
+                    title: "Processing...",
+                    // html: "I will close in <b></b> milliseconds.",
+                    timer: 1000,
+                    icon: "success",
+                    // timerProgressBar: true,
+                    didOpen: () => {
+                        // Swal.showLoading();
+                        // const timer = Swal.getPopup().querySelector("b");
+                        // timerInterval = setInterval(() => {
+                            // timer.textContent = `${Swal.getTimerLeft()}`;
+                        // }, 100);
+                    },
+                    willClose: () => {
+                        clearInterval(timerInterval);
+                    }
+                }).then((result) => {
+                    /* Read more about handling dismissals below */
+                    if (result.dismiss === Swal.DismissReason.timer) {
+                        // console.log("I was closed by the timer");
+                    }
+                });
             } catch (error) {
                 console.error("Failed to save scanned barcode:", error);
                 Swal.fire({
+                    theme: "auto",
                     title: "Error",
                     text: "Failed to save scanned barcode.",
                     icon: "error",
@@ -171,29 +209,6 @@ document.addEventListener("DOMContentLoaded", async () => {
                 });
                 // showToast("Error saving scanned barcode.", { delay: 4000, autohide: true });
             }
-            let timerInterval;
-            Swal.fire({
-                title: "Processing...",
-                // html: "I will close in <b></b> milliseconds.",
-                timer: 1000,
-                icon: "success",
-                // timerProgressBar: true,
-                didOpen: () => {
-                    // Swal.showLoading();
-                    // const timer = Swal.getPopup().querySelector("b");
-                    // timerInterval = setInterval(() => {
-                        // timer.textContent = `${Swal.getTimerLeft()}`;
-                    // }, 100);
-                },
-                willClose: () => {
-                    clearInterval(timerInterval);
-                }
-            }).then((result) => {
-                /* Read more about handling dismissals below */
-                if (result.dismiss === Swal.DismissReason.timer) {
-                    // console.log("I was closed by the timer");
-                }
-            });
 
         }
         // Clear the input field after processing
@@ -214,6 +229,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             console.log("Saved scanned barcode:", response);
         } catch (error) {
             console.error("Error saving scanned barcode:", error);
+            throw error; // Rethrow the error to handle it in the calling function
         }
     };
 
@@ -282,9 +298,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         const tableBody = document.getElementById('scanner-results');
         tableBody.innerHTML = ''; // Clear existing rows
         const barcodes = await fetchBarcodes();
-        console.log("Fetched barcodes:", barcodes);
+        // console.log("Fetched barcodes:", barcodes);
         barcodes.forEach(barcode => {
-            console.log("Processing barcode:", barcode);
+            // console.log("Processing barcode:", barcode);
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>MFO${barcode.code}</td>

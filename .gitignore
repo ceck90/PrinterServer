@@ -180,6 +180,9 @@ dist
 *.db
 *.sqlite
 *.sqlite3
+*.backup
 
 #Bun build
 *.exe
+
+bun.lock

@@ -211,6 +211,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             const portInput = row.querySelector('input[id^="printer-port-"]');
             const destinationInput = row.querySelector('input[id^="printer-destination-"]');
             const activeCheckbox = row.querySelector('input[id^="printer-active-"]');
+            const upsideDownCheckbox = row.querySelector('input[id^="printer-upside-down-"]');
+            const beepEnableCheckbox = row.querySelector('input[id^="printer-beep-enable-"]');
             const descriptionInput = row.querySelector('input[id^="printer-description-"]');
             if (nameInput && ipInput && portInput && destinationInput && activeCheckbox && descriptionInput) {
                 const printer = {
@@ -220,6 +222,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                     port: parseInt(portInput.value.trim(), 10),
                     destination: destinationInput.value.trim(),
                     active: activeCheckbox.checked,
+                    upsideDown: upsideDownCheckbox ? upsideDownCheckbox.checked : false, // Handle upside down checkbox
+                    beepEnable: beepEnableCheckbox ? beepEnableCheckbox.checked : false,
                     description: descriptionInput.value.trim()
                 };
                 printers.push(printer);
@@ -269,7 +273,13 @@ document.addEventListener("DOMContentLoaded", async () => {
                 <td><input type="number" class="form-control" id="printer-port-${printer.key}" value="${printer.port}"></td>
                 <td><input type="text" class="form-control" id="printer-destination-${printer.key}" value="${printer.destination}"></td>
                 <td>
-                    <input type="checkbox" class="form-check-input printer-active-checkbox" id="printer-active-${printer.key}" ${printer.active ? 'checked' : ''}>
+                    <input type="checkbox" class="form-check-input printer-active-checkbox align-item-center" id="printer-active-${printer.key}" ${printer.active ? 'checked' : ''}>
+                </td>
+                <td>
+                    <input type="checkbox" class="form-check-input printer-upside-down-checkbox align-item-center" id="printer-upside-down-${printer.key}" ${printer.upsideDown ? 'checked' : ''}>
+                </td>
+                <td>
+                    <input type="checkbox" class="form-check-input printer-beep-enable-checkbox align-item-center" id="printer-beep-enable-${printer.key}" ${printer.beepEnable ? 'checked' : ''}>
                 </td>
                 <td><input type="text" class="form-control" id="printer-description-${printer.key}" value="${printer.description}"></td>
                 <td>
@@ -302,6 +312,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                         <td><input type="number" class="form-control" id="printer-port-${newPrinterKey}" value="9100"></td>
                         <td><input type="text" class="form-control" id="printer-destination-${newPrinterKey}" value="${newPrinterKey.toUpperCase()}"></td>
                         <td><input type="checkbox" class="form-check-input printer-active-checkbox" id="printer-active-${newPrinterKey}"></td>
+                        <td><input type="checkbox" class="form-check-input printer-upside-down-checkbox" id="printer-upside-down-${newPrinterKey}"></td>
+                        <td><input type="checkbox" class="form-check-input printer-beep-enable-checkbox" id="printer-beep-enable-${newPrinterKey}"></td>
                         <td><input type="text" class="form-control" id="printer-description-${newPrinterKey}" value=""></td>
                         <td>
                             <div class="d-flex justify-content-center align-items-center">

@@ -1,6 +1,6 @@
 import type { OrderPayload } from "./types";
 import { groupBy } from "./utils";
-import { buildKitchenReceipt, buildKitchenReceipt_v2 } from "./receipt";
+import { buildKitchenTicket, buildKitchenTicket_v2, buildSittingPlaceTicket, buildTestTicket } from "./tickets";
 import { sendToPrinter } from "./print";
 import { printers } from "./print-routing.config";
 import type { PrinterConfig } from "./print-routing.config";
@@ -44,15 +44,19 @@ export async function handleIncomingData(data: any) {
     // console.log("[DISPATCHER] Dati ricevuti:", data);
 
     // Ignora tipi di messaggio non gestiti
-    if (data.type != "PKMI_UPDATE") {
+    if (data.type != "PKMI_UPDATE" && data.type != "PKMI_ADD_ALL") {
         console.warn("[DISPATCHER] Tipo di dato non gestito:", data.type);
         return;
     }
+
+    console.log(data);
 
     // Controlla la presenza dei dati minimi necessari
     if (!data || !data.plateKitchenMenuItem || !data.plateKitchenMenuItem.menuItem) {
         return;
     }
+
+    console.log(data);
 
     // console.log(`[DISPATCHER] Ricevuto PKMI_UPDATE per ordine ${data.plateKitchenMenuItem.orderNumber} - ${data.plateKitchenMenuItem.plate.name}/${data.plateKitchenMenuItem.menuItem.name}`);
 
@@ -139,7 +143,7 @@ export async function handleIncomingOrder(order: OrderPayload) {
 
         try {
             // Costruisce il buffer di stampa (es. ESC/POS)
-            const buffer = await buildKitchenReceipt(order, dest, items);
+            const buffer = await buildKitchenTicket_v2(order, dest, items, printer.upsideDown, printer.beepEnable);
 
             // Se la stampante è attiva, invia i dati
             if (printer.active) {
@@ -147,7 +151,7 @@ export async function handleIncomingOrder(order: OrderPayload) {
                 await sendToPrinter(printer.destination, printer.ip, printer.port, buffer);
             }
 
-            // Salva la ricevuta nel database (stato PRINTED o FAILED)
+            // Salva la ticket nel database (stato PRINTED o FAILED)
             DatabaseController.getInstance().saveReceipt({
                 id: order.id,
                 orderId: order.orderId,
@@ -166,7 +170,7 @@ export async function handleIncomingOrder(order: OrderPayload) {
                 takeAway: order.items[0].takeAway
             });
         } catch (err) {
-            // In caso di errore di stampa, salva comunque la ricevuta come FAILED
+            // In caso di errore di stampa, salva comunque la ticket come FAILED
             console.error(`Errore stampando ${dest}:`, err);
             DatabaseController.getInstance().saveReceipt({
                 id: order.id,
@@ -189,9 +193,36 @@ export async function handleIncomingOrder(order: OrderPayload) {
     }
 }
 
+export async function handleIncomingOrderFromGSG(order: any){
+    const printer = printers.find(p => p.destination === "COPERTI" || p.name === "COPERTI");
+    if (!printer) {
+        console.warn(`[DISPATCHER] Nessuna stampante configurata per la destinazione: COPERTI`);
+        return;
+    }
+
+    if(order != null && order != undefined) {
+        //console.log("[DISPATCHER] Nuovo ordine GSG ricevuto:", order);
+        //console.log("[DISPATCHER] Nuovo ordine ID:", order.id);
+        //console.log("[DISPATCHER] Coperti:", order.coperti);
+        //console.log("[DISPATCHER] Numero Tavolo:", order.numeroTavolo);
+        //console.log("[DISPATCHER] Cliente:", order.cliente);
+        //console.log("[DISPATCHER] Timestamp:", order.ora);
+        //console.log("[DISPATCHER] Cassiere:", order.cassiere);
+
+        // Costruisce il ticket di coperti
+        
+        // Se la stampante è attiva, invia i dati
+        if (printer.active) {
+            const buffer = await buildSittingPlaceTicket(order.id, order.numeroTavolo, order.cliente, order.coperti, order.cassiere, false, false);
+            console.log(`[DISPATCHER] Stampa ordine ${order.id} a ${printer.destination} (${printer.ip}:${printer.port})`);
+            await sendToPrinter(printer.destination, printer.ip, printer.port, buffer);
+        }
+    }
+}
+
 /**
- * Ristampa una ricevuta specifica dato il numero d'ordine.
- * Cerca la ricevuta e la stampante, invia i dati e aggiorna lo stato nel DB.
+ * Ristampa una ticket specifica dato il numero d'ordine.
+ * Cerca la ticket e la stampante, invia i dati e aggiorna lo stato nel DB.
  */
 export async function printSpecificOrder(orderNumber: number) {
     const receipt = await DatabaseController.getInstance().getReceiptById(orderNumber) as { id: number, printData: Buffer, destination: string } | null;
@@ -209,7 +240,7 @@ export async function printSpecificOrder(orderNumber: number) {
         if (printer.active) {
             await sendToPrinter(printer.destination, printer.ip, printer.port, receipt.printData);
             await DatabaseController.getInstance().updateReceiptReprint(receipt.id, "PRINTED");
-            console.log(`[DISPATCHER] Ricevuta per ordine ${receipt.id} ristampata su ${receipt.destination}`);
+            console.log(`[DISPATCHER] ticket per ordine ${receipt.id} ristampata su ${receipt.destination}`);
         } else {
             console.warn(`[DISPATCHER] Stampante ${receipt.destination} non attiva, non posso ristampare il ticket per ordine ${receipt.id}`);
             await DatabaseController.getInstance().updateReceiptReprint(receipt.id, "FAILED");
@@ -236,9 +267,9 @@ export async function regenerateSpecificReceipt(orderNumber: number) {
         destination: string;
 } | null;
 
-    console.log(`[DISPATCHER] Rigenerazione ricevuta per ordine`, receipt);
+    // console.log(`[DISPATCHER] Rigenerazione ticket per ordine`, receipt);
     if (!receipt) {
-        console.warn(`[DISPATCHER] Nessuna ricevuta trovata per ordine ${orderNumber}`);
+        console.warn(`[DISPATCHER] Nessuna ticket trovata per ordine ${orderNumber}`);
         return;
     }
     const printer = printers.find(p => p.destination === receipt.destination || p.name === receipt.destination);
@@ -247,7 +278,7 @@ export async function regenerateSpecificReceipt(orderNumber: number) {
         return;
     }
     try {
-        console.log(`[DISPATCHER] Rigenero ricevuta per ordine ${receipt.id} su ${receipt.destination}`);
+        console.log(`[DISPATCHER] Rigenero ticket per ordine ${receipt.id} su ${receipt.destination}`);
         if (printer.active) {
             // Rigenera il buffer di stampa
             const order: OrderPayload = {
@@ -268,9 +299,10 @@ export async function regenerateSpecificReceipt(orderNumber: number) {
                     takeAway: receipt.takeAway
                 }]
             };
-            const buffer = await buildKitchenReceipt(order, receipt.destination, order.items);
+            console.log(`[DISPATCHER] Rigenero il ticket per ordine ${receipt.id} con dati:`, order);
+            const buffer = await buildKitchenTicket_v2(order, receipt.destination, order.items, printer.upsideDown, printer.beepEnable);
             await sendToPrinter(printer.destination, printer.ip, printer.port, buffer);
-            console.log(`[DISPATCHER] Ricevuta per ordine ${receipt.id} rigenerata e stampata su ${receipt.destination}`);
+            console.log(`[DISPATCHER] ticket per ordine ${receipt.id} rigenerata e stampata su ${receipt.destination}`);
         } else {
             console.warn(`[DISPATCHER] Stampante ${receipt.destination} non attiva, non posso rigenerare il ticket per ordine ${receipt.id}`);
         }
@@ -279,13 +311,41 @@ export async function regenerateSpecificReceipt(orderNumber: number) {
     }
     // Attendi un breve periodo per evitare sovraccarichi
     // await sleep(1000);
-    // Aggiorna lo stato della ricevuta nel database
+    // Aggiorna lo stato della ticket nel database
     await DatabaseController.getInstance().updateReceiptStatus(receipt.id, "PRINTED");
 }
 
 /**
- * Aggiorna lo stato di stampa di una ricevuta dato il numero d'ordine.
+ * Gestisce la stampa di un ticket di test su una stampante specifica.
+ * Cerca la stampante per nome/destinazione, costruisce il buffer di test e lo invia.
+ * @param printerName Nome o destinazione della stampante
+ */
+export async function printTestTicket(printerName: string) {
+
+    const printer = printers.find(p => p.destination === printerName || p.name === printerName);
+    if (!printer) {
+        console.warn(`[DISPATCHER] Nessuna stampante configurata per la destinazione: ${printerName}`);
+        return;
+    }
+    try {
+        console.log(`[DISPATCHER] Stampo ticket di test su ${printer.destination}`);
+        if (printer.active) {
+            const buffer = await buildTestTicket(printer.name, printer.ip, printer.upsideDown, printer.beepEnable);
+            await sendToPrinter(printer.destination, printer.ip, printer.port, buffer);
+            console.log(`[DISPATCHER] ticket di test stampata su ${printer.destination}`);
+        } else {
+            console.warn(`[DISPATCHER] Stampante ${printer.destination} non attiva, non posso stampare il ticket di test`);
+        }
+    } catch (err) {
+        console.error(`[DISPATCHER] Errore nella stampa del ticket di test:`, err);
+    }
+}
+
+/**
+ * Aggiorna lo stato di stampa di una ticket dato il numero d'ordine.
  * Utile per segnare come PRINTED o FAILED dopo una ristampa.
+ * @param orderNumber Numero d'ordine della ticket
+ * @param status Nuovo stato di stampa ("PRINTED" | "FAILED")
  */
 export async function handleOrderStatusUpdate(orderNumber: number, status: "PRINTED" | "FAILED") {
     console.log(`[DISPATCHER] Aggiornamento stato ordine ${orderNumber} a ${status}`);
@@ -293,34 +353,43 @@ export async function handleOrderStatusUpdate(orderNumber: number, status: "PRIN
     if (receipt) {
         await DatabaseController.getInstance().updateReceiptStatus(receipt.id, status);
     } else {
-        console.warn(`[DISPATCHER] Ricevuta non trovata per l'ordine ${orderNumber}`);
+        console.warn(`[DISPATCHER] ticket non trovata per l'ordine ${orderNumber}`);
     }
 }
 
 /**
- * Elimina una ricevuta dal database dato il suo ID.
+ * Elimina una ticket dal database dato il suo ID.
+ * @param receiptId ID della ticket da eliminare
  */
 export async function handleReceiptDeletion(receiptId: string) {
-    console.log(`[DISPATCHER] Eliminazione ricevuta ${receiptId}`);
+    console.log(`[DISPATCHER] Eliminazione ticket ${receiptId}`);
     await DatabaseController.getInstance().deleteReceipt(receiptId);
 }
 
 /**
  * Aggiorna le impostazioni di una stampante nel database.
+ * @param settings Oggetto con le nuove impostazioni della stampante
  */
-export async function handlePrinterSettingsUpdate(settings: { key: string, printerName: string, printerIp: string, printerPort: number, printerDestinations: string, active: boolean, description: string }) {
+export async function handlePrinterSettingsUpdate(settings: { key: string, printerName: string, printerIp: string, printerPort: number, printerDestinations: string, active: boolean, upsideDown: boolean, beepEnable: boolean, description: string }) {
     console.log(`[DISPATCHER] Aggiornamento impostazioni stampante ${settings.key}`);
     await DatabaseController.getInstance().savePrinterSettings(settings);
 }
 
 /**
  * Recupera le impostazioni di una stampante tramite la sua chiave.
+ * @param key Chiave identificativa della stampante
+ * @returns Impostazioni della stampante
  */
 export async function handlePrinterSettingsRetrieval(key: string) {
     console.log(`[DISPATCHER] Recupero impostazioni stampante per ${key}`);
     return DatabaseController.getInstance().getPrinterSettingsByKey(key);
 }
 
+/**
+ * Gestisce la sincronizzazione di ordini ricevuti da una fonte esterna.
+ * Esegue la logica di sincronizzazione per ogni ordine presente nei dati.
+ * @param syncData Dati di sincronizzazione (array di ordini)
+ */
 export async function handleSyncOrders(syncData: any) {
     console.log("[DISPATCHER] Sincronizzazione ordini in corso...");
     if (!syncData || typeof syncData !== "object") {

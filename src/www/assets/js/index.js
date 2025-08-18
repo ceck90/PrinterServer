@@ -49,6 +49,13 @@ document.addEventListener("DOMContentLoaded", async () => {
             const startDate = new Date(start);
             fetchTickets(startDate.toISOString().slice(0, 10), startDate.toISOString().slice(0, 10), 50, 0);
         }
+        else {
+            // Se non è selezionata alcuna data, usa la data odierna
+            const today = new Date();
+            const startDate = today;
+            console.log("No date selected, using today's date:", startDate.toISOString().slice(0, 10));
+            fetchTickets(startDate.toISOString().slice(0, 10), startDate.toISOString().slice(0, 10), 50, 0);
+        }
     });
 
     const search_text = document.getElementById('table-search');
@@ -401,7 +408,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                             <td>${ticket.tableNumber}</td>
                             <td>${ticket.destination}</td>
                             <td>${ticket.itemName}</td>
-                            <td>${ticket.note ? ticket.note : ''}</td>
+                            <td>${ticket.itemNote ? ticket.itemNote : ''}</td>
                             <td>${ticket.orderNotes ? ticket.orderNotes : ''}</td>
                             
                         `;
@@ -462,7 +469,7 @@ document.addEventListener("DOMContentLoaded", async () => {
      */
     const startWebSocket = () => {
         console.log(translate('serverConnecting') + `${window.location.hostname}:${window.location.port}`);
-        const socket = new WebSocket(`wss://${window.location.hostname}:${window.location.port}/config/ws`);
+        const socket = new WebSocket(`ws://${window.location.hostname}:${window.location.port}/api/ws`);
         appendToConsole(translate('serverConnecting'));
 
         setServerStatus('connecting');

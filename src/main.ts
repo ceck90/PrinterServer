@@ -1,10 +1,12 @@
 import { HttpServerController } from './controllers/httpserver.controller.ts';
 import { DatabaseController } from './controllers/db.controller.ts';
+import { GSGController } from './controllers/gsg.controller.ts';
 import { KitchenManagementController, WSClientController } from './controllers/kitchenmgmt.controller.ts';
 import { loadPrintersFromDb, seedPrintersIfDbEmpty } from './print-routing.config.ts';
 import { printSpecificOrder } from './dispatcher.ts';
 import * as fs from 'fs';
 import * as path from 'path';
+import { Client } from 'pg';
 // import { printTest } from './receipt.ts';
 
 /**
@@ -102,6 +104,14 @@ const WSClientOptions = {
     url: kitchenMgmtServerUrl                        // URL del server WebSocket
 };
 const wsClientController = WSClientController.getInstance(WSClientOptions);
+
+const gsgController = GSGController.getInstance(new Client({
+    host: '10.10.1.12',
+    port: 5432,
+    user: 'postgres',
+    password: 'postgres',
+    database: 'sagra'
+}));
 
 
 // ==================
