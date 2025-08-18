@@ -210,10 +210,10 @@ export async function handleIncomingOrderFromGSG(order: any){
         //console.log("[DISPATCHER] Cassiere:", order.cassiere);
 
         // Costruisce il ticket di coperti
-        const buffer = await buildSittingPlaceTicket(order.id, order.numeroTavolo, order.cliente, order.coperti, order.cassiere, false, false);
-
+        
         // Se la stampante è attiva, invia i dati
         if (printer.active) {
+            const buffer = await buildSittingPlaceTicket(order.id, order.numeroTavolo, order.cliente, order.coperti, order.cassiere, false, false);
             console.log(`[DISPATCHER] Stampa ordine ${order.id} a ${printer.destination} (${printer.ip}:${printer.port})`);
             await sendToPrinter(printer.destination, printer.ip, printer.port, buffer);
         }
