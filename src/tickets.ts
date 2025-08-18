@@ -289,7 +289,9 @@ export async function buildTestTicket(printerName: string, printerIP: string, up
     printer.setTextSize(1, 1);
     printer.underlineThick(true);
     printer.println(`TEST TICKET`);
-    printer.println(`Stampante: ${printerName} - ${printerIP}`);
+    
+    printer.setTextSize(0, 1);
+    printer.println(`${printerName} - ${printerIP}`);
     printer.println(`${new Date().toLocaleString()}`);
     printer.setTextSize(0, 0);
     printer.underlineThick(false);

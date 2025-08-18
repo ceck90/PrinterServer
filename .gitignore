@@ -184,3 +184,5 @@ dist
 
 #Bun build
 *.exe
+
+bun.lock
