@@ -24,6 +24,8 @@ export class GSGController {
                     console.log(`[GSG] Postgres SQL controller initialized with connection: ${this.client.host}:${this.client.port}/${this.client.database}`);
                     this.createDbFunction();
                     this.subscribeToNewOrders((data) => {
+
+                        console.log(`[GSG] Nuovo ordine ricevuto: ${data.item}`);
                         
                         if(data.item.esportazione == false) {
                             // Invia i dati dell'ordine al servizio di stampa
@@ -103,7 +105,7 @@ export class GSGController {
 
             try {
                 const data = JSON.parse(msg.payload);
-                // console.log("📥 Evento ricevuto:", data);
+                console.log("📥 Evento ricevuto:", data);
                 callback(data);
             } catch (err) {
                 console.error("Errore parsing payload:", err, msg.payload);

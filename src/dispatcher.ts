@@ -194,9 +194,9 @@ export async function handleIncomingOrder(order: OrderPayload) {
 }
 
 export async function handleIncomingOrderFromGSG(order: any){
-    const printer = printers.find(p => p.destination === "coperti" || p.name === "coperti");
+    const printer = printers.find(p => p.destination === "COPERTI" || p.name === "COPERTI");
     if (!printer) {
-        console.warn(`[DISPATCHER] Nessuna stampante configurata per la destinazione: coperti`);
+        console.warn(`[DISPATCHER] Nessuna stampante configurata per la destinazione: COPERTI`);
         return;
     }
 
