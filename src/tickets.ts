@@ -360,6 +360,9 @@ export async function buildSittingPlaceTicket(
     printer.println(`COPERTI: ${sittingCount}`);
     printer.setTextSize(0, 0);
     printer.underlineThick(false);
+
+    printer.println(`Il Vostro ordine è in gestione`);
+    printer.println(`Buona serata e buon divertimento!`);
    
     if(beepEnable) {
         printer.beep(3, 1);

@@ -201,13 +201,13 @@ export async function handleIncomingOrderFromGSG(order: any){
     }
 
     if(order != null && order != undefined) {
-        console.log("[DISPATCHER] Nuovo ordine GSG ricevuto:", order);
-        console.log("[DISPATCHER] Nuovo ordine ID:", order.id);
-        console.log("[DISPATCHER] Coperti:", order.coperti);
-        console.log("[DISPATCHER] Numero Tavolo:", order.numeroTavolo);
-        console.log("[DISPATCHER] Cliente:", order.cliente);
-        console.log("[DISPATCHER] Timestamp:", order.ora);
-        console.log("[DISPATCHER] Cassiere:", order.cassiere);
+        //console.log("[DISPATCHER] Nuovo ordine GSG ricevuto:", order);
+        //console.log("[DISPATCHER] Nuovo ordine ID:", order.id);
+        //console.log("[DISPATCHER] Coperti:", order.coperti);
+        //console.log("[DISPATCHER] Numero Tavolo:", order.numeroTavolo);
+        //console.log("[DISPATCHER] Cliente:", order.cliente);
+        //console.log("[DISPATCHER] Timestamp:", order.ora);
+        //console.log("[DISPATCHER] Cassiere:", order.cassiere);
 
         // Costruisce il ticket di coperti
         const buffer = await buildSittingPlaceTicket(order.id, order.numeroTavolo, order.cliente, order.coperti, order.cassiere, false, false);
