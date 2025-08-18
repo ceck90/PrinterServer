@@ -6,6 +6,14 @@ const path = require('path');
 
 import { ThermalPrinter, PrinterTypes, CharacterSet, BreakLine  } from "node-thermal-printer";
 
+/**
+ * Costruisce e restituisce il buffer di stampa per un ticket di cucina.
+ * Include logo, tipo di piatto, numero ordine, tavolo, cliente e note.
+ * @param order Oggetto ordine da stampare
+ * @param dest Destinazione del ticket (es. "PIADINE", "FORNO")
+ * @param items Lista degli articoli dell'ordine
+ * @returns Buffer pronto per la stampa
+ */
 export async function buildKitchenTicket(order: OrderPayload, dest: string, items: OrderItem[]): Promise<Buffer> {
     const connection = new InMemory();
     const imageManager = new ImageManager();
@@ -87,6 +95,14 @@ export async function buildKitchenTicket(order: OrderPayload, dest: string, item
     return connection.buffer();
 }
 
+/**
+ * Costruisce e restituisce il buffer di stampa per un ticket di cucina.
+ * Include logo, tipo di piatto, numero ordine, tavolo, cliente e note.
+ * @param order Oggetto ordine da stampare
+ * @param dest Destinazione del ticket (es. "PIADINE", "FORNO")
+ * @param items Lista degli articoli dell'ordine
+ * @returns Buffer pronto per la stampa
+ */
 export async function buildKitchenTicket_v2(order: OrderPayload, dest: string, items: OrderItem[], upsideDown: boolean = false, beepEnable: boolean = false): Promise<Buffer> {
     const printer = new ThermalPrinter({
         type: PrinterTypes.EPSON,                                 // Printer type: 'star' or 'epson'
@@ -244,6 +260,15 @@ export async function buildKitchenTicket_v2(order: OrderPayload, dest: string, i
     // }
 }
 
+/**
+ * Costruisce e restituisce il buffer di stampa per un ticket di test.
+ * Include logo, nome stampante, IP, data/ora e opzioni di stampa (capovolto, beep).
+ * @param printerName Nome della stampante
+ * @param printerIP Indirizzo IP della stampante
+ * @param upsideDown Se true stampa capovolta
+ * @param beepEnable Se true abilita il beep
+ * @returns Buffer pronto per la stampa
+ */
 export async function buildTestTicket(printerName: string, printerIP: string, upsideDown: boolean, beepEnable: boolean){
 
     const printer = new ThermalPrinter({
@@ -271,8 +296,69 @@ export async function buildTestTicket(printerName: string, printerIP: string, up
 
 
     if(upsideDown) {
-        printer.invert(true);
+        printer.upsideDown(true);
     }
+    if(beepEnable) {
+        printer.beep(3, 1);
+    }
+
+    printer.partialCut();
+    // Costruzione del biglietto di prova
+    const buffer = printer.getBuffer();
+
+    return buffer;
+}
+
+/**
+ * Costruisce e restituisce il buffer di stampa per il ticket del posto a sedere.
+ * Include logo, numero ordine, tavolo, cliente, cassiere e opzioni di stampa (capovolto, beep).
+ * @param orderId ID dell'ordine
+ * @param tableNumber Numero del tavolo
+ * @param clientName Nome del cliente
+ * @param sittingCount Numero dei posti a sedere
+ * @param cassiere Nome del cassiere
+ * @param upsideDown Se true stampa capovolta
+ * @param beepEnable Se true abilita il beep
+ * @returns Buffer pronto per la stampa
+ */
+export async function buildSittingPlaceTicket(
+    orderId: number,
+    tableNumber: string,
+    clientName: string,
+    sittingCount: number,
+    cassiere: string,
+    upsideDown: boolean = false,
+    beepEnable: boolean = false
+): Promise<Buffer> {
+    const printer = new ThermalPrinter({
+        type: PrinterTypes.EPSON,
+        width: 80,
+        interface: 'tcp://127.0.0.1:9100',
+        characterSet: CharacterSet.PC850_MULTILINGUAL,
+        removeSpecialCharacters: true,
+        lineCharacter: "=",
+        breakLine: BreakLine.WORD,
+        options: {
+            timeout: 5000
+        }
+    });
+
+    if(upsideDown) {
+        printer.upsideDown(true);
+    }
+
+    printer.alignCenter();
+    await printer.printImage(path.join(__dirname, 'www/assets/img/mfo-logo-bw.png'));
+    printer.setTextSize(0, 0);
+    printer.underlineThick(false);
+    printer.println(`Ordine: ${orderId} - Tavolo: ${tableNumber}`);
+    printer.println(`Cliente: ${clientName}`);
+    
+    printer.setTextSize(1,1);
+    printer.println(`COPERTI: ${sittingCount}`);
+    printer.setTextSize(0, 0);
+    printer.underlineThick(false);
+   
     if(beepEnable) {
         printer.beep(3, 1);
     }

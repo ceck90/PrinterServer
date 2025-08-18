@@ -1,6 +1,6 @@
 import type { OrderPayload } from "./types";
 import { groupBy } from "./utils";
-import { buildKitchenTicket, buildKitchenTicket_v2, buildTestTicket } from "./tickets";
+import { buildKitchenTicket, buildKitchenTicket_v2, buildSittingPlaceTicket, buildTestTicket } from "./tickets";
 import { sendToPrinter } from "./print";
 import { printers } from "./print-routing.config";
 import type { PrinterConfig } from "./print-routing.config";
@@ -193,6 +193,33 @@ export async function handleIncomingOrder(order: OrderPayload) {
     }
 }
 
+export async function handleIncomingOrderFromGSG(order: any){
+    const printer = printers.find(p => p.destination === "coperti" || p.name === "coperti");
+    if (!printer) {
+        console.warn(`[DISPATCHER] Nessuna stampante configurata per la destinazione: coperti`);
+        return;
+    }
+
+    if(order != null && order != undefined) {
+        console.log("[DISPATCHER] Nuovo ordine GSG ricevuto:", order);
+        console.log("[DISPATCHER] Nuovo ordine ID:", order.id);
+        console.log("[DISPATCHER] Coperti:", order.coperti);
+        console.log("[DISPATCHER] Numero Tavolo:", order.numeroTavolo);
+        console.log("[DISPATCHER] Cliente:", order.cliente);
+        console.log("[DISPATCHER] Timestamp:", order.ora);
+        console.log("[DISPATCHER] Cassiere:", order.cassiere);
+
+        // Costruisce il ticket di coperti
+        const buffer = await buildSittingPlaceTicket(order.id, order.numeroTavolo, order.cliente, order.coperti, order.cassiere, false, false);
+
+        // Se la stampante è attiva, invia i dati
+        if (printer.active) {
+            console.log(`[DISPATCHER] Stampa ordine ${order.id} a ${printer.destination} (${printer.ip}:${printer.port})`);
+            await sendToPrinter(printer.destination, printer.ip, printer.port, buffer);
+        }
+    }
+}
+
 /**
  * Ristampa una ticket specifica dato il numero d'ordine.
  * Cerca la ticket e la stampante, invia i dati e aggiorna lo stato nel DB.
@@ -288,6 +315,11 @@ export async function regenerateSpecificReceipt(orderNumber: number) {
     await DatabaseController.getInstance().updateReceiptStatus(receipt.id, "PRINTED");
 }
 
+/**
+ * Gestisce la stampa di un ticket di test su una stampante specifica.
+ * Cerca la stampante per nome/destinazione, costruisce il buffer di test e lo invia.
+ * @param printerName Nome o destinazione della stampante
+ */
 export async function printTestTicket(printerName: string) {
 
     const printer = printers.find(p => p.destination === printerName || p.name === printerName);
@@ -312,6 +344,8 @@ export async function printTestTicket(printerName: string) {
 /**
  * Aggiorna lo stato di stampa di una ticket dato il numero d'ordine.
  * Utile per segnare come PRINTED o FAILED dopo una ristampa.
+ * @param orderNumber Numero d'ordine della ticket
+ * @param status Nuovo stato di stampa ("PRINTED" | "FAILED")
  */
 export async function handleOrderStatusUpdate(orderNumber: number, status: "PRINTED" | "FAILED") {
     console.log(`[DISPATCHER] Aggiornamento stato ordine ${orderNumber} a ${status}`);
@@ -325,6 +359,7 @@ export async function handleOrderStatusUpdate(orderNumber: number, status: "PRIN
 
 /**
  * Elimina una ticket dal database dato il suo ID.
+ * @param receiptId ID della ticket da eliminare
  */
 export async function handleReceiptDeletion(receiptId: string) {
     console.log(`[DISPATCHER] Eliminazione ticket ${receiptId}`);
@@ -333,6 +368,7 @@ export async function handleReceiptDeletion(receiptId: string) {
 
 /**
  * Aggiorna le impostazioni di una stampante nel database.
+ * @param settings Oggetto con le nuove impostazioni della stampante
  */
 export async function handlePrinterSettingsUpdate(settings: { key: string, printerName: string, printerIp: string, printerPort: number, printerDestinations: string, active: boolean, upsideDown: boolean, beepEnable: boolean, description: string }) {
     console.log(`[DISPATCHER] Aggiornamento impostazioni stampante ${settings.key}`);
@@ -341,12 +377,19 @@ export async function handlePrinterSettingsUpdate(settings: { key: string, print
 
 /**
  * Recupera le impostazioni di una stampante tramite la sua chiave.
+ * @param key Chiave identificativa della stampante
+ * @returns Impostazioni della stampante
  */
 export async function handlePrinterSettingsRetrieval(key: string) {
     console.log(`[DISPATCHER] Recupero impostazioni stampante per ${key}`);
     return DatabaseController.getInstance().getPrinterSettingsByKey(key);
 }
 
+/**
+ * Gestisce la sincronizzazione di ordini ricevuti da una fonte esterna.
+ * Esegue la logica di sincronizzazione per ogni ordine presente nei dati.
+ * @param syncData Dati di sincronizzazione (array di ordini)
+ */
 export async function handleSyncOrders(syncData: any) {
     console.log("[DISPATCHER] Sincronizzazione ordini in corso...");
     if (!syncData || typeof syncData !== "object") {
