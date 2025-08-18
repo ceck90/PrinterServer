@@ -21,7 +21,7 @@ export class GSGController {
             this.client = newClient;
             this.client.connect()
                 .then(() => {
-                    console.log(`[GSG] Bun SQL controller initialized with connection: ${this.client.host}:${this.client.port}/${this.client.database}`);
+                    console.log(`[GSG] Postgres SQL controller initialized with connection: ${this.client.host}:${this.client.port}/${this.client.database}`);
                     this.createDbFunction();
                     this.subscribeToNewOrders((data) => {
                         
