@@ -129,6 +129,10 @@ seedPrintersIfDbEmpty();
  */
 loadPrintersFromDb();
 
+// ==================
+// Inizializzazione Job Controller
+// ==================
+
 /**
  * Inizializza il controller dei job (singleton).
  */
@@ -156,7 +160,7 @@ jobController.create({
     task: () => {
         console.log(`[JOB - PING] Ping...`);
     },
-    startNow: false,
+    startNow: true,
     meta: { env: process.env.NODE_ENV ?? "development" },
   });
 
