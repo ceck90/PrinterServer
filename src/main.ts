@@ -114,6 +114,10 @@ const gsgController = GSGController.getInstance(new Client({
     database: 'sagra'
 }));
 
+gsgController.start().catch(err => {
+    console.error("[GSG] errore durante l'avvio:", err);
+});
+
 
 // ==================
 // Inizializzazione e caricamento stampanti
@@ -169,10 +173,12 @@ console.log("[MAIN] ✅ Server avviato con successo!");
 process.on("SIGINT", () => {
     console.log("[MAIN] 🚨 Interruzione del processo...");
     jobController.stopAll();
+    gsgController.stop();
     process.exit(0);
 });
 process.on("SIGTERM", () => {
     console.log("[MAIN] 🚨 Interruzione del processo...");
     jobController.stopAll();
+    gsgController.stop();
     process.exit(0);
 });
