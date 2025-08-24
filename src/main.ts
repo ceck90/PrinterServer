@@ -3,6 +3,7 @@ import { DatabaseController } from './controllers/db.controller.ts';
 import { GSGController } from './controllers/gsg.controller.ts';
 import { KitchenManagementController, WSClientController } from './controllers/kitchenmgmt.controller.ts';
 import { loadPrintersFromDb, seedPrintersIfDbEmpty } from './print-routing.config.ts';
+import { JobController } from "./controllers/cron.controller.ts";
 import { printSpecificOrder } from './dispatcher.ts';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -128,4 +129,46 @@ seedPrintersIfDbEmpty();
  */
 loadPrintersFromDb();
 
+/**
+ * Inizializza il controller dei job (singleton).
+ */
+const jobController = JobController.getInstance();
+
+// Log eventi
+jobController
+    .on("job:start",  id => console.log(`[${id}] start`))
+    .on("job:success", (id, when) => console.log(`[${id}] Completed @ ${when.toISOString()}`))
+    .on("job:error",  (id, err) => console.error(`[${id}] Error:`, err))
+    .on("job:paused", id => console.log(`[${id}] Paused`))
+    .on("job:resumed", id => console.log(`[${id}] Resumed`))
+    .on("job:removed", id => console.log(`[${id}] Removed`))
+    .on("shutdown", () => console.log(`Shutdown`));
+
+    // const id = Bun.randomUUIDv7();
+    // console.log(id);
+
+  // Esempio: job ogni 5s
+jobController.create({
+    id: "PING",
+    name: "Ping Logger",
+    cron: "*/60 * * * * *", // ogni 60 secondi (syntax con seconds abilitata da node-cron)
+    timezone: "Europe/Rome",
+    task: () => {
+        console.log(`[JOB - PING] Ping...`);
+    },
+    startNow: false,
+    meta: { env: process.env.NODE_ENV ?? "development" },
+  });
+
 console.log("[MAIN] ✅ Server avviato con successo!");
+
+process.on("SIGINT", () => {
+    console.log("[MAIN] 🚨 Interruzione del processo...");
+    jobController.stopAll();
+    process.exit(0);
+});
+process.on("SIGTERM", () => {
+    console.log("[MAIN] 🚨 Interruzione del processo...");
+    jobController.stopAll();
+    process.exit(0);
+});
