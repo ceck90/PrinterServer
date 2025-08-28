@@ -91,13 +91,13 @@ export class HttpServerController {
 
         this.app.ws("/api/ws", {
             open(ws) {
-                console.log("[WS] Client connected:", ws);
+                console.log("[WS] Client connected");
             },
             message(ws, message) {
                 console.log("[WS] Message from client:", message);
             },
             close(ws) {
-                console.log("[WS] Client disconnected:", ws);
+                console.log("[WS] Client disconnected");
             }
         });
 

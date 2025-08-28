@@ -119,7 +119,7 @@ export class GSGController {
 
     try {
       // Filtro business: esportazione=false (coerente col tuo esempio)
-      if (data?.item?.esportazione === false) {
+      if (data?.item?.esportazione === false && data?.item?.coperti > 0) {
         await this.printOrder(data.item);
       }
     } catch (err) {
