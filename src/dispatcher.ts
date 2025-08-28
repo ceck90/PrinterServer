@@ -32,7 +32,7 @@ export async function handleSingleOrderData(data: any) {
             };
             await handleIncomingOrder(order);
         }
-    } 
+    }
 }
 
 
@@ -49,14 +49,14 @@ export async function handleIncomingData(data: any) {
         return;
     }
 
-    console.log(data);
+    // console.log(data);
 
     // Controlla la presenza dei dati minimi necessari
     if (!data || !data.plateKitchenMenuItem || !data.plateKitchenMenuItem.menuItem) {
         return;
     }
 
-    console.log(data);
+    // console.log(data);
 
     // console.log(`[DISPATCHER] Ricevuto PKMI_UPDATE per ordine ${data.plateKitchenMenuItem.orderNumber} - ${data.plateKitchenMenuItem.plate.name}/${data.plateKitchenMenuItem.menuItem.name}`);
 
@@ -193,14 +193,14 @@ export async function handleIncomingOrder(order: OrderPayload) {
     }
 }
 
-export async function handleIncomingOrderFromGSG(order: any){
+export async function handleIncomingOrderFromGSG(order: any) {
     const printer = printers.find(p => p.destination === "COPERTI" || p.name === "COPERTI");
     if (!printer) {
         console.warn(`[DISPATCHER] Nessuna stampante configurata per la destinazione: COPERTI`);
         return;
     }
 
-    if(order != null && order != undefined) {
+    if (order != null && order != undefined) {
         //console.log("[DISPATCHER] Nuovo ordine GSG ricevuto:", order);
         //console.log("[DISPATCHER] Nuovo ordine ID:", order.id);
         //console.log("[DISPATCHER] Coperti:", order.coperti);
@@ -210,11 +210,11 @@ export async function handleIncomingOrderFromGSG(order: any){
         //console.log("[DISPATCHER] Cassiere:", order.cassiere);
 
         // Costruisce il ticket di coperti
-        
+
         // Se la stampante è attiva, invia i dati
         if (printer.active) {
             const buffer = await buildSittingPlaceTicket(order.id, order.numeroTavolo, order.cliente, order.coperti, order.cassiere, false, false);
-            console.log(`[DISPATCHER] Stampa ordine ${order.id} a ${printer.destination} (${printer.ip}:${printer.port})`);
+            console.log(`[DISPATCHER] Stampa ordine GSG ${order.id} a ${printer.destination} (${printer.ip}:${printer.port})`);
             await sendToPrinter(printer.destination, printer.ip, printer.port, buffer);
         }
     }
@@ -253,7 +253,7 @@ export async function printSpecificOrder(orderNumber: number) {
 
 export async function regenerateSpecificReceipt(orderNumber: number) {
     const receipt = await DatabaseController.getInstance().getReceiptById(orderNumber) as {
-        id: number; 
+        id: number;
         orderId: string;
         tableNumber: string;
         orderNumber: number;
@@ -262,10 +262,10 @@ export async function regenerateSpecificReceipt(orderNumber: number) {
         itemName: string;
         itemNote: string;
         orderNotes: string;
-        takeAway: boolean; 
+        takeAway: boolean;
         printData: Buffer;
         destination: string;
-} | null;
+    } | null;
 
     // console.log(`[DISPATCHER] Rigenerazione ticket per ordine`, receipt);
     if (!receipt) {
