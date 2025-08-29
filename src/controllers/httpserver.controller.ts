@@ -5,7 +5,6 @@ import { DatabaseController } from "./db.controller";
 import { printSpecificOrder, printTestTicket, regenerateSpecificReceipt } from "../dispatcher";
 import { loadPrintersFromDb } from "../print-routing.config";
 import { KitchenManagementController } from "./kitchenmgmt.controller";
-import { send } from "process";
 import { ServerWebSocket } from "bun";
 
 

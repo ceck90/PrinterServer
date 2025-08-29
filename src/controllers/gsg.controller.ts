@@ -2,6 +2,7 @@ import { Client } from "pg";
 import { handleIncomingOrderFromGSG } from "../dispatcher.ts";
 
 type NewOrderPayload = { operation: string; item: any };
+type PgConfig = ConstructorParameters<typeof Client>[0];
 
 export class GSGController {
   private static instance: GSGController;
@@ -13,9 +14,9 @@ export class GSGController {
   private readonly backoffMax = 15000;
   private heartbeatTimer?: Timer;
 
-  private constructor(private readonly baseConfig?: ConstructorParameters<typeof Client>[0]) {}
+  private constructor(private readonly baseConfig?: PgConfig) {}
 
-  public static getInstance(clientOrConfig?: Client | ConstructorParameters<typeof Client>[0]) {
+  public static getInstance(clientOrConfig?: Client | PgConfig) {
     if (!this.instance) {
       if (clientOrConfig instanceof Client) {
         this.instance = new GSGController(clientOrConfig);
