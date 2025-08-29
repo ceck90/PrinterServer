@@ -5,6 +5,9 @@ import { DatabaseController } from "./db.controller";
 import { printSpecificOrder, printTestTicket, regenerateSpecificReceipt } from "../dispatcher";
 import { loadPrintersFromDb } from "../print-routing.config";
 import { KitchenManagementController } from "./kitchenmgmt.controller";
+import { send } from "process";
+import { ServerWebSocket } from "bun";
+
 
 /**
  * Controller singleton per la gestione del server HTTP tramite Elysia.
@@ -15,10 +18,13 @@ export class HttpServerController {
 
     static #instance: HttpServerController;
 
+    private wsClients = new Map<string, ServerWebSocket<any>>();
+
     /**
      * Costruttore privato: definisce tutte le route HTTP.
      */
     private constructor() {
+        //#region ROUTES
         // Route per la pagina principale
         this.app.get("/", () => {
             try {
@@ -88,19 +94,64 @@ export class HttpServerController {
 
         // Catch-all per tutte le altre route non definite (404)
         this.app.all("*", () => new Response("404 Not Found", { status: 404 }));
+        //#endregion ROUTES
 
+        //#region WEBSOCKET
+        // Use closure to access wsClients
+        const wsClients = this.wsClients;
         this.app.ws("/api/ws", {
             open(ws) {
-                console.log("[WS] Client connected");
+                console.log("[WS] New connection request");
+                const url = new URL(ws.data.request.url);
+                // Permetti passaggio opzionale di ?id=xxx dal client
+                let id = url.searchParams.get('id') ?? crypto.randomUUID();
+                while (wsClients.has(id)) id = crypto.randomUUID(); // garantisci unicità
+
+                console.log(`[WS] Assigned client ID: ${id}`);
+
+                // Memorizza l'id sulla connessione (nota: "any" per comodità)
+                wsClients.set(id, ws as any);
+                
+                // Facoltativo: keep-alive a livello di singola connessione
+                (ws as any).__ka = setInterval(() => {
+                    try { ws.ping(); } catch { /* ignore */ }
+                }, 30_000);
+                
+                // Notifica l'id assegnato
+                ws.send(JSON.stringify({ type: 'hello', id }));
+                console.log(`[WS] Client connected: ${id}`);
             },
             message(ws, message) {
+                try {
+                    const payload = typeof message === 'string' ? JSON.parse(message) : message;
+                    // Ping/Pong semplice
+                    if (payload?.type === 'ping') {
+                        ws.send(JSON.stringify({ type: 'pong', ts: Date.now() }));
+                        return;
+                    }
+                    // Echo di default (utile in dev)
+                    ws.send(JSON.stringify({ type: 'echo', data: payload }));
+                } catch {
+                    // Se non è JSON, fallo rimbalzare come testo
+                    ws.send(String(message));
+                }
                 console.log("[WS] Message from client:", message);
             },
             close(ws) {
-                console.log("[WS] Client disconnected");
+                const id = (ws as any).id as string | undefined;
+                if (id) wsClients.delete(id);
+                const ka = (ws as any).__ka as ReturnType<typeof setInterval> | undefined;
+                if (ka) clearInterval(ka);
+                console.log("[WS] Client disconnected:", id);
+            },
+            drain(ws) {
+                console.log("[WS] Client drain");
             }
         });
+        
+        //#endregion WEBSOCKET
 
+        //#region API
         // API: restituisce le ricevute con filtri e paginazione
         this.app.get("/api/receipts", async ({ request }) => {
             try {
@@ -346,6 +397,8 @@ export class HttpServerController {
             }
         });
 
+        //#endregion API
+        
         // Avvia il server HTTP sulla porta 4000
         this.app.listen(4000);
         console.log("[WWW] ✅ HTTP server su http://localhost:4000");
@@ -367,6 +420,53 @@ export class HttpServerController {
      */
     public getApp() {
         return this.app;
+    }
+
+    /**
+     * Invia dati su WebSocket a un singolo client o in broadcast a tutti i client connessi.
+     * @param data Dati da inviare (stringa o oggetto serializzabile)
+     * @param wsClient (opzionale) Istanza del client WebSocket destinatario. Se omesso, invia a tutti.
+     */
+    // public sendWsMessage(data: any, wsClient?: any): void {
+    //     const message = typeof data === "string" ? data : JSON.stringify(data);
+    //     // Se viene passato un client specifico, invia solo a lui
+    //     if (wsClient) {
+    //         wsClient.send(message);
+    //     } else {
+    //         // Broadcast a tutti i client connessi su /api/ws
+    //         this.app.ws("/api/ws").clients.forEach((client: any) => {
+    //             client.send(message);
+    //         });
+    //     }
+    // }
+
+    /**
+     * Invia a un client specifico
+     * @returns true se inviato, false se client non presente o errore
+     */
+    public sendToClient(id: string, data: any): boolean {
+        const ws = this.wsClients.get(id);
+        if (!ws) return false;
+        try {
+        ws.send(typeof data === 'string' ? data : JSON.stringify(data));
+        return true;
+        } catch {
+        return false;
+        }
+    }
+
+    /**
+     * Invia a tutti i client connessi
+     * @returns numero di client a cui è stato inviato
+     */
+    public broadcast(data: any): number {
+        const payload = typeof data === 'string' ? data : JSON.stringify(data);
+        console.log(`[WS] Broadcasting message to ${this.wsClients.size} clients`);
+        let count = 0;
+        for (const ws of this.wsClients.values()) {
+        try { ws.send(payload); count++; } catch { /* ignore */ }
+        }
+        return count;
     }
 }
 

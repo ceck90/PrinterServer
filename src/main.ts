@@ -163,6 +163,7 @@ jobController.create({
     timezone: "Europe/Rome",
     task: () => {
         console.log(`[JOB - PING] Ping...`);
+        httpServerController.broadcast({ type: 'ping', timestamp: new Date().toISOString() });
     },
     startNow: true,
     meta: { env: process.env.NODE_ENV ?? "development" },
