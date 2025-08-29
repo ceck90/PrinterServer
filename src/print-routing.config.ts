@@ -28,11 +28,11 @@ export let printers: PrinterConfig[] = [];
  * Questo oggetto NON viene usato a runtime, ma solo se la tabella printers è vuota.
  */
 const printerMapSeed: Record<string, Omit<PrinterConfig, "name">> = {
-    "PIADINE":     { key: "piadine",     ip: "10.10.1.95", port: 9100, destination: "PIADINE",     active: true, upsideDown: false, beepEnable: false, description: "" },
-    "FORNO":       { key: "forno",       ip: "10.10.1.95", port: 9100, destination: "FORNO",       active: true, upsideDown: false, beepEnable: false, description: "" },
-    "PANINI":      { key: "panini",      ip: "10.10.1.95", port: 9100, destination: "PANINI",      active: true, upsideDown: false, beepEnable: false, description: "" },
-    "TOAST":       { key: "toast",       ip: "10.10.1.95", port: 9100, destination: "TOAST",       active: true, upsideDown: false, beepEnable: false, description: "" },
-    "PIATTI UNICI":{ key: "piattiunici", ip: "10.10.1.95", port: 9100, destination: "PIATTI UNICI",active: true, upsideDown: false, beepEnable: false, description: "" }
+    "PIADINE":     { key: "piadine",     ip: "127.0.0.1", port: 9100, destination: "PIADINE",     active: true, upsideDown: false, beepEnable: false, description: "" },
+    "PANINI":      { key: "panini",      ip: "127.0.0.1", port: 9100, destination: "PANINI",      active: true, upsideDown: false, beepEnable: false, description: "" },
+    "TOAST":       { key: "toast",       ip: "127.0.0.1", port: 9100, destination: "TOAST",       active: true, upsideDown: false, beepEnable: false, description: "" },
+    "PIATTI UNICI":{ key: "piattiunici", ip: "127.0.0.1", port: 9100, destination: "PIATTI UNICI",active: true, upsideDown: false, beepEnable: false, description: "" },
+    "COPERTI":     { key: "coperti",     ip: "127.0.0.1", port: 9100, destination: "COPERTI",     active: true, upsideDown: false, beepEnable: false, description: "" }
 };
 
 /**

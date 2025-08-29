@@ -117,8 +117,8 @@ export async function buildKitchenTicket_v2(order: OrderPayload, dest: string, i
         }
     });
 
-    console.log("[PRINT] Building ticket...");
-    if(upsideDown) console.log("[PRINT] Stampa capovolta");
+    console.log("[TICKET] Building ticket...");
+    if(upsideDown) console.log("[TICKET] Stampa capovolta");
 
     await printer.upsideDown(upsideDown);
 
@@ -361,7 +361,7 @@ export async function buildSittingPlaceTicket(
     printer.setTextSize(0, 0);
     printer.underlineThick(false);
 
-    printer.println(`Il Vostro ordine è in gestione`);
+    printer.println(`Stiamo preparando il Vostro ordine`);
     printer.println(`Buona serata e buon divertimento!`);
    
     if(beepEnable) {

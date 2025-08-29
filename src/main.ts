@@ -114,6 +114,10 @@ const gsgController = GSGController.getInstance(new Client({
     database: 'sagra'
 }));
 
+gsgController.start().catch(err => {
+    console.error("[GSG] errore durante l'avvio:", err);
+});
+
 
 // ==================
 // Inizializzazione e caricamento stampanti
@@ -128,6 +132,10 @@ seedPrintersIfDbEmpty();
  * Carica tutte le stampanti dal database e aggiorna l'array globale printers.
  */
 loadPrintersFromDb();
+
+// ==================
+// Inizializzazione Job Controller
+// ==================
 
 /**
  * Inizializza il controller dei job (singleton).
@@ -155,8 +163,9 @@ jobController.create({
     timezone: "Europe/Rome",
     task: () => {
         console.log(`[JOB - PING] Ping...`);
+        httpServerController.broadcast({ type: 'ping', timestamp: new Date().toISOString() });
     },
-    startNow: false,
+    startNow: true,
     meta: { env: process.env.NODE_ENV ?? "development" },
   });
 
@@ -165,10 +174,12 @@ console.log("[MAIN] ✅ Server avviato con successo!");
 process.on("SIGINT", () => {
     console.log("[MAIN] 🚨 Interruzione del processo...");
     jobController.stopAll();
+    gsgController.stop();
     process.exit(0);
 });
 process.on("SIGTERM", () => {
     console.log("[MAIN] 🚨 Interruzione del processo...");
     jobController.stopAll();
+    gsgController.stop();
     process.exit(0);
 });

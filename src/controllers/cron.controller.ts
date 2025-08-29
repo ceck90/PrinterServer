@@ -21,8 +21,6 @@ export class JobController extends EventEmitter {
 
   private constructor() {
     super();
-    // process.on("SIGINT", () => this.stopAll());
-    // process.on("SIGTERM", () => this.stopAll());
   }
 
   public static getInstance(): JobController {

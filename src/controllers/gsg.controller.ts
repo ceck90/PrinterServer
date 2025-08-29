@@ -1,159 +1,139 @@
-import { Client } from 'pg';
-import { handleIncomingOrderFromGSG } from '../dispatcher.ts';
+import { Client } from "pg";
+import { handleIncomingOrderFromGSG } from "../dispatcher.ts";
+
+type NewOrderPayload = { operation: string; item: any };
+type PgConfig = ConstructorParameters<typeof Client>[0];
 
 export class GSGController {
-    private static instance: GSGController;
+  private static instance: GSGController;
 
-    private client = new Client({
-        host: 'localhost',
-        port: 5432,
-        user: 'user',
-        password: 'password',
-        database: 'dbname'
-    });
+  // Listener dedicato
+  private listener?: Client;
+  private stopping = false;
+  private backoffMs = 1000;
+  private readonly backoffMax = 15000;
+  private heartbeatTimer?: Timer;
 
-    /**
-     * Costruttore privato: inizializza la connessione con i parametri forniti.
-     * @param connectionString Stringa di connessione al database Postgres
-     */
-    private constructor(newClient?: Client) {
-        if (newClient) {
-            this.client = newClient;
-            this.client.connect()
-                .then(() => {
-                    console.log(`[GSG] Postgres SQL controller initialized with connection: ${this.client.host}:${this.client.port}/${this.client.database}`);
-                    this.createDbFunction();
-                    this.subscribeToNewOrders((data) => {
+  private constructor(private readonly baseConfig?: PgConfig) {}
 
-                        console.log(`[GSG] Nuovo ordine ricevuto: ${data.item}`);
-                        
-                        if(data.item.esportazione == false) {
-                            // Invia i dati dell'ordine al servizio di stampa
-                            this.printOrder(data.item);
-                        }
-                    });
-                })
-                .catch(err => {
-                    console.error(`[GSG] Error initializing Bun SQL controller: ${err.message}`);
-                });
-        }
+  public static getInstance(clientOrConfig?: Client | PgConfig) {
+    if (!this.instance) {
+      if (clientOrConfig instanceof Client) {
+        this.instance = new GSGController(clientOrConfig);
+        console.log("[GSG] Client passato direttamente");
+        // facoltativo: usare direttamente il client passato per query non-listen
+      } else {
+        this.instance = new GSGController(
+          clientOrConfig ?? { host: "localhost", port: 5432, user: "user", password: "password", database: "dbname" }
+        );
+      }
     }
+    return this.instance;
+  }
 
-    /**
-     * Restituisce l'istanza singleton del controller.
-     * @param connectionString Stringa di connessione al database Postgres (solo alla prima chiamata)
-     */
-    public static getInstance(client?: Client): GSGController {
-        if (!GSGController.instance) {
-            GSGController.instance = new GSGController(client);
-        }
-        return GSGController.instance;
+  /** Avvio: solo LISTEN. Sposta DDL in una migrazione separata. */
+  public async start(): Promise<void> {
+    console.log("[GSG] Avvio GSGController...");
+    this.stopping = false;
+    await this.connectAndListen();
+  }
+
+  public async stop(): Promise<void> {
+    this.stopping = true;
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    if (this.listener) {
+      try { await this.listener.end(); } catch {}
+      this.listener = undefined;
     }
+  }
 
-    /**
-     * Restituisce il client Postgres attualmente utilizzato.
-     * @returns Istanza del client Postgres
-     */
-    public getClient(): Client {
-        return this.client;
-    }
+  private async connectAndListen(): Promise<void> {
+    while (!this.stopping) {
+      try {
+        const client = new Client(this.baseConfig ?? {});
+        await client.connect();
+        this.listener = client;
 
-    /**
-     * Crea una funzione e un trigger nel database per notificare nuovi ordini tramite il canale 'new_order'.
-     * Utile per ricevere eventi in tempo reale quando vengono inseriti nuovi ordini.
-     */
-    public createDbFunction(): void {
-        console.log("[GSG] Creazione funzione e trigger nel database...");
-        this.client.query(`
-            CREATE OR REPLACE FUNCTION notify_new_order()
-            RETURNS TRIGGER AS $$
-            BEGIN
-                PERFORM pg_notify('new_order', json_build_object(
-                    'operation', TG_OP,
-                    'item', row_to_json(NEW)
-                )::text);
-                RETURN NEW;
-            END;
-            $$ LANGUAGE plpgsql;
-        `)
-        .then(() => {
-            return this.client.query(`
-                DROP TRIGGER IF EXISTS ordini_trigger ON ordini;
-                CREATE TRIGGER ordini_trigger
-                AFTER INSERT ON ordini
-                FOR EACH ROW EXECUTE FUNCTION notify_new_order();
-            `);
-        })
-        .then(() => {
-            console.log("[GSG] Funzione e trigger creati con successo.");
-        })
-        .catch(err => {
-            console.error("[GSG] Errore creazione funzione e trigger:", err);
+        // Reset backoff
+        this.backoffMs = 1000;
+
+        // LISTEN
+        await client.query(`LISTEN new_order`);
+        console.log(`[GSG] LISTEN new_order attivo`);
+
+        // Heartbeat
+        this.startHeartbeat();
+
+        // Handler eventi
+        client.on("notification", (msg) => this.onNotification(msg.payload));
+        client.on("error", (err) => console.error("[GSG] PG error:"));
+        client.on("end", () => {
+          console.warn("[GSG] PG connection ended");
+          this.handleDisconnect();
         });
+
+        return; // esci dal loop finché la connessione regge
+      } catch (err) {
+        console.error("[GSG] connect/listen failed:");
+        await this.delay(this.backoffMs);
+        this.backoffMs = Math.min(this.backoffMs * 2, this.backoffMax);
+      }
     }
+  }
 
-    /**
-     * Si sottoscrive agli eventi di nuovi ordini tramite il canale 'new_order'.
-     * Invoca la callback ogni volta che viene ricevuta una notifica dal database.
-     * @param callback Funzione da chiamare con i dati dell'ordine ricevuto
-     */
-    public async subscribeToNewOrders(callback: (data: any) => void): Promise<void> {
-        this.client.query("LISTEN new_order");
-
-        this.client.on("notification", (msg) => {
-            if (!msg.payload) return;
-
-            try {
-                const data = JSON.parse(msg.payload);
-                console.log("📥 Evento ricevuto:", data);
-                callback(data);
-            } catch (err) {
-                console.error("Errore parsing payload:", err, msg.payload);
-            }
+  private startHeartbeat() {
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    this.heartbeatTimer = setInterval(async () => {
+      if (!this.listener) return;
+      try {
+        await this.listener.query("SELECT 1").then(() => {
+            console.log("[GSG] heartbeat OK");
         });
+      } catch (err) {
+        console.warn("[GSG] heartbeat failed:", err);
+        this.handleDisconnect();
+      }
+    }, 20000);
+  }
+
+  private handleDisconnect() {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = undefined;
+    }
+    if (this.listener) {
+      try { this.listener.end(); } catch {}
+      this.listener = undefined;
+    }
+    if (!this.stopping) void this.connectAndListen();
+  }
+
+  private async onNotification(payload?: string) {
+    if (!payload) return;
+    let data: NewOrderPayload;
+    try {
+      data = JSON.parse(payload);
+    } catch (e) {
+      console.error("[GSG] payload non JSON:", payload);
+      return;
     }
 
-    /**
-     * Invia l'ordine ricevuto al servizio di stampa.
-     * Puoi personalizzare questa funzione per aggiungere logica di stampa specifica.
-     * @param order Oggetto ordine da stampare
-     */
-    public async printOrder(order: any): Promise<void> {
-        // console.log("[GSG] Stampa ordine:", order);
-
-        // console.log("[GSG] Nuovo ordine ID:", order.id);
-        // console.log("[GSG] Coperti:", order.coperti);
-        // console.log("[GSG] Numero Tavolo:", order.numeroTavolo);
-        // console.log("[GSG] Cliente:", order.cliente);
-        // console.log("[GSG] Timestamp:", order.ora);
-        // console.log("[GSG] Cassiere:", order.cassiere);
-        // Qui puoi aggiungere la logica per inviare l'ordine al servizio di stampa
-
-        await handleIncomingOrderFromGSG(order);
+    try {
+      // Filtro business: esportazione=false (coerente col tuo esempio)
+      if (data?.item?.esportazione === false && data?.item?.coperti > 0) {
+        await this.printOrder(data.item);
+      }
+    } catch (err) {
+      console.error("[GSG] errore processEvent:", err);
+      // opzionale: DLQ / retry
     }
+  }
 
-    /**
-     * Esegue una query SQL usando Bun con Postgres.
-     * @param query La query SQL da eseguire
-     * @param params Parametri opzionali per la query
-     * @returns Risultato della query
-     */
-    // public async query<T = any>(query: string, params?: any[]): Promise<T[]> {
-    //     // Usa la stringa di connessione per ogni query
-    //     return await sql<T[]>({ connectionString: this.connectionString })`${sql.raw(query, ...(params || []))}`;
-    // }
+  private async printOrder(order: any): Promise<void> {
+    await handleIncomingOrderFromGSG(order);
+  }
 
-    /**
-     * Bun gestisce la connessione automaticamente, quindi non serve chiudere manualmente.
-     */
-    public async closeConnection(): Promise<void> {
-        if (this.client) {
-            await this.client.end();
-            console.log("[GSG] Connessione al database chiusa.");
-        } else {
-            console.warn("[GSG] Nessuna connessione da chiudere.");
-        }
-        return;
-    }
-
+  private delay(ms: number) {
+    return new Promise((res) => setTimeout(res, ms));
+  }
 }
