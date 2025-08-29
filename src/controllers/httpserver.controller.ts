@@ -468,6 +468,15 @@ export class HttpServerController {
         }
         return count;
     }
+
+    /** Utility opzionali */
+    public listClients(): string[] { return [...this.wsClients.keys()]; }
+
+    public disconnect(id: string, code = 1000, reason?: string): boolean {
+        const ws = this.wsClients.get(id);
+        if (!ws) return false;
+        try { ws.close(code, reason); this.wsClients.delete(id); return true; } catch { return false; }
+    }
 }
 
 
