@@ -8,6 +8,11 @@ import { getThemeFromLocalStorage, setThemeInLocalStorage } from './theme.js';
 let lang = "en-US"; // Default language
 // let theme = getThemeFromLocalStorage(); // Default theme
 
+/* 
+    Shorthand functions to avoid verbose
+*/
+const byId = (id) => document.getElementById(id)
+
 /**
  * Handles the initialization of the status page once the DOM is fully loaded.
  * 
@@ -26,54 +31,58 @@ let lang = "en-US"; // Default language
 
 document.addEventListener("DOMContentLoaded", async () => {
 
-    // Funzione per mostrare un toast Bootstrap
-    function showToast(message, options = {}) {
-        // Cerca o crea il contenitore dei toast
-        let toastContainer = document.getElementById('toast-container');
-        if (!toastContainer) {
-            toastContainer = document.createElement('div');
-            toastContainer.id = 'toast-container';
-            toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
-            document.body.appendChild(toastContainer);
+    /* 
+        Spawn toast div to show messages
+        Auto hides itself after 5 seconds
+        Close on click
+    */
+    const spawnToast = (message, options = { title: "", icon: false }) => {
+
+        const id = Math.floor((Math.random() * 10000000000) + 1)
+        const toast = document.createElement("div")
+        toast.id = id
+        toast.classList.add("toast")
+        toast.setAttribute("role", "alert")
+        toast.setAttribute("aria-live", "assertive")
+        toast.setAttribute("aria-atomic", "true")
+
+        const header = document.createElement("div")
+        header.classList.add("toast-header")
+
+        const img = document.createElement("img")
+        if (options) {
+            if (options.icon === true) {
+                img.src = "assets/img/favicon/favicon-32x32.png"
+                img.classList.add("rounded", "me-2")
+            }
         }
 
-        // Crea il markup del toast
-        const toastElem = document.createElement('div');
-        toastElem.className = 'toast align-items-center text-bg-primary border-0';
-        toastElem.setAttribute('role', 'alert');
-        toastElem.setAttribute('aria-live', 'assertive');
-        toastElem.setAttribute('aria-atomic', 'true');
-        toastElem.innerHTML = `
-            <div class="d-flex">
-                <div class="toast-body">
-                    ${message}
-                </div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-            </div>
-        `;
+        const strong = document.createElement("strong")
+        strong.classList.add("me-auto")
+        strong.textContent = options.title || "Barcode"
 
-        toastContainer.appendChild(toastElem);
+        header.append(img, strong)
 
-        
-        // Opzioni di default
-        const toastOptions = {
-            delay: options.delay || 3000,
-            autohide: options.autohide !== undefined ? options.autohide : true
-        };
-        // $('.toast').toast(toastOptions);
+        const body = document.createElement("div")
+        body.classList.add("toast-body")
+        body.textContent = message
+        toast.append(header, body)
 
-        // Inizializza e mostra il toast
-        // const toast = new Toast(toastElem, toastOptions);
-        // toast.show();
-
-        // Rimuovi il toast dal DOM quando viene nascosto
-        toastElem.addEventListener('hidden.bs.toast', () => {
-            toastElem.remove();
-        });
+        byId("toast-container").insertBefore(toast, byId("toast-container").firstChild)
+        const toast_bootstrap = new bootstrap.Toast(byId(id))
+        toast_bootstrap.show()
+        toast.addEventListener("click", e => byId("toast-container").removeChild(toast))
+        setTimeout(() => {
+            try {
+                byId("toast-container").removeChild(toast)
+            } catch (e) {
+                //
+            }
+        }, 5000)
     }
 
     // Esempio d'uso:
-    // showToast('Hello, this is a Bootstrap toast!');
+    // spawnToast('Hello, this is a Bootstrap toast!');
 
     const themeItems = document.querySelectorAll('.theme-item');
 
@@ -166,13 +175,13 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
         } catch (error) {
             console.error("Error adding printer:", error);
-            showToast(translate('Error adding printer: ') + error.message);
+            spawnToast(translate('Error adding printer: ') + error.message);
         }
     };
 
-    const deletePrinter = async (prinetKey) => {
+    const deletePrinter = async (printerKey) => {
         try {
-            const response = await fetch(`/api/printers/delete/${prinetKey}`, {
+            const response = await fetch(`/api/printers/delete/${printerKey}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -185,14 +194,14 @@ document.addEventListener("DOMContentLoaded", async () => {
             console.log("Delete printer result:", response);
             if (response) {
                 // alert(translate('Printer deleted successfully'));
-                showToast('Printer deleted successfully');
+                spawnToast('Printer deleted successfully');
                 await fillPrinterTable(); // Refresh the table after deletion
             } else {
-                showToast(translate('Error deleting printer: ') + response);
+                spawnToast(translate('Error deleting printer: ') + response);
             }
         } catch (error) {
             console.error("Error deleting printer:", error);
-            showToast(translate('Error deleting printer: ') + error.message);
+            spawnToast(translate('Error deleting printer: ') + error.message);
         }
     };
 
@@ -243,16 +252,16 @@ document.addEventListener("DOMContentLoaded", async () => {
             console.log("Save result:", response);
             if (response) {
                 // alert(translate('Printers saved successfully'));
-                showToast(translate('Printers saved successfully'));
+                spawnToast(translate('Printers saved successfully'));
                 await fillPrinterTable(); // Refresh the table after saving
             } else {
                 // alert(translate('Error saving printers: ') + response);
-                showToast(translate('Error saving printers: ') + response);
+                spawnToast(translate('Error saving printers: ') + response);
             }
         } catch (error) {
             console.error("Error saving printers:", error);
             // alert(translate('Error saving printers: ') + error.message);
-            showToast(translate('Error saving printers: ') + error.message);
+            spawnToast(translate('Error saving printers: ') + error.message);
         }
     };
 

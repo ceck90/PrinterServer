@@ -6,6 +6,11 @@ import { getThemeFromLocalStorage, setThemeInLocalStorage } from './theme.js';
 let lang = "en-US"; // Default language
 // let theme = getThemeFromLocalStorage(); // Default theme
 
+/* 
+    Shorthand functions to avoid verbose
+*/
+const byId = (id) => document.getElementById(id)
+
 /**
  * Handles the initialization of the status page once the DOM is fully loaded.
  * 
@@ -24,54 +29,59 @@ let lang = "en-US"; // Default language
 
 document.addEventListener("DOMContentLoaded", async () => {
 
-    // Funzione per mostrare un toast Bootstrap
-    function showToast(message, options = {}) {
-        // Cerca o crea il contenitore dei toast
-        let toastContainer = document.getElementById('toast-container');
-        if (!toastContainer) {
-            toastContainer = document.createElement('div');
-            toastContainer.id = 'toast-container';
-            toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
-            document.body.appendChild(toastContainer);
+    /* 
+        Spawn toast div to show messages
+        Auto hides itself after 5 seconds
+        Close on click
+    */
+    const spawnToast = (message, options = { title: "", icon: false }) => {
+
+        const id = Math.floor((Math.random() * 10000000000) + 1)
+        const toast = document.createElement("div")
+        toast.id = id
+        toast.classList.add("toast")
+        toast.setAttribute("role", "alert")
+        toast.setAttribute("aria-live", "assertive")
+        toast.setAttribute("aria-atomic", "true")
+
+        const header = document.createElement("div")
+        header.classList.add("toast-header")
+
+        const img = document.createElement("img")
+        if(options){
+            if(options.icon === true){
+                img.src = "assets/img/favicon/favicon-32x32.png"
+                img.classList.add("rounded", "me-2")
+            }
         }
-
-        // Crea il markup del toast
-        const toastElem = document.createElement('div');
-        toastElem.className = 'toast align-items-center text-bg-primary border-0';
-        toastElem.setAttribute('role', 'alert');
-        toastElem.setAttribute('aria-live', 'assertive');
-        toastElem.setAttribute('aria-atomic', 'true');
-        toastElem.innerHTML = `
-            <div class="d-flex">
-                <div class="toast-body">
-                    ${message}
-                </div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-            </div>
-        `;
-
-        toastContainer.appendChild(toastElem);
-
         
-        // Opzioni di default
-        const toastOptions = {
-            delay: options.delay || 3000,
-            autohide: options.autohide !== undefined ? options.autohide : true
-        };
-        // $('.toast').toast(toastOptions);
+        const strong = document.createElement("strong")
+        strong.classList.add("me-auto")
+        strong.textContent = options.title || "Barcode"
 
-        // Inizializza e mostra il toast
-        // const toast = new Toast(toastElem, toastOptions);
-        // toast.show();
+        header.append(img, strong)
 
-        // Rimuovi il toast dal DOM quando viene nascosto
-        toastElem.addEventListener('hidden.bs.toast', () => {
-            toastElem.remove();
-        });
+        const body = document.createElement("div")
+        body.classList.add("toast-body")
+        body.textContent = message
+        toast.append(header, body)
+
+        byId("toast-container").insertBefore(toast, byId("toast-container").firstChild)
+        const toast_bootstrap = new bootstrap.Toast(byId(id))
+        toast_bootstrap.show()
+        toast.addEventListener("click", e => byId("toast-container").removeChild(toast))
+        setTimeout(() => {
+            try {
+                byId("toast-container").removeChild(toast)
+            } catch (e) {
+                //
+            }
+        }, 5000)
     }
 
+
     // Esempio d'uso:
-    // showToast('Hello, this is a Bootstrap toast!');
+    spawnToast('Hello, this is a Bootstrap toast!');
 
     const themeItems = document.querySelectorAll('.theme-item');
 
@@ -175,39 +185,41 @@ document.addEventListener("DOMContentLoaded", async () => {
 
                 let timerInterval;
                 console.log(response)
-                Swal.fire({
-                    theme: "auto",
-                    title: "Processing...",
-                    // html: "I will close in <b></b> milliseconds.",
-                    timer: 1000,
-                    icon: "success",
-                    // timerProgressBar: true,
-                    didOpen: () => {
-                        // Swal.showLoading();
-                        // const timer = Swal.getPopup().querySelector("b");
-                        // timerInterval = setInterval(() => {
-                            // timer.textContent = `${Swal.getTimerLeft()}`;
-                        // }, 100);
-                    },
-                    willClose: () => {
-                        clearInterval(timerInterval);
-                    }
-                }).then((result) => {
-                    /* Read more about handling dismissals below */
-                    if (result.dismiss === Swal.DismissReason.timer) {
-                        // console.log("I was closed by the timer");
-                    }
-                });
+                spawnToast("ID:" + input, { title: "Processing barcode", icon: true });
+                // Swal.fire({
+                //     theme: "auto",
+                //     title: "Processing...",
+                //     // html: "I will close in <b></b> milliseconds.",
+                //     timer: 1000,
+                //     icon: "success",
+                //     // timerProgressBar: true,
+                //     didOpen: () => {
+                //         // Swal.showLoading();
+                //         // const timer = Swal.getPopup().querySelector("b");
+                //         // timerInterval = setInterval(() => {
+                //             // timer.textContent = `${Swal.getTimerLeft()}`;
+                //         // }, 100);
+                //     },
+                //     willClose: () => {
+                //         clearInterval(timerInterval);
+                //     }
+                // }).then((result) => {
+                //     /* Read more about handling dismissals below */
+                //     if (result.dismiss === Swal.DismissReason.timer) {
+                //         // console.log("I was closed by the timer");
+                //     }
+                // });
             } catch (error) {
                 console.error("Failed to save scanned barcode:", error);
-                Swal.fire({
-                    theme: "auto",
-                    title: "Error",
-                    text: "Failed to save scanned barcode.",
-                    icon: "error",
-                    confirmButtonText: "OK"
-                });
-                // showToast("Error saving scanned barcode.", { delay: 4000, autohide: true });
+                spawnToast("Error saving scanned barcode.", { title: "Error", icon: true });
+                // Swal.fire({
+                //     theme: "auto",
+                //     title: "Error",
+                //     text: "Failed to save scanned barcode.",
+                //     icon: "error",
+                //     confirmButtonText: "OK"
+                // });
+                // spawnToast("Error saving scanned barcode.", { delay: 4000, autohide: true });
             }
 
         }
