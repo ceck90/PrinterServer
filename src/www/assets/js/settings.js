@@ -59,7 +59,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         const strong = document.createElement("strong")
         strong.classList.add("me-auto")
-        strong.textContent = options.title || "Barcode"
+        strong.textContent = options.title || "-- title --"
 
         header.append(img, strong)
 
@@ -175,7 +175,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
         } catch (error) {
             console.error("Error adding printer:", error);
-            spawnToast(translate('Error adding printer: ') + error.message);
+            spawnToast(translate('Error adding printer: ') + error.message, options = { title: "Error", icon: true });
         }
     };
 
@@ -194,14 +194,14 @@ document.addEventListener("DOMContentLoaded", async () => {
             console.log("Delete printer result:", response);
             if (response) {
                 // alert(translate('Printer deleted successfully'));
-                spawnToast('Printer deleted successfully');
+                spawnToast('Printer deleted successfully', { title: "Success", icon: true });
                 await fillPrinterTable(); // Refresh the table after deletion
             } else {
-                spawnToast(translate('Error deleting printer: ') + response);
+                spawnToast(translate('Error deleting printer: ') + response, { title: "Error", icon: true });
             }
         } catch (error) {
             console.error("Error deleting printer:", error);
-            spawnToast(translate('Error deleting printer: ') + error.message);
+            spawnToast(translate('Error deleting printer: ') + error.message, { title: "Error", icon: true });
         }
     };
 
@@ -252,16 +252,16 @@ document.addEventListener("DOMContentLoaded", async () => {
             console.log("Save result:", response);
             if (response) {
                 // alert(translate('Printers saved successfully'));
-                spawnToast(translate('Printers saved successfully'));
+                spawnToast(translate('Printers saved successfully'), { title: "Success", icon: true });
                 await fillPrinterTable(); // Refresh the table after saving
             } else {
                 // alert(translate('Error saving printers: ') + response);
-                spawnToast(translate('Error saving printers: ') + response);
+                spawnToast(translate('Error saving printers: ') + response, { title: "Error", icon: true });
             }
         } catch (error) {
             console.error("Error saving printers:", error);
             // alert(translate('Error saving printers: ') + error.message);
-            spawnToast(translate('Error saving printers: ') + error.message);
+            spawnToast(translate('Error saving printers: ') + error.message, { title: "Error", icon: true });
         }
     };
 

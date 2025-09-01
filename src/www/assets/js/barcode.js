@@ -57,7 +57,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         
         const strong = document.createElement("strong")
         strong.classList.add("me-auto")
-        strong.textContent = options.title || "Barcode"
+        strong.textContent = options.title || "-- title --"
 
         header.append(img, strong)
 
@@ -81,7 +81,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 
     // Esempio d'uso:
-    spawnToast('Hello, this is a Bootstrap toast!');
+    // spawnToast('Hello, this is a Bootstrap toast!');
 
     const themeItems = document.querySelectorAll('.theme-item');
 
@@ -185,7 +185,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
                 let timerInterval;
                 console.log(response)
-                spawnToast("ID:" + input, { title: "Processing barcode", icon: true });
+                spawnToast("ID: " + id, { title: "Processing barcode", icon: true });
                 // Swal.fire({
                 //     theme: "auto",
                 //     title: "Processing...",

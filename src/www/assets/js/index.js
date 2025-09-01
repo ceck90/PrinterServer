@@ -57,7 +57,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         const strong = document.createElement("strong")
         strong.classList.add("me-auto")
-        strong.textContent = options.title || "Barcode"
+        strong.textContent = options.title || "-- title --"
 
         header.append(img, strong)
 
