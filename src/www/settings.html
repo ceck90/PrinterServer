@@ -22,10 +22,11 @@
             <b><label class="text-auto" id="title" data-i18n="title"></label></b>
         </div>
         <div>
-            <span class="bi bi-house text-light fs-4 me-4" id="home-button" onclick="location.href='/'" type="button" alt="Home"></span>
-            <span class="bi bi-upc-scan text-light fs-4 me-4" id="barcode-button" onclick="location.href='/barcode'" type="button" alt="Barcode"></span>
-            <span class="bi bi-info-square text-light fs-4 me-4" id="status-button" onclick="location.href='/status'" type="button" alt="Status"></span>
+            <span class="bi bi-house text-light fs-4 me-4" id="home-button" onclick="location.href='/?token=' + localStorage.getItem('authToken')" type="button" alt="Home"></span>
+            <span class="bi bi-upc-scan text-light fs-4 me-4" id="barcode-button" onclick="location.href='/barcode?token=' + localStorage.getItem('authToken')" type="button" alt="Barcode"></span>
+            <span class="bi bi-info-square text-light fs-4 me-4" id="status-button" onclick="location.href='/status?token=' + localStorage.getItem('authToken')" type="button" alt="Status"></span>
             <span class="bi bi-circle-half text-light fs-4 theme-item" type="button" alt="Theme"></span>
+            <span class="bi bi-box-arrow-right text-light fs-4 ms-4" id="logout-button" type="button" alt="Logout"></span>
         </div>
         <div class="toast-container position-fixed end-0 p-3" id="toast-container"></div>
     </div>

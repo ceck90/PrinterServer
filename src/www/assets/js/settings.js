@@ -88,6 +88,14 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
         });
     }
+
+    const btnLogout = document.getElementById('logout-button');
+    btnLogout.addEventListener('click', () => {
+        // Handle logout logic here
+        localStorage.removeItem("authToken");
+        window.location.href = "/";
+        console.log("[LOGOUT] User logged out");
+    });
     
     const fetchPrinters = async () => {
         try {

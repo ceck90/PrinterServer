@@ -142,34 +142,34 @@ export class HttpServerController {
         });
 
         // Route per la pagina di stato
-        this.app.get("/status", () => {
+        this.app.get("/status", requireAuth(() => {
             try {
                 const html = readFileSync(join(import.meta.dir, "../www/status.html"), "utf8");
                 return new Response(html, { headers: { "Content-Type": "text/html" } });
             } catch (err) {
                 return new Response("File status.html Not found", { status: 404 });
             }
-        });
+        }));
         
         // Route per la pagina di stato
-        this.app.get("/settings", () => {
+        this.app.get("/settings", requireAuth(() => {
             try {
                 const html = readFileSync(join(import.meta.dir, "../www/settings.html"), "utf8");
                 return new Response(html, { headers: { "Content-Type": "text/html" } });
             } catch (err) {
                 return new Response("File settings.html Not found", { status: 404 });
             }
-        });
-        
+        }));
+
         // Route per la pagina di stato
-        this.app.get("/barcode", () => {
+        this.app.get("/barcode", requireAuth(() => {
             try {
                 const html = readFileSync(join(import.meta.dir, "../www/barcode.html"), "utf8");
                 return new Response(html, { headers: { "Content-Type": "text/html" } });
             } catch (err) {
                 return new Response("File barcode.html Not found", { status: 404 });
             }
-        });
+        }));
 
         // Route per servire asset statici (js, css, immagini, ecc.)
         this.app.get("/assets/*", ({ request }) => {

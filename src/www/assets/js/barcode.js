@@ -88,6 +88,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         console.log("Apply role: " + storedRole);
     };
 
+    const btnLogout = document.getElementById('logout-button');
+    btnLogout.addEventListener('click', () => {
+        // Handle logout logic here
+        localStorage.removeItem("authToken");
+        window.location.href = "/";
+        console.log("[LOGOUT] User logged out");
+    });
+
     const languageDropdown = document.getElementById('languageDropdown');
     if (languageDropdown) {
         const dropdownItems = document.querySelectorAll('.dropdown-item');
