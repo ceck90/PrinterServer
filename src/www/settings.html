@@ -86,20 +86,42 @@
         </div>
     </div>
     <!-- Utility Card -->
-    <!-- <div class="container py-2">
+    <div class="container py-2">
         <div class="card text-auto bg-auto border-0 shadow-lg rounded-4 mb-3" style="backdrop-filter: blur(6px);">
             <div class="card-header d-flex justify-content-between">
                 <h5 class="mb-0" data-i18n="utility"></h5>
-                <span class="button bi bi-arrow-clockwise fs-5 update-button" type="button"></span>
+                <span class="button bi bi-key fs-5" type="button"></span>
             </div>
             <div class="card-body">
-                <div class="mb-3">
-                    <label class="mb-1 me-4" for="apiRestartButton" data-i18n="apiRestart"></label>
-                    <button class="btn btn-primary bi bi-arrow-clockwise" id="apiRestartButton"></button>
+                <div class="d-flex align-items-center mb-2">
+                    <!-- <div class="align-items-center"> -->
+                        <span class="bi bi-key fs-1 me-3 text-info" id="passord-icon"></span>
+                        <label class="fs-4 col-3 ms-4" data-i18n="users"></label>
+                    <!-- </div> -->
+                    <div class="ms-auto">
+                        <span id="pulse-dot" class="pulse-dot"></span>
+                    </div>
                 </div>
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th scope="col" data-i18n="login.username"></th>
+                            <th scope="col" data-i18n="login.password"></th>
+                            <th scope="col" data-i18n="printerActions"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="printers-table-body">
+                        <!-- Le righe verranno popolate dinamicamente via JS -->
+                    </tbody>
+                </table>
+
+                <!-- <div class="d-flex justify-content-end mt-3">
+                    <button class="btn btn-success mt-3" id="add-user-btn" type="button" data-i18n="userAdd"></button>
+                    <button class="btn btn-primary mt-3" id="save-users-btn" type="button" data-i18n="save"></button>
+                </div> -->
             </div>
         </div>
-    </div> -->
+    </div>
 </body>
 <!-- <script src="assets/js/i18n.js" type="module"></script> -->
 <script src="assets/js/settings.js" type="module"></script>

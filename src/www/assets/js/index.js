@@ -63,6 +63,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const search_text = document.getElementById('table-search');
     const btnSearch = document.getElementById('btn-search');
     const btnClear = document.getElementById('btn-clear');
+    const btnLogout = document.getElementById('logout-button');
     var tableRows = document.querySelectorAll('#ticket-list-body tr');
 
     btnSearch.addEventListener('click', () => {
@@ -80,6 +81,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     btnClear.addEventListener('click', () => {
         search_text.value = '';
         tableRows.forEach(row => (row.style.display = ''));
+    });
+
+    btnLogout.addEventListener('click', () => {
+        // Handle logout logic here
+        localStorage.removeItem("authToken");
+        window.location.href = "/";
+        console.log("[LOGOUT] User logged out");
     });
 
     search_text.addEventListener('keyup', (e) => {

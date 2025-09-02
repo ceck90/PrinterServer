@@ -72,7 +72,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const username = document.getElementById('floatingInput').value;
         const password = document.getElementById('floatingPassword').value;
 
-        console.log(`Attempting login with username: ${username} and password: ${password}`);
+        // console.log(`Attempting login with username: ${username} and password: ${password}`);
         // Perform login logic here (e.g., send credentials to the server)
 
         try {

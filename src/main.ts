@@ -40,6 +40,7 @@ if (!fs.existsSync(envPath)) {
         KITCHEN_MGMT_SERVER_URL=http://127.0.0.1:8080
         WS_CLIENT_RECONNECT_ATTEMPTS=-1
         WS_CLIENT_RECONNECT_DELAY_MS=2000
+        TOKEN_KEY="05q8GiW=atxs"
         NODE_ENV=development
     `;
     fs.writeFileSync(envPath, defaultEnv, { encoding: 'utf8' });

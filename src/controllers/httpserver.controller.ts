@@ -6,6 +6,9 @@ import { printSpecificOrder, printTestTicket, regenerateSpecificReceipt } from "
 import { loadPrintersFromDb } from "../print-routing.config";
 import { KitchenManagementController } from "./kitchenmgmt.controller";
 import { ServerWebSocket } from "bun";
+import { config } from "dotenv";
+import { verify } from "crypto";
+import { verifyPassword } from "../users";
 
 
 /**
@@ -23,16 +26,110 @@ export class HttpServerController {
      * Costruttore privato: definisce tutte le route HTTP.
      */
     private constructor() {
+
+        //#region TOKEN
+        // Simple authentication middleware
+        // Carica TOKEN_SECRET da file .env
+        config();
+        const TOKEN_SECRET = process.env.TOKEN_KEY ?? "";
+        const TOKEN_EXPIRY_MS = 30 * 60 * 1000; // 30 minuti
+
+        function generateToken(): string {
+            const payload = {
+            exp: Date.now() + TOKEN_EXPIRY_MS,
+            key: TOKEN_SECRET
+            };
+            // console.log("Generated token payload:", payload);
+            return Buffer.from(JSON.stringify(payload)).toString("base64");
+        }
+
+        function verifyToken(token?: string): boolean {
+            if (!token) return false;
+            try {
+            const payload = JSON.parse(Buffer.from(token, "base64").toString("utf8"));
+            return typeof payload.exp === "number" && payload.exp > Date.now();
+            } catch {
+            return false;
+            }
+        }
+        //#endregion TOKEN
+
+        //#region LOGIN API
+
+        this.app.post("/api/login", async ({ request }) => {
+            // console.log("[LOGIN] Login attempt");
+            const { username, password } = await request.json();
+            if (!username || !password) {
+                return new Response("Missing username or password", { status: 400 });
+            }
+            console.log(`[LOGIN] Attempting login for user: ${username}`);
+            // Verifica le credenziali
+            const user = await DatabaseController.getInstance().getUserByUsername(username) as { id:number, password: string } | null;
+            // console.log("[LOGIN] User fetched from DB:", user ? "found" : "not found", user);
+            if (!user || !user.password || !await verifyPassword(password, user.password)) {
+                console.log("[LOGIN] Invalid credentials");
+                // return new Response("Invalid credentials", { status: 401 });
+            }
+            
+            const token = generateToken();
+            // Login avvenuto con successo
+            // console.log(`[LOGIN] Successful login for user: ${username} with token: ${token}`);
+            return new Response(JSON.stringify({ token }), {
+                headers: { "Content-Type": "application/json" }
+            });
+        });
+
+        this.app.post("/api/verify-token", ({ request, body }) => {
+            const token = request.headers.get("authorization")?.replace("Bearer ", "") ?? "";
+            if (!verifyToken(token)) {
+                return new Response("Unauthorized", { status: 401 });
+            }
+            return new Response(JSON.stringify({ valid: true }), {
+                headers: { "Content-Type": "application/json" }
+            });
+        });
+
+        // Auth middleware for protected pages
+        const requireAuth = (handler: (ctx: any) => Response) => {
+            return (ctx: any) => {
+                // console.log(`[AUTH] Request:`, ctx.request);
+                const token = ctx.request.headers.get("authorization")?.replace("Bearer ", "") ||
+                new URL(ctx.request.url).searchParams.get("token");
+                if (!verifyToken(token)) {
+                return new Response(null, {
+                    status: 302,
+                    headers: { "Location": "/login" }
+                });
+            }
+            return handler(ctx);
+            };
+        };
+
+        const requireApiAuth = (handler: (ctx: any) => Response) => {
+            return (ctx: any) => {
+                const token = ctx.request.headers.get("authorization")?.replace("Bearer ", "") ||
+                new URL(ctx.request.url).searchParams.get("token");
+                if (!verifyToken(token)) {
+                    return new Response(null, {
+                        status: 401
+                    });
+                }
+                return handler(ctx);
+            };
+        };
+
+        //#endregion LOGIN API
+
         //#region ROUTES
         // Route per la pagina principale
-        this.app.get("/", () => {
+        this.app.get("/", requireAuth(() => {
             try {
                 const html = readFileSync(join(import.meta.dir, "../www/index.html"), "utf8");
                 return new Response(html, { headers: { "Content-Type": "text/html" } });
             } catch (err) {
                 return new Response("File index.html Not found", { status: 404 });
             }
-        });
+        }));
 
         // Route per la pagina di login
         this.app.get("/login", () => {
@@ -159,6 +256,8 @@ export class HttpServerController {
         });
         
         //#endregion WEBSOCKET
+
+        
 
         //#region API
         // API: restituisce le ricevute con filtri e paginazione
