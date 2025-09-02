@@ -34,6 +34,16 @@ export class HttpServerController {
             }
         });
 
+        // Route per la pagina di login
+        this.app.get("/login", () => {
+            try {
+                const html = readFileSync(join(import.meta.dir, "../www/login.html"), "utf8");
+                return new Response(html, { headers: { "Content-Type": "text/html" } });
+            } catch (err) {
+                return new Response("File login.html Not found", { status: 404 });
+            }
+        });
+
         // Route per la pagina di stato
         this.app.get("/status", () => {
             try {

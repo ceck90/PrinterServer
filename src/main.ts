@@ -164,6 +164,7 @@ jobController.create({
     task: () => {
         console.log(`[JOB - PING] Ping...`);
         httpServerController.broadcast({ type: 'ping', timestamp: new Date().toISOString() });
+        // console.log(httpServerController.listClients());
     },
     startNow: true,
     meta: { env: process.env.NODE_ENV ?? "development" },
