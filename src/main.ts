@@ -36,7 +36,7 @@ console.log("Inizializzazione del server...");
 const envPath = path.resolve(process.cwd(), '.env');
 if (!fs.existsSync(envPath)) {
     const defaultEnv = `# Default .env file
-        DB_PATH=./db.sqlite
+        DB_PATH=./data/db.sqlite
         KITCHEN_MGMT_SERVER_URL=http://127.0.0.1:8080
         WS_CLIENT_RECONNECT_ATTEMPTS=-1
         WS_CLIENT_RECONNECT_DELAY_MS=2000
