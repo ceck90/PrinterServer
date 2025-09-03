@@ -20,6 +20,7 @@ export async function hashPassword(plain: string): Promise<string> {
  * Verifica una password contro l'hash salvato.
  */
 export async function verifyPassword(plain: string, hashed: string): Promise<boolean> {
-    console.log("[PASSWORD] Verifying password");
-  return verify(hashed, plain);
+  var result = await verify(hashed, plain);
+  console.log("[PASSWORD] Verifying password result:", result);
+  return result;
 }

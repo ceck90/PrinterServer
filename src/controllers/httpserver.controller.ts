@@ -68,7 +68,7 @@ export class HttpServerController {
             // console.log("[LOGIN] User fetched from DB:", user ? "found" : "not found", user);
             if (!user || !user.password || !await verifyPassword(password, user.password)) {
                 console.log("[LOGIN] Invalid credentials");
-                // return new Response("Invalid credentials", { status: 401 });
+                return new Response("Invalid credentials", { status: 401 });
             }
             
             const token = generateToken();

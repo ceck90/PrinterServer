@@ -35,6 +35,7 @@
     "light": "Chiaro",
     "loading": "Caricamento in corso...",
     "login.title": "Accesso",
+    "login.failed": "Accesso fallito",
     "login.main_title": "Music FestOn - Gestione Cucina",
     "login.username": "Nome utente",
     "login.password": "Password",

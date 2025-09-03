@@ -89,8 +89,10 @@ document.addEventListener("DOMContentLoaded", async () => {
                 body: JSON.stringify({ username, password })
             });
 
-            const result = await response.json();
+            console.log(response);
+
             if (response.ok) {
+                const result = await response.json();
                 console.log('Login successful:', result);
                 // Redirect or update UI as needed
                 if (result.token) {
@@ -100,7 +102,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                     window.location.href = '/?token=' + result.token;
                 }
             } else {
-                console.error('Login failed:', result);
+                console.error('Login failed:');
+                document.getElementById('error-message').textContent = translate("login.failed") + ": " + response.statusText;
                 // Show error message to user
             }
         } catch (error) {
