@@ -1,4 +1,5 @@
 
+
 import { translate, updateTranslate, initI18n, getLanguageFromLocalStorage } from './i18n.js';
 import { getThemeFromLocalStorage, setThemeInLocalStorage } from './theme.js';
 // import { Toast } from 'bootstrap';
@@ -103,38 +104,69 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     lang = await initI18n();
     applyThemeFromLocalStorage();
-
+    
     var options = {
-        series: [10,10,10, 10],
+        series: [44, 55, 13, 33],
         labels: ['Apple', 'Mango', 'Orange', 'Watermelon'],
         chart: {
+            width: 500,
             type: 'donut',
         },
-        // responsive: [{
-        //     breakpoint: 480,
-        //     options: {
-        //         chart: {
-        //             width: 200
-        //         },
-        //         legend: {
-        //             position: 'bottom'
-        //         }
-        //     }
-        // }]
+        dataLabels: {
+            enabled: true,
+            dropShadow: {
+                enabled: false
+            }
+        },
+        responsive: [{
+            breakpoint: 480,
+            options: {
+                chart: {
+                    width: 200
+                },
+                legend: {
+                    show: false
+                }
+            }
+        }],
         plotOptions: {
             pie: {
                 donut: {
                     labels: {
                         show: true,
-                        name: "Totale",
-                        value: 100
+                        name: {
+                            show: true,
+                        },
+                        value: {
+                            show: true,
+                            color: '#ffffff'
+                        },
+                        total:{
+                            label: "TOTALE",
+                            show: true,
+                            showAlways: false,
+                            color: '#ffffff'
+                        }
                     }
                 }
+            }
+        },
+        legend: {
+            position: 'bottom',
+            offsetY: 0,
+            height: 50,
+            labels: {
+                // colors: ['#ffffff'],
+                useSeriesColors: true
             }
         }
     };
     var chart = new ApexCharts(document.querySelector("#chart"), options);
+    var chart1 = new ApexCharts(document.querySelector("#chart1"), options);
+    var chart2 = new ApexCharts(document.querySelector("#chart2"), options);
     chart.render();
+    chart1.render();
+    chart2.render();
 
     // await addEventListeners();
 });
