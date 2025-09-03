@@ -96,7 +96,14 @@ document.addEventListener("DOMContentLoaded", async () => {
                 console.log('Login successful:', result);
                 // Redirect or update UI as needed
                 if (result.token) {
-                    localStorage.setItem('authToken', result.token);
+                    if (document.getElementById('checkRememberMe').checked) {
+                        localStorage.setItem('authToken', result.token);
+                        localStorage.setItem('rememberMe', 'true');
+                    }
+                    else {
+                        localStorage.removeItem('authToken');
+                        localStorage.removeItem('rememberMe');
+                    }
                     // Redirect to dashboard or main page
                     // Token is already stored in localStorage; no need to pass via URL
                     window.location.href = '/?token=' + result.token;
@@ -117,7 +124,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     await updateTranslate();
 
-    if (localStorage.getItem('authToken')) {
+    if(localStorage.getItem('rememberMe') === 'true'){
+        document.getElementById('checkRememberMe').checked = true;
+    }
+
+    if (localStorage.getItem('authToken') && localStorage.getItem('rememberMe') === 'true') {
         // headers['Authorization'] = `Bearer ${localStorage.getItem('authToken')}`;
         console.log(`Using token: ${localStorage.getItem('authToken')}`);
         try {
@@ -132,6 +143,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             const result = await response.json();
             if (!response.ok || !result.valid) {
                 localStorage.removeItem('authToken');
+                localStorage.removeItem('rememberMe');
                 console.error('Token non valido, rimosso da localStorage.');
                 return;
             }
