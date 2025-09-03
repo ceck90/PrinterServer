@@ -1,0 +1,140 @@
+
+import { translate, updateTranslate, initI18n, getLanguageFromLocalStorage } from './i18n.js';
+import { getThemeFromLocalStorage, setThemeInLocalStorage } from './theme.js';
+// import { Toast } from 'bootstrap';
+import { spawnToast } from './utility.js';
+
+// import { flatpickr } from '../flatpickr/js/flatpickr.js';
+
+let lang = "en-US"; // Default language
+// let theme = getThemeFromLocalStorage(); // Default theme
+
+
+
+/**
+ * Handles the initialization of the status page once the DOM is fully loaded.
+ * 
+ * - Loads language dictionaries for supported languages.
+ * - Detects the browser's language and sets the current language.
+ * - Updates the language dropdown UI to reflect the selected language.
+ * - Provides a translation function for UI elements.
+ * - Updates all elements with the `data-i18n` attribute using the current language.
+ * - Fetches the server status and updates the UI accordingly.
+ * - Initializes and manages a WebSocket connection to receive real-time updates from the server.
+ * - Appends messages to a web-based console with timestamps.
+ * 
+ * @event DOMContentLoaded
+ * @async
+ */
+
+document.addEventListener("DOMContentLoaded", async () => {
+
+    const themeItems = document.querySelectorAll('.theme-item');
+
+    themeItems.forEach(item => {
+        item.addEventListener('click', function (e) {
+            e.preventDefault();
+            const currentTheme = document.documentElement.getAttribute('data-bs-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-bs-theme', newTheme);
+            setThemeInLocalStorage(newTheme);
+
+            if (item) {
+                item.classList.remove('bi-brightness-high', 'bi-moon', 'bi-circle-half');
+                item.classList.add(newTheme === 'dark' ? 'bi-moon' : 'bi-brightness-high');
+                item.alt = newTheme === 'dark' ? 'Dark Theme' : 'Light Theme';
+            }
+        });
+    });
+
+    const themeIcons = document.querySelectorAll('.icon-theme');
+    themeIcons.forEach(themeIcon => {
+        const updateIconTheme = () => {
+            const theme = document.documentElement.getAttribute('data-bs-theme');
+            themeIcon.classList.toggle('text-light', theme === 'dark');
+            themeIcon.classList.toggle('text-dark', theme === 'light');
+        };
+        updateIconTheme();
+        const observer = new MutationObserver(updateIconTheme);
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-bs-theme'] });
+    });  
+
+    const applyThemeFromLocalStorage = () => {
+        const storedTheme = getThemeFromLocalStorage();
+        document.documentElement.setAttribute('data-bs-theme', storedTheme);
+
+        document.querySelectorAll('.theme-item').forEach(icon => {
+            icon.classList.remove('bi-brightness-high', 'bi-moon', 'bi-circle-half');
+            icon.classList.add(storedTheme === 'dark' ? 'bi-moon' : 'bi-brightness-high');
+            icon.alt = storedTheme === 'dark' ? 'Dark Theme' : 'Light Theme';
+        });
+
+        console.log("Apply theme: " + storedTheme);
+    };
+
+    const languageDropdown = document.getElementById('languageDropdown');
+    if (languageDropdown) {
+        const dropdownItems = document.querySelectorAll('.dropdown-item');
+        const dropdownToggle = document.getElementById('languageDropdown');
+        dropdownItems.forEach(item => {
+            if (item.dataset.lang === currentLang) {
+                dropdownToggle.textContent = item.textContent;
+                dropdownToggle.setAttribute('aria-label', item.textContent);
+            }
+        });
+    }
+
+    const btnLogout = document.getElementById('logout-button');
+    btnLogout.addEventListener('click', () => {
+        // Handle logout logic here
+        localStorage.removeItem("authToken");
+        window.location.href = "/";
+        console.log("[LOGOUT] User logged out");
+    });
+    
+    
+
+    const addEventListeners = async () => {
+        
+    };
+
+    
+    // -- Initialize the language and theme
+
+    lang = await initI18n();
+    applyThemeFromLocalStorage();
+
+    var options = {
+        series: [10,10,10, 10],
+        labels: ['Apple', 'Mango', 'Orange', 'Watermelon'],
+        chart: {
+            type: 'donut',
+        },
+        // responsive: [{
+        //     breakpoint: 480,
+        //     options: {
+        //         chart: {
+        //             width: 200
+        //         },
+        //         legend: {
+        //             position: 'bottom'
+        //         }
+        //     }
+        // }]
+        plotOptions: {
+            pie: {
+                donut: {
+                    labels: {
+                        show: true,
+                        name: "Totale",
+                        value: 100
+                    }
+                }
+            }
+        }
+    };
+    var chart = new ApexCharts(document.querySelector("#chart"), options);
+    chart.render();
+
+    // await addEventListeners();
+});

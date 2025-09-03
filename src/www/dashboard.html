@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="title-setup"></title>
+    <link href="assets/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+    <link href="assets/bootstrap/css/bootstrap-icons.min.css" rel="stylesheet">
+    <script src="assets/bootstrap/js/bootstrap.min.js"></script>
+    <script src="assets/apexcharts/js/apexcharts.min.js"></script>
+    <!-- <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script> -->
+    <link href="assets/css/styles.css" rel="stylesheet">
+    <link rel="icon" href="assets/img/favicon/favicon.ico" type="image/x-icon">
+</head>
+
+<body>
+    <!-- TOP Header -->
+    <div class="container-fluid d-flex justify-content-between align-middle p-3 bg-dark text-light">
+        <!-- <b><label class="text-auto" id="device-hostname"></label></b> -->
+        <div>
+            <img class="img-fluid me-3" src="assets/img/mfo-logo.png" alt="" style="height: 30px;">
+            <b><label class="text-auto" id="title" data-i18n="title"></label></b>
+        </div>
+        <div>
+            <span class="bi bi-house text-light fs-4 me-4" id="home-button"
+                onclick="location.href='/?token=' + localStorage.getItem('authToken')" type="button" alt="Home"></span>
+            <span class="bi bi-upc-scan text-light fs-4 me-4" id="barcode-button"
+                onclick="location.href='/barcode?token=' + localStorage.getItem('authToken')" type="button"
+                alt="Barcode"></span>
+            <span class="bi bi-info-square text-light fs-4 me-4" id="status-button"
+                onclick="location.href='/status?token=' + localStorage.getItem('authToken')" type="button"
+                alt="Status"></span>
+            <span class="bi bi-circle-half text-light fs-4 theme-item" type="button" alt="Theme"></span>
+            <span class="bi bi-box-arrow-right text-light fs-4 ms-4" id="logout-button" type="button"
+                alt="Logout"></span>
+        </div>
+        <div class="toast-container position-fixed end-0 p-3" id="toast-container"></div>
+    </div>
+
+    <!-- Bootstrap Toast for notifications -->
+    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100">
+        <div id="notification-toast" class="toast align-items-center text-bg-primary border-0" role="alert"
+            aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body" id="toast-container">
+                    <!-- Notification message will appear here -->
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"
+                    aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Printer Card -->
+    <div class="container-fluid py-2">
+        <div class="card text-auto bg-auto border-0 shadow-lg rounded-4 mb-3" style="backdrop-filter: blur(6px);">
+            <div class="card-header d-flex justify-content-between">
+                <h5 class="mb-0" data-i18n="statistics"></h5>
+                <span class="button bi bi-arrow-clockwise fs-5 cursor-pointer update-button" type="button"></span>
+            </div>
+            <div class="card-body">
+                <div>
+                    <div class="chart-wrap">
+                        <div id="chart" style="width: 500px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+</body>
+
+<script src="assets/js/dashboard.js" type="module"></script>
+
+</html>
