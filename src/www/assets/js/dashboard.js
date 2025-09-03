@@ -92,19 +92,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         window.location.href = "/";
         console.log("[LOGOUT] User logged out");
     });
-    
-    
 
-    const addEventListeners = async () => {
-        
-    };
-
-    
-    // -- Initialize the language and theme
-
-    lang = await initI18n();
-    applyThemeFromLocalStorage();
-    
     var options = {
         series: [44, 55, 13, 33],
         labels: ['Apple', 'Mango', 'Orange', 'Watermelon'],
@@ -141,7 +129,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                             show: true,
                             color: '#ffffff'
                         },
-                        total:{
+                        total: {
                             label: "TOTALE",
                             show: true,
                             showAlways: false,
@@ -161,12 +149,40 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
         }
     };
-    var chart = new ApexCharts(document.querySelector("#chart"), options);
     var chart1 = new ApexCharts(document.querySelector("#chart1"), options);
     var chart2 = new ApexCharts(document.querySelector("#chart2"), options);
-    chart.render();
-    chart1.render();
-    chart2.render();
+    var chart3 = new ApexCharts(document.querySelector("#chart3"), options);
+    
+    const renderCharts = () => {
+        chart1.render();
+        chart2.render();
+        chart3.render();
+    }
 
-    // await addEventListeners();
+    const updateCharts = () => {
+        console.log("[UPDATE] Updating charts");
+        // Add your update logic here
+        // chart1.render();
+        // chart2.render();
+        // chart3.render();
+    };
+
+    const addEventListeners = async () => {
+        const updateButton = document.querySelector('.update-button');
+        updateButton.addEventListener('click', () => {
+            console.log("[UPDATE] Update button clicked");
+            // Add your update logic here
+            updateCharts();
+        });
+    };
+
+    
+    // -- Initialize the language and theme
+
+    lang = await initI18n();
+    applyThemeFromLocalStorage();
+    
+    renderCharts();
+    
+    await addEventListeners();
 });
