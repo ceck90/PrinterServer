@@ -44,19 +44,19 @@ document.addEventListener("DOMContentLoaded", async () => {
             const startDate = new Date(start);
             const endDate = new Date(end);
             // console.log("Start Date:", startDate, "End Date:", endDate);
-            fetchTickets(startDate.toISOString().slice(0, 10), endDate.toISOString().slice(0, 10), 50, 0);
+            fetchTickets(startDate.toISOString().slice(0, 10), endDate.toISOString().slice(0, 10), 100, 0);
         }
         else if (start) {
             console.log("Single date selected:", start);
             const startDate = new Date(start);
-            fetchTickets(startDate.toISOString().slice(0, 10), startDate.toISOString().slice(0, 10), 50, 0);
+            fetchTickets(startDate.toISOString().slice(0, 10), startDate.toISOString().slice(0, 10), 100, 0);
         }
         else {
             // Se non è selezionata alcuna data, usa la data odierna
             const today = new Date();
             const startDate = today;
             console.log("No date selected, using today's date:", startDate.toISOString().slice(0, 10));
-            fetchTickets(startDate.toISOString().slice(0, 10), startDate.toISOString().slice(0, 10), 50, 0);
+            fetchTickets(startDate.toISOString().slice(0, 10), startDate.toISOString().slice(0, 10), 100, 0);
         }
     });
 
@@ -424,7 +424,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                         `;
                         if( ticket.printStatus === "PRINTED" ){
                             row.innerHTML += `<td>
-                                <button class="btn btn-success bi bi-printer" id="print-btn-${ticket.id}"></button>
+                                <button class="btn btn-success bi bi-printer me-2" id="print-btn-${ticket.id}"></button>
+                                <button class="btn btn-warning bi bi-printer" id="print2-btn-${ticket.id}"></button>
                             </td>`;
                             // row.innerHTML += `<td class="text-center"><span class="badge bg-${ticket.printed ? 'success' : 'secondary'}">${ticket.printed ? translate('ticket.printed') : translate('ticket.notPrinted')}</span></td>`;
                         }
@@ -480,35 +481,35 @@ document.addEventListener("DOMContentLoaded", async () => {
     const startWebSocket = () => {
         console.log(translate('serverConnecting') + `${window.location.hostname}:${window.location.port}`);
         const socket = new WebSocket(`ws://${window.location.hostname}:${window.location.port}/api/ws`);
-        appendToConsole(translate('serverConnecting'));
+        // appendToConsole(translate('serverConnecting'));
 
-        setServerStatus('connecting');
+        // setServerStatus('connecting');
 
         socket.onmessage = (msg) => {
             const data = JSON.parse(msg.data);
             if (data.type === "event") {
-                appendToConsole(`${data.type}: ${data.message}`);
+                // appendToConsole(`${data.type}: ${data.message}`);
             } else if (data.type === "update" && data.id && data.value !== undefined) {
-                appendToConsole(`Updated LastValue for ID ${data.id} to ${data.value}`);
+                // appendToConsole(`Updated LastValue for ID ${data.id} to ${data.value}`);
             } else if (data.type === "heartbeat") {
-                updateServerStatus(data);
+                // updateServerStatus(data);
             }
         };
 
         socket.onopen = () => {
-            setServerStatus('connected');
-            updateServerStatus();
-            appendToConsole(translate('serverConnected'));
+            // setServerStatus('connected');
+            // updateServerStatus();
+            // appendToConsole(translate('serverConnected'));
         };
 
         socket.onerror = (error) => {
-            setServerStatus('error');
-            appendToConsole(translate('serverError'));
+            // setServerStatus('error');
+            // appendToConsole(translate('serverError'));
         };
 
         socket.onclose = () => {
-            setServerStatus('disconnected');
-            appendToConsole(translate('serverClosed'));
+            // setServerStatus('disconnected');
+            // appendToConsole(translate('serverClosed'));
             setTimeout(startWebSocket, 5000); // Attempt to reconnect after 5 seconds
         };
     };
@@ -557,7 +558,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     await updateTranslate();
 
-    fetchTickets(undefined, undefined, 50, 0);
+    fetchTickets(undefined, undefined, 100, 0);
 
-    // startWebSocket();
+    // paginateTable();
+
+    startWebSocket();
 });

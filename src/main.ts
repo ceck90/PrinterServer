@@ -121,8 +121,8 @@ await gsgController.start().catch(err => {
 });
 
 // const gsgQueryResult = await gsgController.query(gsg_queries.elencoArticoli, ['2025-01-01', '2025-09-30']);
-const gsgQueryResult = await gsgController.query(gsg_queries.elencoArticoli);
-console.log("[GSG] Risultato query elencoArticoli:", gsgQueryResult.rows);
+// const gsgQueryResult = await gsgController.query(gsg_queries.elencoArticoli);
+// console.log("[GSG] Risultato query elencoArticoli:", gsgQueryResult.rows);
 
 
 // ==================

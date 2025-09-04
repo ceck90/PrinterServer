@@ -51,14 +51,6 @@
                     <span class="bi bi-receipt fs-1 my-2 menu-icon"></span>
                     <b data-i18n="menu.orders"></b>
                 </button>
-
-                <button id="menuBtnSettings" type="button"
-                    class="btn-menu btn text-auto d-flex flex-column justify-content-center align-items-center rounded-3 m-5"
-                    onclick="location.href='/settings?token=' + localStorage.getItem('authToken')"
-                    alt="Settings">
-                    <span class="bi bi-gear fs-1 my-2 menu-icon"></span>
-                    <b data-i18n="menu.settings"></b>
-                </button>
                 
                 <button id="menuBtnBarcode" type="button"
                     class="btn-menu btn text-auto d-flex flex-column justify-content-center align-items-center rounded-3 m-5"
@@ -66,6 +58,14 @@
                     alt="Barcode">
                     <span class="bi bi-upc-scan fs-1 my-2 menu-icon"></span>
                     <b data-i18n="menu.barcode"></b>
+                </button>
+
+                <button id="menuBtnDashboard" type="button"
+                    class="btn-menu btn text-auto d-flex flex-column justify-content-center align-items-center rounded-3 m-5"
+                    onclick="location.href='/dashboard?token=' + localStorage.getItem('authToken')"
+                    alt="Dashboard">
+                    <span class="bi bi-graph-up fs-1 my-2 menu-icon text-auto"></span>
+                    <b data-i18n="menu.dashboard"></b>
                 </button>
                 
                 <button id="menuBtnStatus" type="button"
@@ -76,12 +76,12 @@
                     <b data-i18n="menu.status"></b>
                 </button>
 
-                <button id="menuBtnDashboard" type="button"
+                <button id="menuBtnSettings" type="button"
                     class="btn-menu btn text-auto d-flex flex-column justify-content-center align-items-center rounded-3 m-5"
-                    onclick="location.href='/dashboard?token=' + localStorage.getItem('authToken')"
-                    alt="Dashboard">
-                    <span class="bi bi-graph-up fs-1 my-2 menu-icon text-auto"></span>
-                    <b data-i18n="menu.dashboard"></b>
+                    onclick="location.href='/settings?token=' + localStorage.getItem('authToken')"
+                    alt="Settings">
+                    <span class="bi bi-gear fs-1 my-2 menu-icon"></span>
+                    <b data-i18n="menu.settings"></b>
                 </button>
             </div>
         </div>
