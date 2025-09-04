@@ -132,5 +132,14 @@
     "ticket.quantity": "Quantità",
     "ticket.actions": "Azioni",
     "ticket.take_away": "Asporto",
-    "ticket.dine_in": "Al Tavolo"
+    "ticket.dine_in": "Al Tavolo",
+    "menu.title": "Menu Principale",
+    "menu.items": "Elementi Menu",
+    "menu.actions": "Azioni",
+    "menu.tickets": "Tickets Cucina",
+    "menu.settings": "Impostazioni",
+    "menu.dashboard": "Statistiche",
+    "menu.orders": "Gestione Ordini",
+    "menu.barcode": "Barcode Ordini",
+    "menu.status": "Stato Server"
 }

@@ -123,6 +123,51 @@
             </div>
         </div>
     </div>
+
+    <!-- DB Actions -->
+     <div class="container py-2">
+        <div class="card text-auto bg-auto border-0 shadow-lg rounded-4 mb-3" style="backdrop-filter: blur(6px);">
+            <div class="card-header d-flex justify-content-between">
+                <h5 class="mb-0" data-i18n="db-actions"></h5>
+                <span class="button bi bi-database fs-5" type="button"></span>
+            </div>
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-2">
+                        <span class="bi bi-database fs-1 me-3 text-info" id="database-icon"></span>
+                        <label class="fs-4 col-3 ms-4" data-i18n="database"></label>
+                    <div class="ms-auto">
+                        <span id="pulse-dot" class="pulse-dot"></span>
+                    </div>
+                </div>
+                <table class="table  align-middle mt-3">
+                    <!-- <thead>
+                        <tr>
+                            <th scope="col" data-i18n="db-action"></th>
+                            <th scope="col" data-i18n="action"></th>
+                        </tr>
+                    </thead> -->
+                    <tbody>
+                        <tr>
+                            <td>
+                                <label class="fs-4 mb-0" for="restore-tickets-db" data-i18n="restore-tickets-db"></label>
+                            </td>
+                            <td>
+                                <button class="btn btn-warning" id="restore-tickets-db" type="button" data-i18n="restore"></button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <label class="fs-4 mb-0" for="restore-barcode-db" data-i18n="restore-barcode-db"></label>
+                            </td>
+                            <td>
+                                <button class="btn btn-warning" id="restore-barcode-db" type="button" data-i18n="restore"></button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </body>
 <!-- <script src="assets/js/i18n.js" type="module"></script> -->
 <script src="assets/js/settings.js" type="module"></script>

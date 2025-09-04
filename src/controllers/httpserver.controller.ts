@@ -140,6 +140,16 @@ export class HttpServerController {
                 return new Response("File login.html Not found", { status: 404 });
             }
         });
+        
+        // Route per la pagina di tickets
+        this.app.get("/tickets", requireAuth(() => {
+            try {
+                const html = readFileSync(join(import.meta.dir, "../www/tickets.html"), "utf8");
+                return new Response(html, { headers: { "Content-Type": "text/html" } });
+            } catch (err) {
+                return new Response("File tickets.html Not found", { status: 404 });
+            }
+        }));
 
         // Route per la pagina di stato
         this.app.get("/status", requireAuth(() => {

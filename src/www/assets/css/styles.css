@@ -163,3 +163,21 @@
         opacity: 0.5;
     }
 }
+
+.menu-icon {
+    width: 48px;
+    height: 48px;
+}
+
+.btn-menu {
+    width: 200px;
+    height: auto;
+    font-size: 1.5rem;
+    border-radius: 5px;
+    border-color: #5b5b5b;
+    background-color: transparent !important;
+    &:hover{
+        border-color: #d99b37 !important;
+        background-color: rgba(217, 135, 55, 0.4) !important;
+    }
+}
