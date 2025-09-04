@@ -52,11 +52,11 @@ export const gsg_queries = {
     // 5) Dine-in vs Asporto
     salaVsAsporto: `
     SELECT
-      CASE WHEN COALESCE(totale_asporto,0) > 0 THEN 'ASPORTO' ELSE 'SALA' END AS canale,
-      COUNT(*) AS ordini,
-      SUM(totalePagato) AS incasso
+    CASE WHEN COALESCE(esportazione) = true THEN 'ASPORTO' ELSE 'SALA' END AS canale,
+    COUNT(*) AS ordini,
+    SUM("totalePagato") AS incasso
     FROM ordini
-    WHERE serata BETWEEN $1 AND $2
+    WHERE serata BETWEEN '2025-01-01' AND '2025-09-30'
     GROUP BY 1
     ORDER BY incasso DESC;
   `,
