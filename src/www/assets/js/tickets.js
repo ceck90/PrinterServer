@@ -129,8 +129,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-bs-theme'] });
     });  
 
-   
-
     const applyThemeFromLocalStorage = () => {
         const storedTheme = getThemeFromLocalStorage();
         document.documentElement.setAttribute('data-bs-theme', storedTheme);
@@ -352,7 +350,6 @@ document.addEventListener("DOMContentLoaded", async () => {
             pagination.appendChild(li);
         }
     }
-
 
     const fetchTickets = async (startDate, endDate, limit, offset) => {
         console.log("Fetching tickets from server...");

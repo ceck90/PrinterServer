@@ -239,13 +239,13 @@ document.addEventListener("DOMContentLoaded", async () => {
                 <td><input type="text" class="form-control" id="printer-ip-${printer.key}" value="${printer.ip}"></td>
                 <td><input type="number" class="form-control" id="printer-port-${printer.key}" value="${printer.port}"></td>
                 <td><input type="text" class="form-control" id="printer-destination-${printer.key}" value="${printer.destination}"></td>
-                <td>
+                <td style="text-align: center;">
                     <input type="checkbox" class="form-check-input printer-active-checkbox align-item-center" id="printer-active-${printer.key}" ${printer.active ? 'checked' : ''}>
                 </td>
-                <td>
+                <td style="text-align: center;">
                     <input type="checkbox" class="form-check-input printer-upside-down-checkbox align-item-center" id="printer-upside-down-${printer.key}" ${printer.upsideDown ? 'checked' : ''}>
                 </td>
-                <td>
+                <td style="text-align: center;">
                     <input type="checkbox" class="form-check-input printer-beep-enable-checkbox align-item-center" id="printer-beep-enable-${printer.key}" ${printer.beepEnable ? 'checked' : ''}>
                 </td>
                 <td><input type="text" class="form-control" id="printer-description-${printer.key}" value="${printer.description}"></td>
