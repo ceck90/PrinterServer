@@ -8,6 +8,7 @@ import { printSpecificOrder } from './dispatcher.ts';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Client } from 'pg';
+import { gsg_queries } from './gsg-helper.ts';
 // import { printTest } from './receipt.ts';
 
 /**
@@ -115,9 +116,13 @@ const gsgController = GSGController.getInstance(new Client({
     database: 'sagra'
 }));
 
-gsgController.start().catch(err => {
+await gsgController.start().catch(err => {
     console.error("[GSG] errore durante l'avvio:", err);
 });
+
+// const gsgQueryResult = await gsgController.query(gsg_queries.elencoArticoli, ['2025-01-01', '2025-09-30']);
+const gsgQueryResult = await gsgController.query(gsg_queries.elencoArticoli);
+console.log("[GSG] Risultato query elencoArticoli:", gsgQueryResult.rows);
 
 
 // ==================

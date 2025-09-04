@@ -108,6 +108,21 @@ export class GSGController {
     if (!this.stopping) void this.connectAndListen();
   }
 
+  public async query(text: string, params?: any[]): Promise<any> {
+    try {
+      if(this.listener) {
+        const res = await this.listener.query(text, params);
+        return res;
+      } else {
+        console.error("[GSG] No client available for queries");
+      }
+    }
+    catch (err) {
+      console.error("[GSG] query error:", err);
+      throw err;
+    }
+  }
+
   private async onNotification(payload?: string) {
     if (!payload) return;
     let data: NewOrderPayload;
