@@ -400,7 +400,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 document.getElementById('ticket-count').textContent = 0;
             } else {
                 document.getElementById('ticket-count').textContent = tickets.length;
-                ticketList.innerHTML = ''; // Clear previous Ctickets
+                ticketList.innerHTML = ''; // Clear previous tickets
                 tickets.forEach(ticket => {
                     // Append each ticket to the console or a specific element
                     if (ticketList) {

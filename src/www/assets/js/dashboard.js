@@ -30,6 +30,37 @@ let lang = "en-US"; // Default language
 
 document.addEventListener("DOMContentLoaded", async () => {
 
+    flatpickr("#date-range", {
+        mode: "range",
+        dateFormat: "Y-m-d",
+        locale: {
+            firstDayOfWeek: 1
+        },
+        maxDate: "today"
+    });
+
+    const input_data_range = document.getElementById('date-range');
+
+    input_data_range.addEventListener('change', () => {
+        const [start, end] = input_data_range.value.split(' to ');
+        if (start && end) {
+            console.log("Data range:", start, " to ", end);
+            const startDate = new Date(start);
+            const endDate = new Date(end);
+            // console.log("Start Date:", startDate, "End Date:", endDate);
+        }
+        else if (start) {
+            console.log("Single date selected:", start);
+            const startDate = new Date(start);
+        }
+        else {
+            // Se non è selezionata alcuna data, usa la data odierna
+            const today = new Date();
+            const startDate = today;
+            console.log("No date selected, using today's date:", startDate.toISOString().slice(0, 10));
+        }
+    });
+
     const themeItems = document.querySelectorAll('.theme-item');
 
     themeItems.forEach(item => {
@@ -152,11 +183,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     var chart1 = new ApexCharts(document.querySelector("#chart1"), options);
     var chart2 = new ApexCharts(document.querySelector("#chart2"), options);
     var chart3 = new ApexCharts(document.querySelector("#chart3"), options);
-    
-    const renderCharts = () => {
-        chart1.render();
-        chart2.render();
-        chart3.render();
+
+    const renderCharts = async () => {
+        await chart1.render();
+        await chart2.render();
+        await chart3.render();
     }
 
     const updateCharts = () => {
@@ -181,8 +212,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     lang = await initI18n();
     applyThemeFromLocalStorage();
+
+    await updateTranslate();
     
-    renderCharts();
+    await renderCharts();
     
     await addEventListeners();
 });
