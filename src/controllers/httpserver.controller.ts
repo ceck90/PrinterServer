@@ -171,6 +171,16 @@ export class HttpServerController {
             }
         }));
 
+        // Route per la pagina di dashboard statistiche
+        this.app.get("/dashboard", requireAuth(() => {
+            try {
+                const html = readFileSync(join(import.meta.dir, "../www/dashboard.html"), "utf8");
+                return new Response(html, { headers: { "Content-Type": "text/html" } });
+            } catch (err) {
+                return new Response("File dashboard.html Not found", { status: 404 });
+            }
+        }));
+
         // Route per servire asset statici (js, css, immagini, ecc.)
         this.app.get("/assets/*", ({ request }) => {
             const url = new URL(request.url);

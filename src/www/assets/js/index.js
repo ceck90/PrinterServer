@@ -396,7 +396,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             const tickets = await response.json();
             if (tickets.length === 0) {
                 console.log(translate('ticket.empty'));
-                ticketList.innerHTML = `<td colspan="8" class="text-center">${translate('ticket.empty')}</td>`;
+                ticketList.innerHTML = `<td colspan="9" class="text-center">${translate('ticket.empty')}</td>`;
                 document.getElementById('ticket-count').textContent = 0;
             } else {
                 document.getElementById('ticket-count').textContent = tickets.length;
