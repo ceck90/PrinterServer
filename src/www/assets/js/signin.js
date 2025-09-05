@@ -1,5 +1,6 @@
 import { translate, updateTranslate, initI18n, getLanguageFromLocalStorage } from './i18n.js';
 import { applyThemeFromLocalStorage, setupThemeHandlers } from './theme.js';
+import { byId } from './utility.js';
 
 let lang = "en-US"; // Default language
 // let theme = getThemeFromLocalStorage(); // Default theme
@@ -23,8 +24,7 @@ let lang = "en-US"; // Default language
 
 document.addEventListener("DOMContentLoaded", async () => {
 
-    const loginBtn = document.getElementById('loginBtn');
-    loginBtn.addEventListener('click', async () => {
+    async function handleLogin() {
         // Handle login button click
         const username = document.getElementById('floatingInput').value;
         const password = document.getElementById('floatingPassword').value;
@@ -73,6 +73,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         } catch (error) {
             console.error('Error during login request:', error);
             // Show error message to user
+        }
+    }
+
+    byId('loginBtn').addEventListener('click', async () => {
+        await handleLogin();
+    });
+
+    byId('floatingPassword').addEventListener('keypress', async (e) => {
+        if (e.key === 'Enter') {
+            await handleLogin();
         }
     });
 
