@@ -46,10 +46,10 @@ export class HttpServerController {
         function verifyToken(token?: string): boolean {
             if (!token) return false;
             try {
-            const payload = JSON.parse(Buffer.from(token, "base64").toString("utf8"));
-            return typeof payload.exp === "number" && payload.exp > Date.now();
+                const payload = JSON.parse(Buffer.from(token, "base64").toString("utf8"));
+                return typeof payload.exp === "number" && payload.exp > Date.now() && payload.key === TOKEN_SECRET;
             } catch {
-            return false;
+                return false;
             }
         }
         //#endregion TOKEN
@@ -528,8 +528,9 @@ export class HttpServerController {
         //#endregion API
         
         // Avvia il server HTTP sulla porta 4000
-        this.app.listen(4000);
-        console.log("[WWW] ✅ HTTP server su http://localhost:4000");
+        const port = process.env.HTTP_SERVER_PORT ? parseInt(process.env.HTTP_SERVER_PORT) : 4000;
+        this.app.listen(port);
+        console.log(`[WWW] ✅ HTTP server su http://localhost:${port}`);
     }
 
     /**

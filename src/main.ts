@@ -42,6 +42,7 @@ if (!fs.existsSync(envPath)) {
         WS_CLIENT_RECONNECT_ATTEMPTS=-1
         WS_CLIENT_RECONNECT_DELAY_MS=2000
         TOKEN_KEY="05q8GiW=atxs"
+        HTTP_SERVER_PORT=4000
         NODE_ENV=development
     `;
     fs.writeFileSync(envPath, defaultEnv, { encoding: 'utf8' });
