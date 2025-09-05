@@ -33,3 +33,42 @@ export const applyTheme = (theme) => {
     document.documentElement.setAttribute('data-theme', theme);
     setThemeInLocalStorage(theme);
 }
+
+export function setupThemeHandlers() {
+    const themeItems = document.querySelectorAll('.theme-item');
+    themeItems.forEach(item => {
+        item.addEventListener('click', function (e) {
+            e.preventDefault();
+            const currentTheme = document.documentElement.getAttribute('data-bs-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-bs-theme', newTheme);
+            setThemeInLocalStorage(newTheme);
+            item.classList.remove('bi-brightness-high', 'bi-moon', 'bi-circle-half');
+            item.classList.add(newTheme === 'dark' ? 'bi-moon' : 'bi-brightness-high');
+            item.alt = newTheme === 'dark' ? 'Dark Theme' : 'Light Theme';
+        });
+    });
+
+    const themeIcons = document.querySelectorAll('.icon-theme');
+    themeIcons.forEach(themeIcon => {
+        const updateIconTheme = () => {
+            const theme = document.documentElement.getAttribute('data-bs-theme');
+            themeIcon.classList.toggle('text-light', theme === 'dark');
+            themeIcon.classList.toggle('text-dark', theme === 'light');
+        };
+        updateIconTheme();
+        const observer = new MutationObserver(updateIconTheme);
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-bs-theme'] });
+    });
+}
+
+export function applyThemeFromLocalStorage() {
+    const storedTheme = getThemeFromLocalStorage();
+    document.documentElement.setAttribute('data-bs-theme', storedTheme);
+    document.querySelectorAll('.theme-item').forEach(icon => {
+        icon.classList.remove('bi-brightness-high', 'bi-moon', 'bi-circle-half');
+        icon.classList.add(storedTheme === 'dark' ? 'bi-moon' : 'bi-brightness-high');
+        icon.alt = storedTheme === 'dark' ? 'Dark Theme' : 'Light Theme';
+    });
+    console.log("Apply theme: " + storedTheme);
+}

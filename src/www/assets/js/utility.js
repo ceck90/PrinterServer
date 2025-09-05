@@ -1,7 +1,11 @@
 /* 
     Shorthand functions to avoid verbose
 */
-const byId = (id) => document.getElementById(id)
+export const byId = (id) => document.getElementById(id);
+
+export const byClass = (className) => document.getElementsByClassName(className);
+
+export const byQuery = (selector) => document.querySelector(selector);
 
 /* 
     Spawn toast div to show messages
@@ -51,4 +55,10 @@ export const spawnToast = (message, options = { title: "", icon: false }) => {
             //
         }
     }, 5000)
+}
+
+export function logout() {
+    localStorage.removeItem("authToken");
+    window.location.href = "/";
+    console.log("[LOGOUT] User logged out");
 }
