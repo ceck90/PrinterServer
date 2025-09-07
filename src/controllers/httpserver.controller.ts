@@ -32,7 +32,7 @@ export class HttpServerController {
         // Carica TOKEN_SECRET da file .env
         config();
         const TOKEN_SECRET = process.env.TOKEN_KEY ?? "";
-        const TOKEN_EXPIRY_MS = 30 * 60 * 1000; // 30 minuti
+        const TOKEN_EXPIRY_MS = 600 * 60 * 1000; // 10 ore
 
         function generateToken(): string {
             const payload = {

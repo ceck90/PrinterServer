@@ -36,13 +36,6 @@
                 <h5 class="mb-0" data-i18n="menu.title"></h5>
             </div>
             <div class="d-flex align-items-center justify-content-center py-2 flex-wrap">
-                <button id="menuBtnTickets" type="button"
-                    class="btn-menu btn text-auto d-flex flex-column justify-content-center align-items-center rounded-3 m-5"
-                    onclick="location.href='/tickets?token=' + localStorage.getItem('authToken')"
-                    alt="Tickets">
-                    <span class="bi bi-ticket-detailed  fs-1 my-2 menu-icon"></span>
-                    <b data-i18n="menu.tickets"></b>
-                </button>
 
                 <button id="menuBtnOrders" type="button"
                     class="btn-menu btn text-auto d-flex flex-column justify-content-center align-items-center rounded-3 m-5"
@@ -50,6 +43,14 @@
                     alt="Orders">
                     <span class="bi bi-receipt fs-1 my-2 menu-icon"></span>
                     <b data-i18n="menu.orders"></b>
+                </button>
+                
+                <button id="menuBtnTickets" type="button"
+                    class="btn-menu btn text-auto d-flex flex-column justify-content-center align-items-center rounded-3 m-5"
+                    onclick="location.href='/tickets?token=' + localStorage.getItem('authToken')"
+                    alt="Tickets">
+                    <span class="bi bi-ticket-detailed  fs-1 my-2 menu-icon"></span>
+                    <b data-i18n="menu.tickets"></b>
                 </button>
                 
                 <button id="menuBtnBarcode" type="button"
