@@ -14,6 +14,9 @@ export class GSGController {
   private readonly backoffMax = 15000;
   private heartbeatTimer?: Timer;
 
+  private readonly queue: any[] = [];
+  private isProcessing = false;
+
   private constructor(private readonly baseConfig?: PgConfig) {}
 
   public static getInstance(clientOrConfig?: Client | PgConfig) {
@@ -137,6 +140,7 @@ export class GSGController {
       // Filtro business: esportazione=false (coerente col tuo esempio)
       if (data?.item?.esportazione === false && data?.item?.coperti > 0) {
         await this.printOrder(data.item);
+        await this.enqueueEvent(data);
       }
     } catch (err) {
       console.error("[GSG] errore processEvent:", err);
@@ -151,4 +155,36 @@ export class GSGController {
   private delay(ms: number) {
     return new Promise((res) => setTimeout(res, ms));
   }
+
+  private async enqueueEvent(event: any) {
+    this.queue.push(event);
+    this.processQueue();
+  }
+
+  private async processQueue() {
+    if (this.isProcessing) return;
+    this.isProcessing = true;
+
+    while (this.queue.length > 0) {
+      const event = this.queue.shift();
+      try {
+        // Qui inserisci l'evento in SQLite, ad esempio con una query.
+        await this.insertIntoSQLite(event);
+      } catch (error) {
+        console.error("Errore durante l'inserimento in SQLite:", error);
+        // Qui potresti anche gestire un retry o un log.
+      }
+    }
+
+    this.isProcessing = false;
+  }
+
+  // Funzione simulata di inserimento in SQLite
+  private async insertIntoSQLite(event: any) {
+    // Esegui la tua query di inserimento su SQLite
+    // Ad esempio db.run("INSERT INTO ordini ...", [event.data]);
+    console.log("Evento inserito:", event);
+  };
+
 }
+
