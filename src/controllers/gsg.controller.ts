@@ -188,3 +188,55 @@ export class GSGController {
 
 }
 
+type GSGQueueHandler<T> = (item: T) => Promise<void>;
+
+export class GSGQueueProcessor<T> {
+  private queue: T[] = [];
+  private isProcessing = false;
+  private timer: NodeJS.Timeout | null = null;
+
+  constructor(
+    private handler: GSGQueueHandler<T>,
+    private intervalMs: number = 100
+  ) {}
+
+  enqueue(item: T): void {
+    this.queue.push(item);
+  }
+
+  start(): void {
+    if (this.timer) return; // già in esecuzione
+    this.timer = setInterval(() => this.processQueue(), this.intervalMs);
+  }
+
+  stop(): void {
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
+  }
+
+  flush(): Promise<void> {
+    return this.processQueue();
+  }
+
+  private async processQueue(): Promise<void> {
+    if (this.isProcessing || this.queue.length === 0) return;
+
+    this.isProcessing = true;
+    try {
+      while (this.queue.length > 0) {
+        const item = this.queue.shift();
+        if (item) {
+          await this.handler(item);
+        }
+      }
+    } catch (err) {
+      console.error(`[QueueProcessor] Errore durante l'elaborazione:`, err);
+    } finally {
+      this.isProcessing = false;
+    }
+  }
+}
+
+
