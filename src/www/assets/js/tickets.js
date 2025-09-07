@@ -246,6 +246,26 @@ document.addEventListener("DOMContentLoaded", async () => {
             });
         });
 
+        const printAtButtons = document.querySelectorAll('[id^="print2-btn-"]');
+        printAtButtons.forEach(button => {
+            // console.log("Print button found:", button.id);
+            button.addEventListener('click', async (e) => {
+                const ticketId = button.id.split('-')[2];
+                console.log("Print button clicked for ticket:", ticketId);
+                fetch(`/api/receipts/${ticketId}/printAt?dest=PASS`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                });
+            });
+        });
+
         tableRows = document.querySelectorAll('#ticket-list-body tr');
     }
 
@@ -366,7 +386,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                             
                         `;
                         if( ticket.printStatus === "PRINTED" ){
-                            row.innerHTML += `<td>
+                            row.innerHTML += `
+                            <td>
                                 <button class="btn btn-success bi bi-printer me-2" id="print-btn-${ticket.id}"></button>
                                 <button class="btn btn-warning bi bi-printer" id="print2-btn-${ticket.id}"></button>
                             </td>`;
@@ -374,13 +395,17 @@ document.addEventListener("DOMContentLoaded", async () => {
                         }
                         else {
                             if(ticket.printed || ticket.reprinted){
-                                row.innerHTML += `<td>
+                                row.innerHTML += `
+                                <td>
                                     <button class="btn btn-warning bi bi-printer" id="print-btn-${ticket.id}"></button>
+                                    <button class="btn btn-warning bi bi-printer" id="print2-btn-${ticket.id}"></button>
                                 </td>`;
                             }
                             else {
-                                row.innerHTML += `<td>
+                                row.innerHTML += `
+                                <td>
                                     <button class="btn btn-danger bi bi-printer" id="print-btn-${ticket.id}"></button>
+                                    <button class="btn btn-warning bi bi-printer" id="print2-btn-${ticket.id}"></button>
                                 </td>`;
                                 row.classList.add('table-danger');
                             }

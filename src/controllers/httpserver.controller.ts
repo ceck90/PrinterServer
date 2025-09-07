@@ -331,6 +331,16 @@ export class HttpServerController {
             // printSpecificOrder(parseInt(params.id));
             regenerateSpecificReceipt(parseInt(params.id));
         });
+        
+
+        // API: ristampa una ricevuta tramite ID
+        this.app.post("/api/receipts/:id/printAt", ({ params, request }) => {
+            const url = new URL(request.url);
+            const dest = url.searchParams.get("dest");
+            console.log("[API] Ristampa ticket @ ID:", params.id, "dest:", dest);
+            // printSpecificOrder(parseInt(params.id), dest);
+            regenerateSpecificReceipt(parseInt(params.id), dest ? dest : undefined);
+        });
 
         this.app.get("/api/printers/getAll", async () => {
             try {

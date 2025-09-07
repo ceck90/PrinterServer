@@ -57,7 +57,7 @@
     "printerKey": "Chiave DB",
     "printerIp": "Indirizzo IP",
     "printerPort": "Porta",
-    "printerDestination": "Nome Piastra",
+    "printerDestination": "Categoria",
     "printerActive": "Attiva",
     "printerDescription": "Descrizione",
     "printerStatus": "Stato",
