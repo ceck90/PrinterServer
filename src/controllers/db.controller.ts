@@ -160,10 +160,23 @@ export class DatabaseController {
             );
         `);
 
+        //tabella ordini da GSG
+        this.db.run(`
+            CREATE TABLE IF NOT EXISTS gsg_orders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                gsgId INTEGER UNIQUE,
+                orderId STRING UNIQUE,
+                orderNumber INTEGER,
+                tableNumber TEXT,
+                clientName TEXT,
+                orderNotes TEXT,
+                orderTimestamp TEXT,
+                coperti INTEGER
+            );
+        `);
+
         // Seed iniziale per gli utenti
         this.seedUsers();
-
-        // savePrintersToDb();
     }
 
     private async seedUsers() {

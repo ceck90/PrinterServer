@@ -251,7 +251,7 @@ export async function printSpecificOrder(orderNumber: number) {
     }
 }
 
-export async function regenerateSpecificReceipt(orderNumber: number) {
+export async function regenerateSpecificReceipt(orderNumber: number, destination?: string) {
     const receipt = await DatabaseController.getInstance().getReceiptById(orderNumber) as {
         id: number;
         orderId: string;
@@ -274,11 +274,11 @@ export async function regenerateSpecificReceipt(orderNumber: number) {
     }
     const printer = printers.find(p => p.destination === receipt.destination || p.name === receipt.destination);
     if (!printer) {
-        console.warn(`[DISPATCHER] Nessuna stampante configurata per la destinazione: ${receipt.destination}`);
+        console.warn(`[DISPATCHER] Nessuna stampante configurata per la destinazione: ${destination ? destination : receipt.destination}`);
         return;
     }
     try {
-        console.log(`[DISPATCHER] Rigenero ticket per ordine ${receipt.id} su ${receipt.destination}`);
+        console.log(`[DISPATCHER] Rigenero ticket per ordine ${receipt.id} su ${destination ? destination : receipt.destination}`);
         if (printer.active) {
             // Rigenera il buffer di stampa
             const order: OrderPayload = {
@@ -289,7 +289,7 @@ export async function regenerateSpecificReceipt(orderNumber: number) {
                 timestamp: new Date().toISOString(),
                 orderNumber: receipt.orderNumber,
                 items: [{
-                    dest: receipt.destination,
+                    dest: destination ? destination : receipt.destination,
                     name: receipt.itemName,
                     qty: 1,
                     tableNumber: receipt.tableNumber,
@@ -300,11 +300,11 @@ export async function regenerateSpecificReceipt(orderNumber: number) {
                 }]
             };
             console.log(`[DISPATCHER] Rigenero il ticket per ordine ${receipt.id} con dati:`, order);
-            const buffer = await buildKitchenTicket_v2(order, receipt.destination, order.items, printer.upsideDown, printer.beepEnable);
+            const buffer = await buildKitchenTicket_v2(order, destination ? destination : receipt.destination, order.items, printer.upsideDown, printer.beepEnable);
             await sendToPrinter(printer.destination, printer.ip, printer.port, buffer);
-            console.log(`[DISPATCHER] ticket per ordine ${receipt.id} rigenerata e stampata su ${receipt.destination}`);
+            console.log(`[DISPATCHER] ticket per ordine ${receipt.id} rigenerata e stampata su ${destination ? destination : receipt.destination}`);
         } else {
-            console.warn(`[DISPATCHER] Stampante ${receipt.destination} non attiva, non posso rigenerare il ticket per ordine ${receipt.id}`);
+            console.warn(`[DISPATCHER] Stampante ${destination ? destination : receipt.destination} non attiva, non posso rigenerare il ticket per ordine ${receipt.id}`);
         }
     } catch (err) {
         console.error(`[DISPATCHER] Errore nella rigenerazione del ticket per ordine ${receipt.id}`);
