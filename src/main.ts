@@ -177,6 +177,30 @@ jobController.create({
     meta: { env: process.env.NODE_ENV ?? "development" },
   });
 
+jobController.create({
+    id: "GSG_QUEUE",
+    name: "GSG Queue Processor",
+    cron: "*/10 * * * * *", // ogni 10 secondi (syntax con seconds abilitata da node-cron)
+    timezone: "Europe/Rome",
+    task: async () => {
+        await gsgController.processQueue();
+    },
+    startNow: true,
+    meta: { env: process.env.NODE_ENV ?? "development" },
+  });
+
+  jobController.create({
+    id: "DB_BACKUP",
+    name: "Database Backup",
+    cron: "* */30 * * * *", // ogni 30 minuti (syntax con seconds abilitata da node-cron)
+    timezone: "Europe/Rome",
+    task: async () => {
+        await dbController.backupDatabase(dbController.getDbPath());
+    },
+    startNow: false,
+    meta: { env: process.env.NODE_ENV ?? "development" },
+});
+
 console.log("[MAIN] ✅ Server avviato con successo!");
 
 process.on("SIGINT", () => {

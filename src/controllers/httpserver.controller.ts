@@ -449,7 +449,7 @@ export class HttpServerController {
                 if (!Array.isArray(data) || data.length === 0) {
                     return new Response("Invalid printer data", { status: 400 });
                 }
-                console.log("[API] Saving all printers", data);
+                // console.log("[API] Saving all printers", data);
                 for (const printer of data) {
                     if (!printer.key || !printer.name || !printer.ip || !printer.port) {
                         console.error("[API] Invalid printer data:", printer);

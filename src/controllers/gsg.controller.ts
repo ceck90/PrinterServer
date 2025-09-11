@@ -137,18 +137,14 @@ export class GSGController {
     }
 
     try {
-      // Filtro business: esportazione=false (coerente col tuo esempio)
-      if (data?.item?.esportazione === false && data?.item?.coperti > 0) {
-        await this.printOrder(data.item);
-        await this.enqueueEvent(data);
-      }
+      await this.enqueueEvent(data);
     } catch (err) {
       console.error("[GSG] errore processEvent:", err);
       // opzionale: DLQ / retry
     }
   }
 
-  private async printOrder(order: any): Promise<void> {
+  private async printOrderSittingsCount(order: any): Promise<void> {
     await handleIncomingOrderFromGSG(order);
   }
 
@@ -161,17 +157,24 @@ export class GSGController {
     this.processQueue();
   }
 
-  private async processQueue() {
+  public async processQueue() {
     if (this.isProcessing) return;
     this.isProcessing = true;
 
+    console.log(`[GSG] Starting to process queue, items: ${this.queue.length}`);
+
     while (this.queue.length > 0) {
+      console.log(`[GSG] Processing queue, items left: ${this.queue.length}`);
       const event = this.queue.shift();
       try {
         // Qui inserisci l'evento in SQLite, ad esempio con una query.
         await this.insertIntoSQLite(event);
+        // Filtro business: esportazione=false (coerente col tuo esempio)
+        if (event?.item?.esportazione === false && event?.item?.coperti > 0 && event?.item?.numeroTavolo != "") {
+          await this.printOrderSittingsCount(event.item);
+        }
       } catch (error) {
-        console.error("Errore durante l'inserimento in SQLite:", error);
+        console.error("[GSG] Errore durante l'inserimento in SQLite:", error);
         // Qui potresti anche gestire un retry o un log.
       }
     }
@@ -183,7 +186,7 @@ export class GSGController {
   private async insertIntoSQLite(event: any) {
     // Esegui la tua query di inserimento su SQLite
     // Ad esempio db.run("INSERT INTO ordini ...", [event.data]);
-    console.log("Evento inserito:", event);
+    console.log("[GSG] Evento inserito:", event);
   };
 
 }

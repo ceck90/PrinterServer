@@ -3,6 +3,8 @@ import type { ReceiptLog } from "../types";
 import { $ } from "bun";
 import { existsSync } from "fs";
 import { hashPassword, verifyPassword } from "../users";
+import { readdirSync, unlinkSync } from "fs";
+import { dirname, basename } from "path";
 
 
 /**
@@ -26,11 +28,7 @@ export class DatabaseController {
         this.dbPath = dbPath;
         console.log("[DB] Database initialized with file:", this.dbPath);
         if (existsSync(this.dbPath)) {
-            if (this.checkIntegrity()) {
-                this.backupDatabase(this.dbPath + ".backup");
-            } else {
-                throw new Error("[DB] Database integrity check failed. Aborting initialization.");
-            }
+            this.backupDatabase(this.dbPath);
         }
         this.initializeDatabase();
     }
@@ -45,16 +43,58 @@ export class DatabaseController {
         return DatabaseController.#instance;
     }
 
+    /** Restituisce il percorso del file di database.
+     * @returns Percorso del file di database
+     */
+    public getDbPath() {
+        return this.dbPath;
+    }
+
+    /** Controlla se il database è bloccato.
+     * @returns true se il database è bloccato, false altrimenti
+     */
+    private isDbLocked(): boolean {
+        try {
+            const result = this.db.query(`PRAGMA database_list;`).all();
+            return result.some((dbInfo: any) => dbInfo.file === this.dbPath && dbInfo.locked);
+        } catch (error) {
+            console.error("[DB] Error checking if database is locked:", error);
+            return false;
+        }
+    }
+
     /**
      * Esegue il backup del database su un file specificato.
      * @param backupPath Percorso del file di backup
      */
-    public backupDatabase(backupPath: string) {
-        if (existsSync(backupPath)) {
-            console.warn(`[DB] Backup file already exists at: ${backupPath}. Overwriting...`);
+    public async backupDatabase(backupPath: string) {
+        // if (existsSync(backupPath)) {
+        //     console.warn(`[DB] Backup file already exists at: ${backupPath}. Overwriting...`);
+        // }
+        if (this.isDbLocked()) {
+            console.error("[DB] Cannot create backup, database is locked.");
+            return;
         }
+        if(this.checkIntegrity() === false) {
+            console.error("[DB] Database integrity check failed! Backup aborted.");
+            return;
+        }
+        // File name + `.backup-${new Date().toISOString().replace(/[:.]/g, '-')}.sqlite`
+        backupPath += `.backup-${new Date().toISOString().replace(/[:.]/g, '-')}.sqlite`;
         Bun.write(backupPath, Bun.file(this.dbPath));
         console.log(`[DB] Database backup created at: ${backupPath}`);
+        //Mantieni solo gli ultimi 10 backup
+        const backupDir = dirname(backupPath);
+        const baseName = basename(this.dbPath);
+        const backupFiles = readdirSync(backupDir)
+            .filter(f => f.startsWith(baseName + ".backup-") && f.endsWith(".sqlite"))
+            .sort((a, b) => b.localeCompare(a)); // newest first
+
+        if (backupFiles.length > 10) {
+            for (const oldFile of backupFiles.slice(10)) {
+                unlinkSync(`${backupDir}/${oldFile}`);
+            }
+        }
     }
 
     /**
