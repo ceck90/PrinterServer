@@ -176,4 +176,24 @@ export const gsg_queries = {
     ORDER BY r.id;
   `,
 
+  // 🔹 Righe di ordini non ancora processati (esempio per coda)
+  righePerOrdineConTipologiaUnprocessed: `
+    SELECT
+      r.id,
+      r.id_ordine,
+      r.quantita,
+      r.descrizione,
+      r.descrizionebreve,
+      r.aggregato,
+      t.id            AS id_tipologia,
+      t.descrizione   AS tipologia
+    FROM righe r
+    LEFT JOIN articoli a
+      ON a.descrizionebreve = r.descrizionebreve
+    LEFT JOIN tipologie t
+      ON t.id = a.id_tipologia
+    WHERE r.id_ordine = $1
+    ORDER BY r.id;
+  `,
+
 };

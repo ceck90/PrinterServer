@@ -1,5 +1,6 @@
 import { Client } from "pg";
 import { handleIncomingOrderFromGSG } from "../dispatcher.ts";
+import { gsg_queries } from "../gsg-helper.ts";
 
 type NewOrderPayload = { operation: string; item: any };
 type PgConfig = ConstructorParameters<typeof Client>[0];
@@ -137,7 +138,8 @@ export class GSGController {
     }
 
     try {
-      await this.enqueueEvent(data);
+      let result = await this.query(gsg_queries.righePerOrdineConTipologia, [data.item.id]);
+      await this.enqueueEvent(result.rows);
     } catch (err) {
       console.error("[GSG] errore processEvent:", err);
       // opzionale: DLQ / retry
@@ -152,8 +154,9 @@ export class GSGController {
     return new Promise((res) => setTimeout(res, ms));
   }
 
-  private async enqueueEvent(event: any) {
-    this.queue.push(event);
+  public async enqueueEvent(eventData: any) {
+    this.queue.push(eventData);
+    console.log(`[GSG] Event enqueued, data: ${JSON.stringify(eventData)}`);
     this.processQueue();
   }
 
