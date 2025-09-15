@@ -1,4 +1,4 @@
-CREATE OR REPLACE FUNCTION notify_new_order()
+CREATE FUNCTION notify_new_order()
             RETURNS TRIGGER AS $$
             BEGIN
                 PERFORM pg_notify('new_order', json_build_object(
@@ -9,6 +9,7 @@ CREATE OR REPLACE FUNCTION notify_new_order()
             END;
             $$ LANGUAGE plpgsql;
 
-            CREATE TRIGGER plate_orders_trigger
-            AFTER INSERT ON plate_orders
+            CREATE TRIGGER ordini_trigger
+            AFTER INSERT ON ordini
             FOR EACH ROW EXECUTE FUNCTION notify_new_order();
+
