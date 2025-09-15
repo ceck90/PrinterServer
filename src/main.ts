@@ -159,33 +159,44 @@ jobController
     .on("job:removed", id => console.log(`[${id}] Removed`))
     .on("shutdown", () => console.log(`Shutdown`));
 
-    // const id = Bun.randomUUIDv7();
-    // console.log(id);
+// const id = Bun.randomUUIDv7();
+// console.log(id)
 
-  // Esempio: job ogni 5s
+// # ┌────────────── second (optional)
+// # │ ┌──────────── minute
+// # │ │ ┌────────── hour
+// # │ │ │ ┌──────── day of month
+// # │ │ │ │ ┌────── month
+// # │ │ │ │ │ ┌──── day of week
+// # │ │ │ │ │ │
+// # │ │ │ │ │ │
+// # * * * * * *
+
+  // Esempio: job ogni 60s
 // jobController.create({
 //     id: "PING",
 //     name: "Ping Logger",
-//     cron: "*/60 * * * *", // ogni 60 secondi (syntax con seconds abilitata da node-cron)
+//     cron: "*/60 * * * * *", // ogni 60 secondi (syntax con seconds abilitata da node-cron)
 //     timezone: "Europe/Rome",
 //     task: () => {
 //         console.log(`[JOB - PING] Ping...`);
 //         httpServerController.broadcast({ type: 'ping', timestamp: new Date().toISOString() });
 //         // console.log(httpServerController.listClients());
 //     },
-//     startNow: true,
+//     startNow: false,
 //     meta: { env: process.env.NODE_ENV ?? "development" },
 //   });
 
 jobController.create({
     id: "GSG_QUEUE",
     name: "GSG Queue Processor",
-    cron: "*/10 * * * *", // ogni 10 secondi (syntax con seconds abilitata da node-cron)
+    cron: "0 */10 * * * *", // ogni 10 minuti (syntax con seconds abilitata da node-cron)
     timezone: "Europe/Rome",
     task: async () => {
         // let orders = await gsgController.query(gsg_queries.righePerOrdineConTipologiaUnprocessed);
         // await gsgController.enqueueEvent(orders);
         // console.log(`[JOB - GSG_QUEUE] Processed ${orders.length} new orders from GSG`);
+        console.log(`[JOB - GSG_QUEUE] Checking for new orders from GSG...`);
     },
     startNow: true,
     meta: { env: process.env.NODE_ENV ?? "development" },
@@ -194,7 +205,7 @@ jobController.create({
   jobController.create({
     id: "DB_BACKUP",
     name: "Database Backup",
-    cron: "*/30 * * * *", // ogni 30 minuti (syntax con seconds abilitata da node-cron)
+    cron: "0 */30 * * * *", // ogni 30 minuti (syntax con seconds abilitata da node-cron)
     timezone: "Europe/Rome",
     task: async () => {
         await dbController.backupDatabase(dbController.getDbPath());
