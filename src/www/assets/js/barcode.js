@@ -1,5 +1,6 @@
 import { translate, updateTranslate, initI18n, getLanguageFromLocalStorage } from './i18n.js';
-import { getThemeFromLocalStorage, setThemeInLocalStorage } from './theme.js';
+import { applyThemeFromLocalStorage, setupThemeHandlers } from './theme.js';
+import { spawnToast } from './utility.js';
 
 // import { flatpickr } from '../flatpickr/js/flatpickr.js';
 
@@ -24,98 +25,6 @@ let lang = "en-US"; // Default language
 
 document.addEventListener("DOMContentLoaded", async () => {
 
-    // Funzione per mostrare un toast Bootstrap
-    function showToast(message, options = {}) {
-        // Cerca o crea il contenitore dei toast
-        let toastContainer = document.getElementById('toast-container');
-        if (!toastContainer) {
-            toastContainer = document.createElement('div');
-            toastContainer.id = 'toast-container';
-            toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
-            document.body.appendChild(toastContainer);
-        }
-
-        // Crea il markup del toast
-        const toastElem = document.createElement('div');
-        toastElem.className = 'toast align-items-center text-bg-primary border-0';
-        toastElem.setAttribute('role', 'alert');
-        toastElem.setAttribute('aria-live', 'assertive');
-        toastElem.setAttribute('aria-atomic', 'true');
-        toastElem.innerHTML = `
-            <div class="d-flex">
-                <div class="toast-body">
-                    ${message}
-                </div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-            </div>
-        `;
-
-        toastContainer.appendChild(toastElem);
-
-        
-        // Opzioni di default
-        const toastOptions = {
-            delay: options.delay || 3000,
-            autohide: options.autohide !== undefined ? options.autohide : true
-        };
-        // $('.toast').toast(toastOptions);
-
-        // Inizializza e mostra il toast
-        // const toast = new Toast(toastElem, toastOptions);
-        // toast.show();
-
-        // Rimuovi il toast dal DOM quando viene nascosto
-        toastElem.addEventListener('hidden.bs.toast', () => {
-            toastElem.remove();
-        });
-    }
-
-    // Esempio d'uso:
-    // showToast('Hello, this is a Bootstrap toast!');
-
-    const themeItems = document.querySelectorAll('.theme-item');
-
-    themeItems.forEach(item => {
-        item.addEventListener('click', function (e) {
-            e.preventDefault();
-            const currentTheme = document.documentElement.getAttribute('data-bs-theme');
-            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-            document.documentElement.setAttribute('data-bs-theme', newTheme);
-            setThemeInLocalStorage(newTheme);
-
-            if (item) {
-                item.classList.remove('bi-brightness-high', 'bi-moon', 'bi-circle-half');
-                item.classList.add(newTheme === 'dark' ? 'bi-moon' : 'bi-brightness-high');
-                item.alt = newTheme === 'dark' ? 'Dark Theme' : 'Light Theme';
-            }
-        });
-    });
-
-    const themeIcons = document.querySelectorAll('.icon-theme');
-    themeIcons.forEach(themeIcon => {
-        const updateIconTheme = () => {
-            const theme = document.documentElement.getAttribute('data-bs-theme');
-            themeIcon.classList.toggle('text-light', theme === 'dark');
-            themeIcon.classList.toggle('text-dark', theme === 'light');
-        };
-        updateIconTheme();
-        const observer = new MutationObserver(updateIconTheme);
-        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-bs-theme'] });
-    });  
-
-    const applyThemeFromLocalStorage = () => {
-        const storedTheme = getThemeFromLocalStorage();
-        document.documentElement.setAttribute('data-bs-theme', storedTheme);
-
-        document.querySelectorAll('.theme-item').forEach(icon => {
-            icon.classList.remove('bi-brightness-high', 'bi-moon', 'bi-circle-half');
-            icon.classList.add(storedTheme === 'dark' ? 'bi-moon' : 'bi-brightness-high');
-            icon.alt = storedTheme === 'dark' ? 'Dark Theme' : 'Light Theme';
-        });
-
-        console.log("Apply theme: " + storedTheme);
-    };
-
     const applyRoleFromLocalStorage = () => {
         const storedRole = localStorage.getItem('role') || 'none';
         document.body.setAttribute('data-role', storedRole);
@@ -133,17 +42,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         console.log("Apply role: " + storedRole);
     };
 
-    const languageDropdown = document.getElementById('languageDropdown');
-    if (languageDropdown) {
-        const dropdownItems = document.querySelectorAll('.dropdown-item');
-        const dropdownToggle = document.getElementById('languageDropdown');
-        dropdownItems.forEach(item => {
-            if (item.dataset.lang === currentLang) {
-                dropdownToggle.textContent = item.textContent;
-                dropdownToggle.setAttribute('aria-label', item.textContent);
-            }
-        });
-    }
+    const btnLogout = document.getElementById('logout-button');
+    btnLogout.addEventListener('click', () => {
+        // Handle logout logic here
+        localStorage.removeItem("authToken");
+        window.location.href = "/";
+        console.log("[LOGOUT] User logged out");
+    });
 
     const handleScannerInput = async (event) => {
         const input = event.target.value;
@@ -175,39 +80,41 @@ document.addEventListener("DOMContentLoaded", async () => {
 
                 let timerInterval;
                 console.log(response)
-                Swal.fire({
-                    theme: "auto",
-                    title: "Processing...",
-                    // html: "I will close in <b></b> milliseconds.",
-                    timer: 1000,
-                    icon: "success",
-                    // timerProgressBar: true,
-                    didOpen: () => {
-                        // Swal.showLoading();
-                        // const timer = Swal.getPopup().querySelector("b");
-                        // timerInterval = setInterval(() => {
-                            // timer.textContent = `${Swal.getTimerLeft()}`;
-                        // }, 100);
-                    },
-                    willClose: () => {
-                        clearInterval(timerInterval);
-                    }
-                }).then((result) => {
-                    /* Read more about handling dismissals below */
-                    if (result.dismiss === Swal.DismissReason.timer) {
-                        // console.log("I was closed by the timer");
-                    }
-                });
+                spawnToast("ID: " + id, { title: "Processing barcode", icon: true });
+                // Swal.fire({
+                //     theme: "auto",
+                //     title: "Processing...",
+                //     // html: "I will close in <b></b> milliseconds.",
+                //     timer: 1000,
+                //     icon: "success",
+                //     // timerProgressBar: true,
+                //     didOpen: () => {
+                //         // Swal.showLoading();
+                //         // const timer = Swal.getPopup().querySelector("b");
+                //         // timerInterval = setInterval(() => {
+                //             // timer.textContent = `${Swal.getTimerLeft()}`;
+                //         // }, 100);
+                //     },
+                //     willClose: () => {
+                //         clearInterval(timerInterval);
+                //     }
+                // }).then((result) => {
+                //     /* Read more about handling dismissals below */
+                //     if (result.dismiss === Swal.DismissReason.timer) {
+                //         // console.log("I was closed by the timer");
+                //     }
+                // });
             } catch (error) {
                 console.error("Failed to save scanned barcode:", error);
-                Swal.fire({
-                    theme: "auto",
-                    title: "Error",
-                    text: "Failed to save scanned barcode.",
-                    icon: "error",
-                    confirmButtonText: "OK"
-                });
-                // showToast("Error saving scanned barcode.", { delay: 4000, autohide: true });
+                spawnToast("Error saving scanned barcode.", { title: "Error", icon: true });
+                // Swal.fire({
+                //     theme: "auto",
+                //     title: "Error",
+                //     text: "Failed to save scanned barcode.",
+                //     icon: "error",
+                //     confirmButtonText: "OK"
+                // });
+                // spawnToast("Error saving scanned barcode.", { delay: 4000, autohide: true });
             }
 
         }
@@ -314,6 +221,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     lang = await initI18n();
     applyThemeFromLocalStorage();
+    setupThemeHandlers();
 
     applyRoleFromLocalStorage();
 

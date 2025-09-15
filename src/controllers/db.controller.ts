@@ -2,6 +2,9 @@ import { Database } from "bun:sqlite";
 import type { ReceiptLog } from "../types";
 import { $ } from "bun";
 import { existsSync } from "fs";
+import { hashPassword, verifyPassword } from "../users";
+import { readdirSync, unlinkSync } from "fs";
+import { dirname, basename } from "path";
 
 
 /**
@@ -25,11 +28,7 @@ export class DatabaseController {
         this.dbPath = dbPath;
         console.log("[DB] Database initialized with file:", this.dbPath);
         if (existsSync(this.dbPath)) {
-            if (this.checkIntegrity()) {
-                this.backupDatabase(this.dbPath + ".backup");
-            } else {
-                throw new Error("[DB] Database integrity check failed. Aborting initialization.");
-            }
+            this.backupDatabase(this.dbPath);
         }
         this.initializeDatabase();
     }
@@ -44,16 +43,58 @@ export class DatabaseController {
         return DatabaseController.#instance;
     }
 
+    /** Restituisce il percorso del file di database.
+     * @returns Percorso del file di database
+     */
+    public getDbPath() {
+        return this.dbPath;
+    }
+
+    /** Controlla se il database è bloccato.
+     * @returns true se il database è bloccato, false altrimenti
+     */
+    private isDbLocked(): boolean {
+        try {
+            const result = this.db.query(`PRAGMA database_list;`).all();
+            return result.some((dbInfo: any) => dbInfo.file === this.dbPath && dbInfo.locked);
+        } catch (error) {
+            console.error("[DB] Error checking if database is locked:", error);
+            return false;
+        }
+    }
+
     /**
      * Esegue il backup del database su un file specificato.
      * @param backupPath Percorso del file di backup
      */
-    public backupDatabase(backupPath: string) {
-        if (existsSync(backupPath)) {
-            console.warn(`[DB] Backup file already exists at: ${backupPath}. Overwriting...`);
+    public async backupDatabase(backupPath: string) {
+        // if (existsSync(backupPath)) {
+        //     console.warn(`[DB] Backup file already exists at: ${backupPath}. Overwriting...`);
+        // }
+        if (this.isDbLocked()) {
+            console.error("[DB] Cannot create backup, database is locked.");
+            return;
         }
+        if(this.checkIntegrity() === false) {
+            console.error("[DB] Database integrity check failed! Backup aborted.");
+            return;
+        }
+        // File name + `.backup-${new Date().toISOString().replace(/[:.]/g, '-')}.sqlite`
+        backupPath += `.backup-${new Date().toISOString().replace(/[:.]/g, '-')}.sqlite`;
         Bun.write(backupPath, Bun.file(this.dbPath));
         console.log(`[DB] Database backup created at: ${backupPath}`);
+        //Mantieni solo gli ultimi 10 backup
+        const backupDir = dirname(backupPath);
+        const baseName = basename(this.dbPath);
+        const backupFiles = readdirSync(backupDir)
+            .filter(f => f.startsWith(baseName + ".backup-") && f.endsWith(".sqlite"))
+            .sort((a, b) => b.localeCompare(a)); // newest first
+
+        if (backupFiles.length > 10) {
+            for (const oldFile of backupFiles.slice(10)) {
+                unlinkSync(`${backupDir}/${oldFile}`);
+            }
+        }
     }
 
     /**
@@ -138,7 +179,68 @@ export class DatabaseController {
             );
         `);
 
-        // savePrintersToDb();
+        // tabella token
+        this.db.run(`
+            CREATE TABLE IF NOT EXISTS tokens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                token TEXT UNIQUE,
+                createdAt TEXT,
+                expiresAt TEXT
+            );
+        `);
+
+        //tabella users
+        this.db.run(`
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE,
+                password TEXT,
+                createdAt TEXT,
+                updatedAt TEXT
+            );
+        `);
+
+        //tabella ordini da GSG
+        this.db.run(`
+            CREATE TABLE IF NOT EXISTS gsg_orders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                gsgId INTEGER UNIQUE,
+                orderId STRING UNIQUE,
+                orderNumber INTEGER,
+                tableNumber TEXT,
+                clientName TEXT,
+                orderNotes TEXT,
+                orderTimestamp TEXT,
+                coperti INTEGER
+            );
+        `);
+
+        // Seed iniziale per gli utenti
+        this.seedUsers();
+    }
+
+    private async seedUsers() {
+        const users = [
+            { username: "admin", password: "password", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+            { username: "user", password: "user", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+        ];
+
+        for (const user of users) {
+            user.password = await hashPassword(user.password);
+        }
+
+        for (const user of users) {
+            this.db.run(
+                `INSERT INTO users (username, password, createdAt, updatedAt)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(username) DO UPDATE SET
+                    password = excluded.password,
+                    updatedAt = excluded.updatedAt`,
+                [user.username, user.password, user.createdAt, user.updatedAt]
+            );
+        }
+
+        console.log("[DB] Users seeded");
     }
 
     /**
@@ -460,6 +562,20 @@ export class DatabaseController {
         );
     }
 
+    /**
+     * Elimina tutte le ricevute dal database.
+     */
+    public async deleteAllReceipts() {
+        this.db.run(
+            `DELETE FROM receipts`
+        );
+    }
+
+    /**
+     * Aggiunge o aggiorna un codice a barre.
+     * @param code Valore del codice a barre
+     * @param success Stato di successo dell'operazione
+     */
     public async addOrUpdateBarcode(code: string, success: boolean) {
         this.db.run(
             `INSERT INTO barcodes (code, timestamp, success)
@@ -471,16 +587,110 @@ export class DatabaseController {
         );
     }
 
+    /**
+     * Restituisce un codice a barre tramite il suo valore.
+     * @param code Valore del codice a barre
+     * @returns Oggetto Barcode o undefined
+     */
     public async getBarcode(code: string) {
         return this.db.query(
             `SELECT * FROM barcodes WHERE code = ?`
         ).get(code);
     }
 
+    /**
+     * Restituisce tutti i codici a barre.
+     * @returns Array di Barcode
+     */
     public async getAllBarcodes() {
         return this.db.query(
             `SELECT * FROM barcodes`
         ).all();
     }
+
+    /**
+     * Elimina tutti i codici a barre.
+     */
+    public async deleteAllBarcodes() {
+        this.db.run(
+            `DELETE FROM barcodes`
+        );
+    }
+
+    //#region USERS
+
+    /**
+     * Restituisce un utente tramite il suo ID.
+     * @param id ID dell'utente
+     * @returns Oggetto User o undefined
+     */
+    public async getUserById(id: number) {
+        return this.db.query(
+            `SELECT * FROM users WHERE id = ?`
+        ).get(id);
+    }
+
+    /**
+     * Restituisce un utente tramite il suo nome utente.
+     * @param username Nome utente dell'utente
+     * @returns Oggetto User o undefined
+     */
+    public async getUserByUsername(username: string) {
+        return this.db.query(
+            `SELECT * FROM users WHERE username = ?`
+        ).get(username);
+    }
+
+    /**
+     * Crea un nuovo utente.
+     * @param username Nome utente dell'utente
+     * @param password Password dell'utente
+     * @returns ID dell'utente creato
+     */
+    public async createUser(username: string, password: string) {
+        const result = await this.db.run(
+            `INSERT INTO users (username, password) VALUES (?, ?)`,
+            [username, password]
+        );
+        return result;
+    }
+
+    /**
+     * Aggiorna un utente esistente.
+     * @param id ID dell'utente
+     * @param username Nome utente dell'utente
+     * @param password Password dell'utente
+     */
+    public async updateUser(id: number, username: string, password: string) {
+        await this.db.run(
+            `UPDATE users SET username = ?, password = ? WHERE id = ?`,
+            [username, password, id]
+        );
+    }
+
+    /**
+     * Aggiorna la password di un utente esistente.
+     * @param id ID dell'utente
+     * @param newPassword Nuova password dell'utente
+     */
+    public async updateUserPassword(id: number, newPassword: string) {
+        await this.db.run(
+            `UPDATE users SET password = ? WHERE id = ?`,
+            [newPassword, id]
+        );
+    }
+
+    /**
+     * Elimina un utente esistente.
+     * @param id ID dell'utente
+     */
+    public async deleteUser(id: number) {
+        await this.db.run(
+            `DELETE FROM users WHERE id = ?`,
+            [id]
+        );
+    }
+
+    //#endregion USERS
 }
 

@@ -6,6 +6,9 @@ import { printSpecificOrder, printTestTicket, regenerateSpecificReceipt } from "
 import { loadPrintersFromDb } from "../print-routing.config";
 import { KitchenManagementController } from "./kitchenmgmt.controller";
 import { ServerWebSocket } from "bun";
+import { config } from "dotenv";
+import { verify } from "crypto";
+import { verifyPassword } from "../users";
 
 
 /**
@@ -23,46 +26,170 @@ export class HttpServerController {
      * Costruttore privato: definisce tutte le route HTTP.
      */
     private constructor() {
+
+        //#region TOKEN
+        // Simple authentication middleware
+        // Carica TOKEN_SECRET da file .env
+        config();
+        const TOKEN_SECRET = process.env.TOKEN_KEY ?? "";
+        const TOKEN_EXPIRY_MS = 600 * 60 * 1000; // 10 ore
+
+        function generateToken(): string {
+            const payload = {
+            exp: Date.now() + TOKEN_EXPIRY_MS,
+            key: TOKEN_SECRET
+            };
+            // console.log("Generated token payload:", payload);
+            return Buffer.from(JSON.stringify(payload)).toString("base64");
+        }
+
+        function verifyToken(token?: string): boolean {
+            if (!token) return false;
+            try {
+                const payload = JSON.parse(Buffer.from(token, "base64").toString("utf8"));
+                return typeof payload.exp === "number" && payload.exp > Date.now() && payload.key === TOKEN_SECRET;
+            } catch {
+                return false;
+            }
+        }
+        //#endregion TOKEN
+
+        //#region LOGIN API
+
+        this.app.post("/api/login", async ({ request }) => {
+            // console.log("[LOGIN] Login attempt");
+            const { username, password } = await request.json();
+            if (!username || !password) {
+                return new Response("Missing username or password", { status: 400 });
+            }
+            console.log(`[LOGIN] Attempting login for user: ${username}`);
+            // Verifica le credenziali
+            const user = await DatabaseController.getInstance().getUserByUsername(username) as { id:number, password: string } | null;
+            // console.log("[LOGIN] User fetched from DB:", user ? "found" : "not found", user);
+            if (!user || !user.password || !await verifyPassword(password, user.password)) {
+                console.log("[LOGIN] Invalid credentials");
+                return new Response("Invalid credentials", { status: 401 });
+            }
+            
+            const token = generateToken();
+            // Login avvenuto con successo
+            // console.log(`[LOGIN] Successful login for user: ${username} with token: ${token}`);
+            return new Response(JSON.stringify({ token }), {
+                headers: { "Content-Type": "application/json" }
+            });
+        });
+
+        this.app.post("/api/verify-token", ({ request, body }) => {
+            const token = request.headers.get("authorization")?.replace("Bearer ", "") ?? "";
+            if (!verifyToken(token)) {
+                return new Response("Unauthorized", { status: 401 });
+            }
+            return new Response(JSON.stringify({ valid: true }), {
+                headers: { "Content-Type": "application/json" }
+            });
+        });
+
+        // Auth middleware for protected pages
+        const requireAuth = (handler: (ctx: any) => Response) => {
+            return (ctx: any) => {
+                // console.log(`[AUTH] Request:`, ctx.request);
+                const token = ctx.request.headers.get("authorization")?.replace("Bearer ", "") ||
+                new URL(ctx.request.url).searchParams.get("token");
+                if (!verifyToken(token)) {
+                return new Response(null, {
+                    status: 302,
+                    headers: { "Location": "/login" }
+                });
+            }
+            return handler(ctx);
+            };
+        };
+
+        const requireApiAuth = (handler: (ctx: any) => Response) => {
+            return (ctx: any) => {
+                const token = ctx.request.headers.get("authorization")?.replace("Bearer ", "") ||
+                new URL(ctx.request.url).searchParams.get("token");
+                if (!verifyToken(token)) {
+                    return new Response(null, {
+                        status: 401
+                    });
+                }
+                return handler(ctx);
+            };
+        };
+
+        //#endregion LOGIN API
+
         //#region ROUTES
         // Route per la pagina principale
-        this.app.get("/", () => {
+        this.app.get("/", requireAuth(() => {
             try {
                 const html = readFileSync(join(import.meta.dir, "../www/index.html"), "utf8");
                 return new Response(html, { headers: { "Content-Type": "text/html" } });
             } catch (err) {
                 return new Response("File index.html Not found", { status: 404 });
             }
+        }));
+
+        // Route per la pagina di login
+        this.app.get("/login", () => {
+            try {
+                const html = readFileSync(join(import.meta.dir, "../www/login.html"), "utf8");
+                return new Response(html, { headers: { "Content-Type": "text/html" } });
+            } catch (err) {
+                return new Response("File login.html Not found", { status: 404 });
+            }
         });
+        
+        // Route per la pagina di tickets
+        this.app.get("/tickets", requireAuth(() => {
+            try {
+                const html = readFileSync(join(import.meta.dir, "../www/tickets.html"), "utf8");
+                return new Response(html, { headers: { "Content-Type": "text/html" } });
+            } catch (err) {
+                return new Response("File tickets.html Not found", { status: 404 });
+            }
+        }));
 
         // Route per la pagina di stato
-        this.app.get("/status", () => {
+        this.app.get("/status", requireAuth(() => {
             try {
                 const html = readFileSync(join(import.meta.dir, "../www/status.html"), "utf8");
                 return new Response(html, { headers: { "Content-Type": "text/html" } });
             } catch (err) {
                 return new Response("File status.html Not found", { status: 404 });
             }
-        });
+        }));
         
         // Route per la pagina di stato
-        this.app.get("/settings", () => {
+        this.app.get("/settings", requireAuth(() => {
             try {
                 const html = readFileSync(join(import.meta.dir, "../www/settings.html"), "utf8");
                 return new Response(html, { headers: { "Content-Type": "text/html" } });
             } catch (err) {
                 return new Response("File settings.html Not found", { status: 404 });
             }
-        });
-        
+        }));
+
         // Route per la pagina di stato
-        this.app.get("/barcode", () => {
+        this.app.get("/barcode", requireAuth(() => {
             try {
                 const html = readFileSync(join(import.meta.dir, "../www/barcode.html"), "utf8");
                 return new Response(html, { headers: { "Content-Type": "text/html" } });
             } catch (err) {
                 return new Response("File barcode.html Not found", { status: 404 });
             }
-        });
+        }));
+
+        // Route per la pagina di dashboard statistiche
+        this.app.get("/dashboard", requireAuth(() => {
+            try {
+                const html = readFileSync(join(import.meta.dir, "../www/dashboard.html"), "utf8");
+                return new Response(html, { headers: { "Content-Type": "text/html" } });
+            } catch (err) {
+                return new Response("File dashboard.html Not found", { status: 404 });
+            }
+        }));
 
         // Route per servire asset statici (js, css, immagini, ecc.)
         this.app.get("/assets/*", ({ request }) => {
@@ -150,6 +277,8 @@ export class HttpServerController {
         
         //#endregion WEBSOCKET
 
+        
+
         //#region API
         // API: restituisce le ricevute con filtri e paginazione
         this.app.get("/api/receipts", async ({ request }) => {
@@ -201,6 +330,16 @@ export class HttpServerController {
             console.log("[API] Ristampa ticket @ ID:", params.id);
             // printSpecificOrder(parseInt(params.id));
             regenerateSpecificReceipt(parseInt(params.id));
+        });
+        
+
+        // API: ristampa una ricevuta tramite ID
+        this.app.post("/api/receipts/:id/printAt", ({ params, request }) => {
+            const url = new URL(request.url);
+            const dest = url.searchParams.get("dest");
+            console.log("[API] Ristampa ticket @ ID:", params.id, "dest:", dest);
+            // printSpecificOrder(parseInt(params.id), dest);
+            regenerateSpecificReceipt(parseInt(params.id), dest ? dest : undefined);
         });
 
         this.app.get("/api/printers/getAll", async () => {
@@ -310,7 +449,7 @@ export class HttpServerController {
                 if (!Array.isArray(data) || data.length === 0) {
                     return new Response("Invalid printer data", { status: 400 });
                 }
-                console.log("[API] Saving all printers", data);
+                // console.log("[API] Saving all printers", data);
                 for (const printer of data) {
                     if (!printer.key || !printer.name || !printer.ip || !printer.port) {
                         console.error("[API] Invalid printer data:", printer);
@@ -399,8 +538,9 @@ export class HttpServerController {
         //#endregion API
         
         // Avvia il server HTTP sulla porta 4000
-        this.app.listen(4000);
-        console.log("[WWW] ✅ HTTP server su http://localhost:4000");
+        const port = process.env.HTTP_SERVER_PORT ? parseInt(process.env.HTTP_SERVER_PORT) : 4000;
+        this.app.listen(port);
+        console.log(`[WWW] ✅ HTTP server su http://localhost:${port}`);
     }
 
     /**

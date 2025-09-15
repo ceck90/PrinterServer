@@ -11,7 +11,9 @@
     "@types/stompjs": "^2.3.5"
   },
   "dependencies": {
+    "@node-rs/argon2": "^2.0.2",
     "better-sqlite3": "^12.2.0",
+    "dotenv": "^17.2.2",
     "elysia": "^1.3.6",
     "escpos-buffer": "^4.1.0",
     "escpos-buffer-image": "^1.1.0",

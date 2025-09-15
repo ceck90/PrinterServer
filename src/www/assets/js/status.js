@@ -1,8 +1,10 @@
 import { translate, updateTranslate, initI18n, getLanguageFromLocalStorage } from './i18n.js';
-import { getThemeFromLocalStorage, setThemeInLocalStorage } from './theme.js';
+import { applyThemeFromLocalStorage, setupThemeHandlers } from './theme.js';
+import { spawnToast } from './utility.js';
 
 let lang = "en-US"; // Default language
 // let theme = getThemeFromLocalStorage(); // Default theme
+
 
 /**
  * Handles the initialization of the status page once the DOM is fully loaded.
@@ -21,61 +23,14 @@ let lang = "en-US"; // Default language
  */
 
 document.addEventListener("DOMContentLoaded", async () => {
-    
-    const themeItems = document.querySelectorAll('.theme-item');
 
-    themeItems.forEach(item => {
-        item.addEventListener('click', function (e) {
-            e.preventDefault();
-            const currentTheme = document.documentElement.getAttribute('data-bs-theme');
-            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-            document.documentElement.setAttribute('data-bs-theme', newTheme);
-            setThemeInLocalStorage(newTheme);
-
-            if (item) {
-                item.classList.remove('bi-brightness-high', 'bi-moon', 'bi-circle-half');
-                item.classList.add(newTheme === 'dark' ? 'bi-moon' : 'bi-brightness-high');
-                item.alt = newTheme === 'dark' ? 'Dark Theme' : 'Light Theme';
-            }
-        });
+    const btnLogout = document.getElementById('logout-button');
+    btnLogout.addEventListener('click', () => {
+        // Handle logout logic here
+        localStorage.removeItem("authToken");
+        window.location.href = "/";
+        console.log("[LOGOUT] User logged out");
     });
-
-    const themeIcons = document.querySelectorAll('.icon-theme');
-    themeIcons.forEach(themeIcon => {
-        const updateIconTheme = () => {
-            const theme = document.documentElement.getAttribute('data-bs-theme');
-            themeIcon.classList.toggle('text-light', theme === 'dark');
-            themeIcon.classList.toggle('text-dark', theme === 'light');
-        };
-        updateIconTheme();
-        const observer = new MutationObserver(updateIconTheme);
-        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-bs-theme'] });
-    });  
-
-    const applyThemeFromLocalStorage = () => {
-        const storedTheme = getThemeFromLocalStorage();
-        document.documentElement.setAttribute('data-bs-theme', storedTheme);
-
-        document.querySelectorAll('.theme-item').forEach(icon => {
-            icon.classList.remove('bi-brightness-high', 'bi-moon', 'bi-circle-half');
-            icon.classList.add(storedTheme === 'dark' ? 'bi-moon' : 'bi-brightness-high');
-            icon.alt = storedTheme === 'dark' ? 'Dark Theme' : 'Light Theme';
-        });
-
-        console.log("Apply theme: " + storedTheme);
-    };
-
-    const languageDropdown = document.getElementById('languageDropdown');
-    if (languageDropdown) {
-        const dropdownItems = document.querySelectorAll('.dropdown-item');
-        const dropdownToggle = document.getElementById('languageDropdown');
-        dropdownItems.forEach(item => {
-            if (item.dataset.lang === currentLang) {
-                dropdownToggle.textContent = item.textContent;
-                dropdownToggle.setAttribute('aria-label', item.textContent);
-            }
-        });
-    }
 
     document.getElementById("apiRestartButton").addEventListener('click', async () =>{
         try{
@@ -369,6 +324,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     lang =await initI18n();
     applyThemeFromLocalStorage();
+    setupThemeHandlers();
 
     await updateTranslate();
 

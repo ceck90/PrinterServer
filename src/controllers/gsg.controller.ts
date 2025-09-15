@@ -1,5 +1,6 @@
 import { Client } from "pg";
 import { handleIncomingOrderFromGSG } from "../dispatcher.ts";
+import { gsg_queries } from "../gsg-helper.ts";
 
 type NewOrderPayload = { operation: string; item: any };
 type PgConfig = ConstructorParameters<typeof Client>[0];
@@ -13,6 +14,9 @@ export class GSGController {
   private backoffMs = 1000;
   private readonly backoffMax = 15000;
   private heartbeatTimer?: Timer;
+
+  private readonly queue: any[] = [];
+  private isProcessing = false;
 
   private constructor(private readonly baseConfig?: PgConfig) {}
 
@@ -108,6 +112,21 @@ export class GSGController {
     if (!this.stopping) void this.connectAndListen();
   }
 
+  public async query(text: string, params?: any[]): Promise<any> {
+    try {
+      if(this.listener) {
+        const res = await this.listener.query(text, params);
+        return res;
+      } else {
+        console.error("[GSG] No client available for queries");
+      }
+    }
+    catch (err) {
+      console.error("[GSG] query error:", err);
+      throw err;
+    }
+  }
+
   private async onNotification(payload?: string) {
     if (!payload) return;
     let data: NewOrderPayload;
@@ -119,21 +138,111 @@ export class GSGController {
     }
 
     try {
-      // Filtro business: esportazione=false (coerente col tuo esempio)
-      if (data?.item?.esportazione === false && data?.item?.coperti > 0) {
-        await this.printOrder(data.item);
-      }
+      let result = await this.query(gsg_queries.righePerOrdineConTipologia, [data.item.id]);
+      await this.enqueueEvent(result.rows);
     } catch (err) {
       console.error("[GSG] errore processEvent:", err);
       // opzionale: DLQ / retry
     }
   }
 
-  private async printOrder(order: any): Promise<void> {
+  private async printOrderSittingsCount(order: any): Promise<void> {
     await handleIncomingOrderFromGSG(order);
   }
 
   private delay(ms: number) {
     return new Promise((res) => setTimeout(res, ms));
   }
+
+  public async enqueueEvent(eventData: any) {
+    this.queue.push(eventData);
+    console.log(`[GSG] Event enqueued, data: ${JSON.stringify(eventData)}`);
+    this.processQueue();
+  }
+
+  public async processQueue() {
+    if (this.isProcessing) return;
+    this.isProcessing = true;
+
+    console.log(`[GSG] Starting to process queue, items: ${this.queue.length}`);
+
+    while (this.queue.length > 0) {
+      console.log(`[GSG] Processing queue, items left: ${this.queue.length}`);
+      const event = this.queue.shift();
+      try {
+        // Qui inserisci l'evento in SQLite, ad esempio con una query.
+        await this.insertIntoSQLite(event);
+        // Filtro business: esportazione=false (coerente col tuo esempio)
+        if (event?.item?.esportazione === false && event?.item?.coperti > 0 && event?.item?.numeroTavolo != "") {
+          await this.printOrderSittingsCount(event.item);
+        }
+      } catch (error) {
+        console.error("[GSG] Errore durante l'inserimento in SQLite:", error);
+        // Qui potresti anche gestire un retry o un log.
+      }
+    }
+
+    this.isProcessing = false;
+  }
+
+  // Funzione simulata di inserimento in SQLite
+  private async insertIntoSQLite(event: any) {
+    // Esegui la tua query di inserimento su SQLite
+    // Ad esempio db.run("INSERT INTO ordini ...", [event.data]);
+    console.log("[GSG] Evento inserito:", event);
+  };
+
 }
+
+type GSGQueueHandler<T> = (item: T) => Promise<void>;
+
+export class GSGQueueProcessor<T> {
+  private queue: T[] = [];
+  private isProcessing = false;
+  private timer: NodeJS.Timeout | null = null;
+
+  constructor(
+    private handler: GSGQueueHandler<T>,
+    private intervalMs: number = 100
+  ) {}
+
+  enqueue(item: T): void {
+    this.queue.push(item);
+  }
+
+  start(): void {
+    if (this.timer) return; // già in esecuzione
+    this.timer = setInterval(() => this.processQueue(), this.intervalMs);
+  }
+
+  stop(): void {
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
+  }
+
+  flush(): Promise<void> {
+    return this.processQueue();
+  }
+
+  private async processQueue(): Promise<void> {
+    if (this.isProcessing || this.queue.length === 0) return;
+
+    this.isProcessing = true;
+    try {
+      while (this.queue.length > 0) {
+        const item = this.queue.shift();
+        if (item) {
+          await this.handler(item);
+        }
+      }
+    } catch (err) {
+      console.error(`[QueueProcessor] Errore durante l'elaborazione:`, err);
+    } finally {
+      this.isProcessing = false;
+    }
+  }
+}
+
+

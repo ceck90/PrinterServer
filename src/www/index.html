@@ -24,79 +24,70 @@
             <b><label class="text-auto" id="title" data-i18n="title"></label></b>
         </div>
         <div>
-            <span class="bi bi-gear text-light fs-4 me-4" id="settings-button" onclick="location.href='/settings'" type="button" alt="Settings"></span>
-            <span class="bi bi-upc-scan text-light fs-4 me-4" id="barcode-button" onclick="location.href='/barcode'" type="button" alt="Barcode"></span>
-            <span class="bi bi-info-square text-light fs-4 me-4" id="status-button" onclick="location.href='/status'" type="button" alt="Status"></span>
             <span class="bi bi-circle-half text-light fs-4 theme-item" type="button" alt="Theme"></span>
+            <span class="bi bi-box-arrow-right text-light fs-4 ms-4" id="logout-button" type="button" alt="Logout"></span>
         </div>
+        <div class="toast-container position-fixed end-0 p-3" id="toast-container"></div>
     </div>
     <!-- Server Card -->
-    <!-- <div class="container-fluid py-2">
+    <div class="container py-2">
         <div class="card text-auto bg-auto border-0 shadow-lg rounded-4 mb-3" style="backdrop-filter: blur(6px);">
-            <div class="card-header d-flex justify-content-between">
-                <h5 class="mb-0" data-i18n="server.title"></h5>
-                <small class="text-muted" data-i18n="server.status">Online</small>
+            <div class="card-header d-flex justify-content-center">
+                <h5 class="mb-0" data-i18n="menu.title"></h5>
             </div>
-            <div class="card-body">
-                <p class="card-text" data-i18n="server.description"></p>
+            <div class="d-flex align-items-center justify-content-center py-2 flex-wrap">
+
+                <button id="menuBtnOrders" type="button"
+                    class="btn-menu btn text-auto d-flex flex-column justify-content-center align-items-center rounded-3 m-5"
+                    onclick="location.href='/orders?token=' + localStorage.getItem('authToken')"
+                    alt="Orders">
+                    <span class="bi bi-receipt fs-1 my-2 menu-icon"></span>
+                    <b data-i18n="menu.orders"></b>
+                </button>
+                
+                <button id="menuBtnTickets" type="button"
+                    class="btn-menu btn text-auto d-flex flex-column justify-content-center align-items-center rounded-3 m-5"
+                    onclick="location.href='/tickets?token=' + localStorage.getItem('authToken')"
+                    alt="Tickets">
+                    <span class="bi bi-ticket-detailed  fs-1 my-2 menu-icon"></span>
+                    <b data-i18n="menu.tickets"></b>
+                </button>
+                
+                <button id="menuBtnBarcode" type="button"
+                    class="btn-menu btn text-auto d-flex flex-column justify-content-center align-items-center rounded-3 m-5"
+                    onclick="location.href='/barcode?token=' + localStorage.getItem('authToken')"
+                    alt="Barcode">
+                    <span class="bi bi-upc-scan fs-1 my-2 menu-icon"></span>
+                    <b data-i18n="menu.barcode"></b>
+                </button>
+
+                <button id="menuBtnDashboard" type="button"
+                    class="btn-menu btn text-auto d-flex flex-column justify-content-center align-items-center rounded-3 m-5"
+                    onclick="location.href='/dashboard?token=' + localStorage.getItem('authToken')"
+                    alt="Dashboard">
+                    <span class="bi bi-graph-up fs-1 my-2 menu-icon text-auto"></span>
+                    <b data-i18n="menu.dashboard"></b>
+                </button>
+                
+                <button id="menuBtnStatus" type="button"
+                    class="btn-menu btn text-auto d-flex flex-column justify-content-center align-items-center rounded-3 m-5"
+                    onclick="location.href='/status?token=' + localStorage.getItem('authToken')"
+                    alt="Status">
+                    <span class="bi bi-info-square fs-1 my-2 menu-icon"></span>
+                    <b data-i18n="menu.status"></b>
+                </button>
+
+                <button id="menuBtnSettings" type="button"
+                    class="btn-menu btn text-auto d-flex flex-column justify-content-center align-items-center rounded-3 m-5"
+                    onclick="location.href='/settings?token=' + localStorage.getItem('authToken')"
+                    alt="Settings">
+                    <span class="bi bi-gear fs-1 my-2 menu-icon"></span>
+                    <b data-i18n="menu.settings"></b>
+                </button>
             </div>
         </div>
-    </div> -->
+    </div>
 
-    <!-- Ticket List -->
-    <nav>
-        <ul class="pagination justify-content-center mt-3" id="pagination">
-            <div class="container-fluid flex-grow-1 overflow-y-auto mh-100 py-1">
-                <div class="card text-auto bg-auto border-0 shadow-lg rounded-4 mb-3" style="backdrop-filter: blur(6px);">
-                    <div class="card-header d-flex justify-content-between">
-                        <div class="d-flex justify-content-between">
-                            <h5 class="" data-i18n="tickets.title"></h5>
-                            <h5 class="text-muted ms-2" id="ticket-count">0</h5>
-                        </div>
-                        <div class="d-flex justify-content-between">
-                            <div class="input-group me-3" style="max-width: 350px;">
-                                <input type="text" id="table-search" class="form-control" placeholder="Cerca..." />
-                                <button class="btn btn-outline-secondary" type="button" id="btn-search">
-                                    <i class="bi bi-search"></i>
-                                </button>
-                                <button class="btn btn-outline-secondary" type="button" id="btn-clear">
-                                    <i class="bi bi-x-circle"></i>
-                                </button>
-                            </div>
-                            <div class="input-group" style="max-width: 350px;">
-                                <input type="text" id="date-range" class="form-control" placeholder="Filtro Date" />
-                                <span class="input-group-text"><i class="bi bi-calendar-range" type="button" id="btn-date-range"></i></span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="card-body">
-                        <table class="table table-hover  mb-0" id="ticket-list">
-                            <thead>
-                                <tr>
-                                    <!-- <th scope="col" data-i18n="ticket.id"></th> -->
-                                    <th scope="col" data-i18n="ticket.order_id"></th>
-                                    <th scope="col" data-i18n="ticket.client_name"></th>
-                                    <th scope="col" data-i18n="ticket.table_number"></th>
-                                    <th scope="col" data-i18n="ticket.plate_name"></th>
-                                    <th scope="col" data-i18n="ticket.item_name"></th>
-                                    <th scope="col" data-i18n="ticket.item_note"></th>
-                                    <th scope="col" data-i18n="ticket.order_notes"></th>
-                                    <!-- <th scope="col" data-i18n="ticket.printed"></th> -->
-                                    <!-- <th scope="col" data-i18n="ticket.reprinted"></th> -->
-                                    <th scope="col" data-i18n="ticket.actions"></th>
-                                    <th scope="col" data-i18n="ticket.take_away"></th>
-                                </tr>
-                            </thead>
-                            <tbody id="ticket-list-body" class="table-hover table-group-divider">
-                                <!-- Ticket rows will be dynamically inserted here -->
-                            </tbody>
-                        </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </ul>
-    </nav>
 
 </body>
 

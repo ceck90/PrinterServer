@@ -1,12 +1,15 @@
 
 import { translate, updateTranslate, initI18n, getLanguageFromLocalStorage } from './i18n.js';
-import { getThemeFromLocalStorage, setThemeInLocalStorage } from './theme.js';
+import { applyThemeFromLocalStorage, setupThemeHandlers } from './theme.js';
 // import { Toast } from 'bootstrap';
+import { spawnToast } from './utility.js';
 
 // import { flatpickr } from '../flatpickr/js/flatpickr.js';
 
 let lang = "en-US"; // Default language
 // let theme = getThemeFromLocalStorage(); // Default theme
+
+
 
 /**
  * Handles the initialization of the status page once the DOM is fully loaded.
@@ -26,109 +29,13 @@ let lang = "en-US"; // Default language
 
 document.addEventListener("DOMContentLoaded", async () => {
 
-    // Funzione per mostrare un toast Bootstrap
-    function showToast(message, options = {}) {
-        // Cerca o crea il contenitore dei toast
-        let toastContainer = document.getElementById('toast-container');
-        if (!toastContainer) {
-            toastContainer = document.createElement('div');
-            toastContainer.id = 'toast-container';
-            toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
-            document.body.appendChild(toastContainer);
-        }
-
-        // Crea il markup del toast
-        const toastElem = document.createElement('div');
-        toastElem.className = 'toast align-items-center text-bg-primary border-0';
-        toastElem.setAttribute('role', 'alert');
-        toastElem.setAttribute('aria-live', 'assertive');
-        toastElem.setAttribute('aria-atomic', 'true');
-        toastElem.innerHTML = `
-            <div class="d-flex">
-                <div class="toast-body">
-                    ${message}
-                </div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-            </div>
-        `;
-
-        toastContainer.appendChild(toastElem);
-
-        
-        // Opzioni di default
-        const toastOptions = {
-            delay: options.delay || 3000,
-            autohide: options.autohide !== undefined ? options.autohide : true
-        };
-        // $('.toast').toast(toastOptions);
-
-        // Inizializza e mostra il toast
-        // const toast = new Toast(toastElem, toastOptions);
-        // toast.show();
-
-        // Rimuovi il toast dal DOM quando viene nascosto
-        toastElem.addEventListener('hidden.bs.toast', () => {
-            toastElem.remove();
-        });
-    }
-
-    // Esempio d'uso:
-    // showToast('Hello, this is a Bootstrap toast!');
-
-    const themeItems = document.querySelectorAll('.theme-item');
-
-    themeItems.forEach(item => {
-        item.addEventListener('click', function (e) {
-            e.preventDefault();
-            const currentTheme = document.documentElement.getAttribute('data-bs-theme');
-            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-            document.documentElement.setAttribute('data-bs-theme', newTheme);
-            setThemeInLocalStorage(newTheme);
-
-            if (item) {
-                item.classList.remove('bi-brightness-high', 'bi-moon', 'bi-circle-half');
-                item.classList.add(newTheme === 'dark' ? 'bi-moon' : 'bi-brightness-high');
-                item.alt = newTheme === 'dark' ? 'Dark Theme' : 'Light Theme';
-            }
-        });
+    const btnLogout = document.getElementById('logout-button');
+    btnLogout.addEventListener('click', () => {
+        // Handle logout logic here
+        localStorage.removeItem("authToken");
+        window.location.href = "/";
+        console.log("[LOGOUT] User logged out");
     });
-
-    const themeIcons = document.querySelectorAll('.icon-theme');
-    themeIcons.forEach(themeIcon => {
-        const updateIconTheme = () => {
-            const theme = document.documentElement.getAttribute('data-bs-theme');
-            themeIcon.classList.toggle('text-light', theme === 'dark');
-            themeIcon.classList.toggle('text-dark', theme === 'light');
-        };
-        updateIconTheme();
-        const observer = new MutationObserver(updateIconTheme);
-        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-bs-theme'] });
-    });  
-
-    const applyThemeFromLocalStorage = () => {
-        const storedTheme = getThemeFromLocalStorage();
-        document.documentElement.setAttribute('data-bs-theme', storedTheme);
-
-        document.querySelectorAll('.theme-item').forEach(icon => {
-            icon.classList.remove('bi-brightness-high', 'bi-moon', 'bi-circle-half');
-            icon.classList.add(storedTheme === 'dark' ? 'bi-moon' : 'bi-brightness-high');
-            icon.alt = storedTheme === 'dark' ? 'Dark Theme' : 'Light Theme';
-        });
-
-        console.log("Apply theme: " + storedTheme);
-    };
-
-    const languageDropdown = document.getElementById('languageDropdown');
-    if (languageDropdown) {
-        const dropdownItems = document.querySelectorAll('.dropdown-item');
-        const dropdownToggle = document.getElementById('languageDropdown');
-        dropdownItems.forEach(item => {
-            if (item.dataset.lang === currentLang) {
-                dropdownToggle.textContent = item.textContent;
-                dropdownToggle.setAttribute('aria-label', item.textContent);
-            }
-        });
-    }
     
     const fetchPrinters = async () => {
         try {
@@ -166,13 +73,13 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
         } catch (error) {
             console.error("Error adding printer:", error);
-            showToast(translate('Error adding printer: ') + error.message);
+            spawnToast(translate('Error adding printer: ') + error.message, options = { title: "Error", icon: true });
         }
     };
 
-    const deletePrinter = async (prinetKey) => {
+    const deletePrinter = async (printerKey) => {
         try {
-            const response = await fetch(`/api/printers/delete/${prinetKey}`, {
+            const response = await fetch(`/api/printers/delete/${printerKey}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -185,14 +92,14 @@ document.addEventListener("DOMContentLoaded", async () => {
             console.log("Delete printer result:", response);
             if (response) {
                 // alert(translate('Printer deleted successfully'));
-                showToast('Printer deleted successfully');
+                spawnToast('Printer deleted successfully', { title: "Success", icon: true });
                 await fillPrinterTable(); // Refresh the table after deletion
             } else {
-                showToast(translate('Error deleting printer: ') + response);
+                spawnToast(translate('Error deleting printer: ') + response, { title: "Error", icon: true });
             }
         } catch (error) {
             console.error("Error deleting printer:", error);
-            showToast(translate('Error deleting printer: ') + error.message);
+            spawnToast(translate('Error deleting printer: ') + error.message, { title: "Error", icon: true });
         }
     };
 
@@ -243,16 +150,16 @@ document.addEventListener("DOMContentLoaded", async () => {
             console.log("Save result:", response);
             if (response) {
                 // alert(translate('Printers saved successfully'));
-                showToast(translate('Printers saved successfully'));
+                spawnToast(translate('Printers saved successfully'), { title: "Success", icon: true });
                 await fillPrinterTable(); // Refresh the table after saving
             } else {
                 // alert(translate('Error saving printers: ') + response);
-                showToast(translate('Error saving printers: ') + response);
+                spawnToast(translate('Error saving printers: ') + response, { title: "Error", icon: true });
             }
         } catch (error) {
             console.error("Error saving printers:", error);
             // alert(translate('Error saving printers: ') + error.message);
-            showToast(translate('Error saving printers: ') + error.message);
+            spawnToast(translate('Error saving printers: ') + error.message, { title: "Error", icon: true });
         }
     };
 
@@ -272,13 +179,13 @@ document.addEventListener("DOMContentLoaded", async () => {
                 <td><input type="text" class="form-control" id="printer-ip-${printer.key}" value="${printer.ip}"></td>
                 <td><input type="number" class="form-control" id="printer-port-${printer.key}" value="${printer.port}"></td>
                 <td><input type="text" class="form-control" id="printer-destination-${printer.key}" value="${printer.destination}"></td>
-                <td>
+                <td style="text-align: center;">
                     <input type="checkbox" class="form-check-input printer-active-checkbox align-item-center" id="printer-active-${printer.key}" ${printer.active ? 'checked' : ''}>
                 </td>
-                <td>
+                <td style="text-align: center;">
                     <input type="checkbox" class="form-check-input printer-upside-down-checkbox align-item-center" id="printer-upside-down-${printer.key}" ${printer.upsideDown ? 'checked' : ''}>
                 </td>
-                <td>
+                <td style="text-align: center;">
                     <input type="checkbox" class="form-check-input printer-beep-enable-checkbox align-item-center" id="printer-beep-enable-${printer.key}" ${printer.beepEnable ? 'checked' : ''}>
                 </td>
                 <td><input type="text" class="form-control" id="printer-description-${printer.key}" value="${printer.description}"></td>
@@ -386,6 +293,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     lang = await initI18n();
     applyThemeFromLocalStorage();
+    setupThemeHandlers();
 
     await updateTranslate();
 

@@ -8,6 +8,7 @@ import { printSpecificOrder } from './dispatcher.ts';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Client } from 'pg';
+import { gsg_queries } from './gsg-helper.ts';
 // import { printTest } from './receipt.ts';
 
 /**
@@ -36,10 +37,17 @@ console.log("Inizializzazione del server...");
 const envPath = path.resolve(process.cwd(), '.env');
 if (!fs.existsSync(envPath)) {
     const defaultEnv = `# Default .env file
-        DB_PATH=./db.sqlite
+        DB_PATH=./data/db.sqlite
         KITCHEN_MGMT_SERVER_URL=http://127.0.0.1:8080
         WS_CLIENT_RECONNECT_ATTEMPTS=-1
         WS_CLIENT_RECONNECT_DELAY_MS=2000
+        TOKEN_KEY="05q8GiW=atxs"
+        HTTP_SERVER_PORT=4000
+        GSG_DB_HOST=127.0.0.1
+        GSG_DB_PORT=5432
+        GSG_DB_USER=postgres
+        GSG_DB_PASSWORD=postgres
+        GSG_DB_DATABASE=sagra
         NODE_ENV=development
     `;
     fs.writeFileSync(envPath, defaultEnv, { encoding: 'utf8' });
@@ -107,16 +115,20 @@ const WSClientOptions = {
 const wsClientController = WSClientController.getInstance(WSClientOptions);
 
 const gsgController = GSGController.getInstance(new Client({
-    host: '10.10.1.12',
-    port: 5432,
-    user: 'postgres',
-    password: 'postgres',
-    database: 'sagra'
+    host: process.env.GSG_DB_HOST || '1127.0.0.1',
+    port: parseInt(process.env.GSG_DB_PORT || '5432', 10),
+    user: process.env.GSG_DB_USER || 'postgres',
+    password: process.env.GSG_DB_PASSWORD || 'postgres',
+    database: process.env.GSG_DB_DATABASE || 'sagra'
 }));
 
-gsgController.start().catch(err => {
+await gsgController.start().catch(err => {
     console.error("[GSG] errore durante l'avvio:", err);
 });
+
+// const gsgQueryResult = await gsgController.query(gsg_queries.elencoArticoli, ['2025-01-01', '2025-09-30']);
+// const gsgQueryResult = await gsgController.query(gsg_queries.elencoArticoli);
+// console.log("[GSG] Risultato query elencoArticoli:", gsgQueryResult.rows);
 
 
 // ==================
@@ -152,22 +164,60 @@ jobController
     .on("job:removed", id => console.log(`[${id}] Removed`))
     .on("shutdown", () => console.log(`Shutdown`));
 
-    // const id = Bun.randomUUIDv7();
-    // console.log(id);
+// const id = Bun.randomUUIDv7();
+// console.log(id)
 
-  // Esempio: job ogni 5s
+// # ┌────────────── second (optional)
+// # │ ┌──────────── minute
+// # │ │ ┌────────── hour
+// # │ │ │ ┌──────── day of month
+// # │ │ │ │ ┌────── month
+// # │ │ │ │ │ ┌──── day of week
+// # │ │ │ │ │ │
+// # │ │ │ │ │ │
+// # * * * * * *
+
+
+// jobController.create({
+//     id: "PING",
+//     name: "Ping Logger",
+//     cron: "*/60 * * * * *", // ogni 60 secondi (syntax con seconds abilitata da node-cron)
+//     timezone: "Europe/Rome",
+//     task: () => {
+//         console.log(`[JOB - PING] Ping...`);
+//         httpServerController.broadcast({ type: 'ping', timestamp: new Date().toISOString() });
+//         // console.log(httpServerController.listClients());
+//     },
+//     startNow: false,
+//     meta: { env: process.env.NODE_ENV ?? "development" },
+//   });
+
 jobController.create({
-    id: "PING",
-    name: "Ping Logger",
-    cron: "*/60 * * * * *", // ogni 60 secondi (syntax con seconds abilitata da node-cron)
+    id: "GSG_QUEUE",
+    name: "GSG Queue Processor",
+    cron: "0 */10 * * * *", // ogni 10 minuti (syntax con seconds abilitata da node-cron)
     timezone: "Europe/Rome",
-    task: () => {
-        console.log(`[JOB - PING] Ping...`);
-        httpServerController.broadcast({ type: 'ping', timestamp: new Date().toISOString() });
+    task: async () => {
+        // let orders = await gsgController.query(gsg_queries.righePerOrdineConTipologiaUnprocessed);
+        // await gsgController.enqueueEvent(orders);
+        // console.log(`[JOB - GSG_QUEUE] Processed ${orders.length} new orders from GSG`);
+        console.log(`[JOB - GSG_QUEUE] Checking for new orders from GSG...`);
     },
     startNow: true,
     meta: { env: process.env.NODE_ENV ?? "development" },
   });
+
+  jobController.create({
+    id: "DB_BACKUP",
+    name: "Database Backup",
+    cron: "0 */30 * * * *", // ogni 30 minuti (syntax con seconds abilitata da node-cron)
+    timezone: "Europe/Rome",
+    task: async () => {
+        await dbController.backupDatabase(dbController.getDbPath());
+    },
+    startNow: false,
+    meta: { env: process.env.NODE_ENV ?? "development" },
+});
 
 console.log("[MAIN] ✅ Server avviato con successo!");
 
