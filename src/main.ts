@@ -43,6 +43,11 @@ if (!fs.existsSync(envPath)) {
         WS_CLIENT_RECONNECT_DELAY_MS=2000
         TOKEN_KEY="05q8GiW=atxs"
         HTTP_SERVER_PORT=4000
+        GSG_DB_HOST=127.0.0.1
+        GSG_DB_PORT=5432
+        GSG_DB_USER=postgres
+        GSG_DB_PASSWORD=postgres
+        GSG_DB_DATABASE=sagra
         NODE_ENV=development
     `;
     fs.writeFileSync(envPath, defaultEnv, { encoding: 'utf8' });
@@ -110,11 +115,11 @@ const WSClientOptions = {
 const wsClientController = WSClientController.getInstance(WSClientOptions);
 
 const gsgController = GSGController.getInstance(new Client({
-    host: '10.10.1.12',
-    port: 5432,
-    user: 'postgres',
-    password: 'postgres',
-    database: 'sagra'
+    host: process.env.GSG_DB_HOST || '1127.0.0.1',
+    port: parseInt(process.env.GSG_DB_PORT || '5432', 10),
+    user: process.env.GSG_DB_USER || 'postgres',
+    password: process.env.GSG_DB_PASSWORD || 'postgres',
+    database: process.env.GSG_DB_DATABASE || 'sagra'
 }));
 
 await gsgController.start().catch(err => {
