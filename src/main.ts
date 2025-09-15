@@ -172,7 +172,7 @@ jobController
 // # │ │ │ │ │ │
 // # * * * * * *
 
-  // Esempio: job ogni 60s
+
 // jobController.create({
 //     id: "PING",
 //     name: "Ping Logger",
