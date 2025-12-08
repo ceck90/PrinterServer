@@ -12,6 +12,19 @@ export async function sendToPrinter(name: string, ip: string, port: number, buff
     return new Promise((resolve, reject) => {
         console.log(`[PRINT] Inviando dati alla stampante [${name}] @ ${ip}:${port}`);
         // console.log(`[PRINT] Dati da inviare:`, buffer.toString('hex'));
+        
+        let timeoutId: Timer | undefined;
+        let socket: any;
+        
+        // Timeout di 5 secondi per la connessione
+        timeoutId = setTimeout(() => {
+            console.error(`[PRINT] Timeout connessione alla stampante ${ip}:${port}`);
+            if (socket) {
+                socket.end();
+            }
+            reject(new Error(`Timeout connessione alla stampante ${name} (${ip}:${port})`));
+        }, 1000);
+        
         Bun.connect({
             hostname: ip,
             port,
@@ -21,6 +34,9 @@ export async function sendToPrinter(name: string, ip: string, port: number, buff
                  * Scrive il buffer e chiude la connessione.
                  */
                 open(sock) {
+                    socket = sock;
+                    if (timeoutId) clearTimeout(timeoutId);
+                    
                     // console.log(`[PRINT] Connessione aperta alla stampante ${ip}:${port}`);
                     sock.write(buffer);
                     // console.log(`[PRINT] Dati inviati alla stampante ${ip}:${port}`);
@@ -31,6 +47,7 @@ export async function sendToPrinter(name: string, ip: string, port: number, buff
                  * Evento chiamato in caso di errore sulla connessione.
                  */
                 error(err) {
+                    if (timeoutId) clearTimeout(timeoutId);
                     console.error(`[PRINT] Errore durante l'invio alla stampante ${ip}:${port}:`, err);
                     reject(err);
                 },
@@ -38,6 +55,7 @@ export async function sendToPrinter(name: string, ip: string, port: number, buff
                  * Evento chiamato alla chiusura della connessione.
                  */
                 close() {
+                    if (timeoutId) clearTimeout(timeoutId);
                     // console.log(`[PRINT] Connessione chiusa con la stampante ${ip}:${port}`);
                 },
                 /**
@@ -49,8 +67,9 @@ export async function sendToPrinter(name: string, ip: string, port: number, buff
                 }
             }
         }).catch(err => {
+            if (timeoutId) clearTimeout(timeoutId);
             // Gestione errori di connessione TCP
-            console.error(`[PRINT] Errore di connessione alla stampante ${ip}:${port}:`, err);
+            console.error(`[PRINT] Errore di connessione alla stampante ${ip}:${port}`);
             reject(err);
         });
     });

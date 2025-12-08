@@ -299,9 +299,9 @@ export async function regenerateSpecificReceipt(orderNumber: number, destination
                     takeAway: receipt.takeAway
                 }]
             };
-            console.log(`[DISPATCHER] Rigenero il ticket per ordine ${receipt.id} con dati:`, order);
+            // console.log(`[DISPATCHER] Rigenero il ticket per ordine ${receipt.id} con dati:`, order);
             const buffer = await buildKitchenTicket_v2(order, destination ? destination : receipt.destination, order.items, printer.upsideDown, printer.beepEnable);
-            await sendToPrinter(printer.destination, printer.ip, printer.port, buffer);
+            await sendToPrinter(destination ? destination : receipt.destination, printer.ip, printer.port, buffer);
             console.log(`[DISPATCHER] ticket per ordine ${receipt.id} rigenerata e stampata su ${destination ? destination : receipt.destination}`);
         } else {
             console.warn(`[DISPATCHER] Stampante ${destination ? destination : receipt.destination} non attiva, non posso rigenerare il ticket per ordine ${receipt.id}`);
