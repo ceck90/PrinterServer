@@ -12,8 +12,8 @@ export const gsg_queries = {
     )
     SELECT
       COUNT(*)                             AS ordini,
-      COALESCE(SUM(totalePagato), 0)::numeric AS incasso_totale,
-      AVG(NULLIF(totalePagato,0))          AS scontrino_medio,
+      COALESCE(SUM("totalePagato"), 0)::numeric AS incasso_totale,
+      AVG(NULLIF("totalePagato",0))          AS scontrino_medio,
       COALESCE(SUM(totale_coperto), 0)     AS totale_coperto,
       COALESCE(SUM(totale_asporto), 0)     AS totale_asporto
     FROM base;
@@ -21,7 +21,7 @@ export const gsg_queries = {
 
     // 2) Breakdown per area
     perArea: `
-    SELECT area, COUNT(*) AS ordini, SUM(totalePagato) AS incasso
+    SELECT area, COUNT(*) AS ordini, SUM("totalePagato") AS incasso
     FROM ordini
     WHERE serata BETWEEN $1 AND $2
     GROUP BY area
@@ -33,7 +33,7 @@ export const gsg_queries = {
     SELECT
       date_trunc('hour', (data + COALESCE(ora,'00:00')::time)) AS ora,
       COUNT(*)                         AS ordini,
-      SUM(totalePagato)                AS incasso
+      SUM("totalePagato")                AS incasso
     FROM ordini
     WHERE serata BETWEEN $1 AND $2
     GROUP BY 1
@@ -42,7 +42,7 @@ export const gsg_queries = {
 
     // 4) Tipologia pagamento
     perPagamento: `
-    SELECT tipo_pagamento, COUNT(*) AS ordini, SUM(totalePagato) AS incasso
+    SELECT tipo_pagamento, COUNT(*) AS ordini, SUM("totalePagato") AS incasso
     FROM ordini
     WHERE serata BETWEEN $1 AND $2
     GROUP BY tipo_pagamento
@@ -50,13 +50,13 @@ export const gsg_queries = {
   `,
 
     // 5) Dine-in vs Asporto
-    salaVsAsporto: `
+    piazzaVsAsporto: `
     SELECT
-    CASE WHEN COALESCE(esportazione) = true THEN 'ASPORTO' ELSE 'SALA' END AS canale,
+    CASE WHEN COALESCE(esportazione) = true THEN 'ASPORTO' ELSE 'PIAZZA' END AS canale,
     COUNT(*) AS ordini,
     SUM("totalePagato") AS incasso
     FROM ordini
-    WHERE serata BETWEEN '2025-01-01' AND '2025-09-30'
+    WHERE serata BETWEEN $1 AND $2
     GROUP BY 1
     ORDER BY incasso DESC;
   `,
@@ -88,7 +88,7 @@ export const gsg_queries = {
 
     // 8) Performance per cassiere
     perCassiere: `
-    SELECT cassiere, COUNT(*) AS ordini, SUM(totalePagato) AS incasso
+    SELECT cassiere, COUNT(*) AS ordini, SUM("totalePagato") AS incasso
     FROM ordini
     WHERE serata BETWEEN $1 AND $2
     GROUP BY cassiere
@@ -97,10 +97,10 @@ export const gsg_queries = {
 
     // 9) Performance per tavolo
     perTavolo: `
-    SELECT numeroTavolo, COUNT(*) AS n_ordini, SUM(totalePagato) AS incasso
+    SELECT "numeroTavolo", COUNT(*) AS n_ordini, SUM("totalePagato") AS incasso
     FROM ordini
     WHERE serata BETWEEN $1 AND $2
-    GROUP BY numeroTavolo
+    GROUP BY "numeroTavolo"
     ORDER BY incasso DESC;
   `,
 

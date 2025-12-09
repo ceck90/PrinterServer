@@ -5,6 +5,8 @@ import { DatabaseController } from "./db.controller";
 import { printSpecificOrder, printTestTicket, regenerateSpecificReceipt } from "../dispatcher";
 import { loadPrintersFromDb } from "../print-routing.config";
 import { KitchenManagementController } from "./kitchenmgmt.controller";
+import { GSGController } from "./gsg.controller";
+import { StatisticsController } from "./statistics.controller";
 import { ServerWebSocket } from "bun";
 import { config } from "dotenv";
 import { verify } from "crypto";
@@ -549,6 +551,310 @@ export class HttpServerController {
             }
         });
 
+
+        // ==================
+        // Statistics API Routes
+        // ==================
+        
+        this.app.get("/api/statistics/totals", async ({ request }) => {
+            try {
+                const url = new URL(request.url);
+                const startDate = url.searchParams.get("startDate");
+                const endDate = url.searchParams.get("endDate");
+                
+                if (!startDate || !endDate) {
+                    return new Response(JSON.stringify({ error: "startDate and endDate are required" }), { 
+                        status: 400, 
+                        headers: { "Content-Type": "application/json" } 
+                    });
+                }
+                
+                const gsgController = GSGController.getInstance();
+                const statsController = new StatisticsController(gsgController["listener"]!);
+                const data = await statsController.getTotals(startDate, endDate);
+                
+                return new Response(JSON.stringify(data), { 
+                    status: 200, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            } catch (err) {
+                console.error("[API] Error getting statistics totals:", err);
+                return new Response(JSON.stringify({ error: "Internal Server Error" }), { 
+                    status: 500, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            }
+        });
+        
+        this.app.get("/api/statistics/trend", async ({ request }) => {
+            try {
+                const url = new URL(request.url);
+                const startDate = url.searchParams.get("startDate");
+                const endDate = url.searchParams.get("endDate");
+                
+                if (!startDate || !endDate) {
+                    return new Response(JSON.stringify({ error: "startDate and endDate are required" }), { 
+                        status: 400, 
+                        headers: { "Content-Type": "application/json" } 
+                    });
+                }
+                
+                const gsgController = GSGController.getInstance();
+                const statsController = new StatisticsController(gsgController["listener"]!);
+                const data = await statsController.getTrend(startDate, endDate);
+                
+                return new Response(JSON.stringify(data), { 
+                    status: 200, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            } catch (err) {
+                console.error("[API] Error getting statistics trend:", err);
+                return new Response(JSON.stringify({ error: "Internal Server Error" }), { 
+                    status: 500, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            }
+        });
+        
+        this.app.get("/api/statistics/by-area", async ({ request }) => {
+            try {
+                const url = new URL(request.url);
+                const startDate = url.searchParams.get("startDate");
+                const endDate = url.searchParams.get("endDate");
+                
+                if (!startDate || !endDate) {
+                    return new Response(JSON.stringify({ error: "startDate and endDate are required" }), { 
+                        status: 400, 
+                        headers: { "Content-Type": "application/json" } 
+                    });
+                }
+                
+                const gsgController = GSGController.getInstance();
+                const statsController = new StatisticsController(gsgController["listener"]!);
+                const data = await statsController.getByArea(startDate, endDate);
+                
+                return new Response(JSON.stringify(data), { 
+                    status: 200, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            } catch (err) {
+                console.error("[API] Error getting statistics by area:", err);
+                return new Response(JSON.stringify({ error: "Internal Server Error" }), { 
+                    status: 500, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            }
+        });
+        
+        this.app.get("/api/statistics/by-payment", async ({ request }) => {
+            try {
+                const url = new URL(request.url);
+                const startDate = url.searchParams.get("startDate");
+                const endDate = url.searchParams.get("endDate");
+                
+                if (!startDate || !endDate) {
+                    return new Response(JSON.stringify({ error: "startDate and endDate are required" }), { 
+                        status: 400, 
+                        headers: { "Content-Type": "application/json" } 
+                    });
+                }
+                
+                const gsgController = GSGController.getInstance();
+                const statsController = new StatisticsController(gsgController["listener"]!);
+                const data = await statsController.getByPayment(startDate, endDate);
+                
+                return new Response(JSON.stringify(data), { 
+                    status: 200, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            } catch (err) {
+                console.error("[API] Error getting statistics by payment:", err);
+                return new Response(JSON.stringify({ error: "Internal Server Error" }), { 
+                    status: 500, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            }
+        });
+        
+        this.app.get("/api/statistics/channel", async ({ request }) => {
+            try {
+                const url = new URL(request.url);
+                const startDate = url.searchParams.get("startDate");
+                const endDate = url.searchParams.get("endDate");
+                
+                if (!startDate || !endDate) {
+                    return new Response(JSON.stringify({ error: "startDate and endDate are required" }), { 
+                        status: 400, 
+                        headers: { "Content-Type": "application/json" } 
+                    });
+                }
+                
+                const gsgController = GSGController.getInstance();
+                const statsController = new StatisticsController(gsgController["listener"]!);
+                const data = await statsController.getChannel(startDate, endDate);
+                
+                return new Response(JSON.stringify(data), { 
+                    status: 200, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            } catch (err) {
+                console.error("[API] Error getting statistics channel:", err);
+                return new Response(JSON.stringify({ error: "Internal Server Error" }), { 
+                    status: 500, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            }
+        });
+        
+        this.app.get("/api/statistics/top-products", async ({ request }) => {
+            try {
+                const url = new URL(request.url);
+                const startDate = url.searchParams.get("startDate");
+                const endDate = url.searchParams.get("endDate");
+                
+                if (!startDate || !endDate) {
+                    return new Response(JSON.stringify({ error: "startDate and endDate are required" }), { 
+                        status: 400, 
+                        headers: { "Content-Type": "application/json" } 
+                    });
+                }
+                
+                const gsgController = GSGController.getInstance();
+                const statsController = new StatisticsController(gsgController["listener"]!);
+                const data = await statsController.getTopProducts(startDate, endDate);
+                
+                return new Response(JSON.stringify(data), { 
+                    status: 200, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            } catch (err) {
+                console.error("[API] Error getting top products:", err);
+                return new Response(JSON.stringify({ error: "Internal Server Error" }), { 
+                    status: 500, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            }
+        });
+        
+        this.app.get("/api/statistics/top-categories", async ({ request }) => {
+            try {
+                const url = new URL(request.url);
+                const startDate = url.searchParams.get("startDate");
+                const endDate = url.searchParams.get("endDate");
+                
+                if (!startDate || !endDate) {
+                    return new Response(JSON.stringify({ error: "startDate and endDate are required" }), { 
+                        status: 400, 
+                        headers: { "Content-Type": "application/json" } 
+                    });
+                }
+                
+                const gsgController = GSGController.getInstance();
+                const statsController = new StatisticsController(gsgController["listener"]!);
+                const data = await statsController.getTopCategories(startDate, endDate);
+                
+                return new Response(JSON.stringify(data), { 
+                    status: 200, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            } catch (err) {
+                console.error("[API] Error getting top categories:", err);
+                return new Response(JSON.stringify({ error: "Internal Server Error" }), { 
+                    status: 500, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            }
+        });
+        
+        this.app.get("/api/statistics/by-cashier", async ({ request }) => {
+            try {
+                const url = new URL(request.url);
+                const startDate = url.searchParams.get("startDate");
+                const endDate = url.searchParams.get("endDate");
+                
+                if (!startDate || !endDate) {
+                    return new Response(JSON.stringify({ error: "startDate and endDate are required" }), { 
+                        status: 400, 
+                        headers: { "Content-Type": "application/json" } 
+                    });
+                }
+                
+                const gsgController = GSGController.getInstance();
+                const statsController = new StatisticsController(gsgController["listener"]!);
+                const data = await statsController.getByCashier(startDate, endDate);
+                
+                return new Response(JSON.stringify(data), { 
+                    status: 200, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            } catch (err) {
+                console.error("[API] Error getting statistics by cashier:", err);
+                return new Response(JSON.stringify({ error: "Internal Server Error" }), { 
+                    status: 500, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            }
+        });
+        
+        this.app.get("/api/statistics/by-table", async ({ request }) => {
+            try {
+                const url = new URL(request.url);
+                const startDate = url.searchParams.get("startDate");
+                const endDate = url.searchParams.get("endDate");
+                
+                if (!startDate || !endDate) {
+                    return new Response(JSON.stringify({ error: "startDate and endDate are required" }), { 
+                        status: 400, 
+                        headers: { "Content-Type": "application/json" } 
+                    });
+                }
+                
+                const gsgController = GSGController.getInstance();
+                const statsController = new StatisticsController(gsgController["listener"]!);
+                const data = await statsController.getByTable(startDate, endDate);
+                
+                return new Response(JSON.stringify(data), { 
+                    status: 200, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            } catch (err) {
+                console.error("[API] Error getting statistics by table:", err);
+                return new Response(JSON.stringify({ error: "Internal Server Error" }), { 
+                    status: 500, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            }
+        });
+        
+        this.app.get("/api/statistics/departments", async ({ request }) => {
+            try {
+                const url = new URL(request.url);
+                const startDate = url.searchParams.get("startDate");
+                const endDate = url.searchParams.get("endDate");
+                
+                if (!startDate || !endDate) {
+                    return new Response(JSON.stringify({ error: "startDate and endDate are required" }), { 
+                        status: 400, 
+                        headers: { "Content-Type": "application/json" } 
+                    });
+                }
+                
+                const gsgController = GSGController.getInstance();
+                const statsController = new StatisticsController(gsgController["listener"]!);
+                const data = await statsController.getDepartments(startDate, endDate);
+                
+                return new Response(JSON.stringify(data), { 
+                    status: 200, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            } catch (err) {
+                console.error("[API] Error getting statistics departments:", err);
+                return new Response(JSON.stringify({ error: "Internal Server Error" }), { 
+                    status: 500, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            }
+        });
         //#endregion API
         
         // Avvia il server HTTP sulla porta 4000
@@ -631,5 +937,3 @@ export class HttpServerController {
         try { ws.close(code, reason); this.wsClients.delete(id); return true; } catch { return false; }
     }
 }
-
-
