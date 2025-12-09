@@ -121,76 +121,84 @@ export class HttpServerController {
         //#endregion LOGIN API
 
         //#region ROUTES
-        // Route per la pagina principale
-        this.app.get("/", requireAuth(() => {
-            try {
-                const html = readFileSync(join(import.meta.dir, "../www/index.html"), "utf8");
-                return new Response(html, { headers: { "Content-Type": "text/html" } });
-            } catch (err) {
-                return new Response("File index.html Not found", { status: 404 });
-            }
-        }));
+        //enable routes base on .env flag
+        const ENABLE_AUTH_PAGES = process.env.ENABLE_AUTH_PAGES === "true";
+        if (ENABLE_AUTH_PAGES) {
 
-        // Route per la pagina di login
-        this.app.get("/login", () => {
-            try {
-                const html = readFileSync(join(import.meta.dir, "../www/login.html"), "utf8");
-                return new Response(html, { headers: { "Content-Type": "text/html" } });
-            } catch (err) {
-                return new Response("File login.html Not found", { status: 404 });
-            }
-        });
+            // Route per la pagina principale
+            console.log("[WWW] ❗ Auth pages disabled via .env");
+            this.app.get("/", requireAuth(() => {
+                try {
+                    const html = readFileSync(join(import.meta.dir, "../www/index.html"), "utf8");
+                    return new Response(html, { headers: { "Content-Type": "text/html" } });
+                } catch (err) {
+                    return new Response("File index.html Not found", { status: 404 });
+                }
+            }));
+
+
+            // Route per la pagina di login
+            this.app.get("/login", () => {
+                try {
+                    const html = readFileSync(join(import.meta.dir, "../www/login.html"), "utf8");
+                    return new Response(html, { headers: { "Content-Type": "text/html" } });
+                } catch (err) {
+                    return new Response("File login.html Not found", { status: 404 });
+                }
+            });
+            
+            // Route per la pagina di tickets
+            this.app.get("/tickets", requireAuth(() => {
+                try {
+                    const html = readFileSync(join(import.meta.dir, "../www/tickets.html"), "utf8");
+                    return new Response(html, { headers: { "Content-Type": "text/html" } });
+                } catch (err) {
+                    return new Response("File tickets.html Not found", { status: 404 });
+                }
+            }));
+
+            // Route per la pagina di stato
+            this.app.get("/status", requireAuth(() => {
+                try {
+                    const html = readFileSync(join(import.meta.dir, "../www/status.html"), "utf8");
+                    return new Response(html, { headers: { "Content-Type": "text/html" } });
+                } catch (err) {
+                    return new Response("File status.html Not found", { status: 404 });
+                }
+            }));
+            
+            // Route per la pagina di stato
+            this.app.get("/settings", requireAuth(() => {
+                try {
+                    const html = readFileSync(join(import.meta.dir, "../www/settings.html"), "utf8");
+                    return new Response(html, { headers: { "Content-Type": "text/html" } });
+                } catch (err) {
+                    return new Response("File settings.html Not found", { status: 404 });
+                }
+            }));
+
+            // Route per la pagina di stato
+            this.app.get("/barcode", requireAuth(() => {
+                try {
+                    const html = readFileSync(join(import.meta.dir, "../www/barcode.html"), "utf8");
+                    return new Response(html, { headers: { "Content-Type": "text/html" } });
+                } catch (err) {
+                    return new Response("File barcode.html Not found", { status: 404 });
+                }
+            }));
+
+            // Route per la pagina di dashboard statistiche
+            this.app.get("/dashboard", requireAuth(() => {
+                try {
+                    const html = readFileSync(join(import.meta.dir, "../www/dashboard.html"), "utf8");
+                    return new Response(html, { headers: { "Content-Type": "text/html" } });
+                } catch (err) {
+                    return new Response("File dashboard.html Not found", { status: 404 });
+                }
+            }));
+
+        }
         
-        // Route per la pagina di tickets
-        this.app.get("/tickets", requireAuth(() => {
-            try {
-                const html = readFileSync(join(import.meta.dir, "../www/tickets.html"), "utf8");
-                return new Response(html, { headers: { "Content-Type": "text/html" } });
-            } catch (err) {
-                return new Response("File tickets.html Not found", { status: 404 });
-            }
-        }));
-
-        // Route per la pagina di stato
-        this.app.get("/status", requireAuth(() => {
-            try {
-                const html = readFileSync(join(import.meta.dir, "../www/status.html"), "utf8");
-                return new Response(html, { headers: { "Content-Type": "text/html" } });
-            } catch (err) {
-                return new Response("File status.html Not found", { status: 404 });
-            }
-        }));
-        
-        // Route per la pagina di stato
-        this.app.get("/settings", requireAuth(() => {
-            try {
-                const html = readFileSync(join(import.meta.dir, "../www/settings.html"), "utf8");
-                return new Response(html, { headers: { "Content-Type": "text/html" } });
-            } catch (err) {
-                return new Response("File settings.html Not found", { status: 404 });
-            }
-        }));
-
-        // Route per la pagina di stato
-        this.app.get("/barcode", requireAuth(() => {
-            try {
-                const html = readFileSync(join(import.meta.dir, "../www/barcode.html"), "utf8");
-                return new Response(html, { headers: { "Content-Type": "text/html" } });
-            } catch (err) {
-                return new Response("File barcode.html Not found", { status: 404 });
-            }
-        }));
-
-        // Route per la pagina di dashboard statistiche
-        this.app.get("/dashboard", requireAuth(() => {
-            try {
-                const html = readFileSync(join(import.meta.dir, "../www/dashboard.html"), "utf8");
-                return new Response(html, { headers: { "Content-Type": "text/html" } });
-            } catch (err) {
-                return new Response("File dashboard.html Not found", { status: 404 });
-            }
-        }));
-
         // Route per servire asset statici (js, css, immagini, ecc.)
         this.app.get("/assets/*", ({ request }) => {
             const url = new URL(request.url);
@@ -219,7 +227,15 @@ export class HttpServerController {
         });
 
         // Catch-all per tutte le altre route non definite (404)
-        this.app.all("*", () => new Response("404 Not Found", { status: 404 }));
+        this.app.all("*", () => {
+            try 
+            {
+                const html = readFileSync(join(import.meta.dir, "../www/404.html"), "utf8");
+                return new Response(html, { headers: { "Content-Type": "text/html" } });
+            } catch (err) {
+                return new Response("File 404.html Not found", { status: 404 });
+            }
+        });
         //#endregion ROUTES
 
         //#region WEBSOCKET
@@ -276,9 +292,7 @@ export class HttpServerController {
         });
         
         //#endregion WEBSOCKET
-
         
-
         //#region API
         // API: restituisce le ricevute con filtri e paginazione
         this.app.get("/api/receipts", async ({ request }) => {
