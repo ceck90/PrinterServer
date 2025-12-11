@@ -1,0 +1,1004 @@
+openapi: 3.0.3
+info:
+  title: PrinterServer API
+  description: API for managing orders, printers, barcodes, and statistics for MusicFestOn PrinterServer
+  version: 1.0.0
+  contact:
+    name: MusicFestOn Team
+
+servers:
+  - url: http://localhost:4000
+    description: Local development server
+
+tags:
+  - name: Authentication
+    description: Login and token verification endpoints
+  - name: Pages
+    description: HTML pages (protected by authentication)
+  - name: Receipts
+    description: Receipt management and printing
+  - name: Printers
+    description: Printer configuration and management
+  - name: Barcodes
+    description: Barcode scanning and management
+  - name: Statistics
+    description: Statistics and analytics endpoints
+  - name: WebSocket
+    description: WebSocket connection for real-time updates
+  - name: Assets
+    description: Static assets serving
+
+paths:
+  /api/login:
+    post:
+      tags:
+        - Authentication
+      summary: User login
+      description: Authenticate user and return JWT token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                  example: admin
+                password:
+                  type: string
+                  format: password
+                  example: password123
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    description: Base64 encoded JWT token
+        '400':
+          description: Missing username or password
+        '401':
+          description: Invalid credentials
+
+  /api/verify-token:
+    post:
+      tags:
+        - Authentication
+      summary: Verify JWT token
+      description: Check if the provided token is valid
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Token is valid
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                    example: true
+        '401':
+          description: Unauthorized - invalid token
+
+  /:
+    get:
+      tags:
+        - Pages
+      summary: Main page
+      description: Returns the main index.html page (requires authentication)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: HTML content
+          content:
+            text/html:
+              schema:
+                type: string
+        '302':
+          description: Redirect to login
+        '404':
+          description: File not found
+
+  /login:
+    get:
+      tags:
+        - Pages
+      summary: Login page
+      description: Returns the login.html page
+      responses:
+        '200':
+          description: HTML content
+          content:
+            text/html:
+              schema:
+                type: string
+        '404':
+          description: File not found
+
+  /tickets:
+    get:
+      tags:
+        - Pages
+      summary: Tickets page
+      description: Returns the tickets management page (requires authentication)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: HTML content
+        '302':
+          description: Redirect to login
+        '404':
+          description: File not found
+
+  /status:
+    get:
+      tags:
+        - Pages
+      summary: Status page
+      description: Returns the status monitoring page (requires authentication)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: HTML content
+        '302':
+          description: Redirect to login
+
+  /settings:
+    get:
+      tags:
+        - Pages
+      summary: Settings page
+      description: Returns the settings page (requires authentication)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: HTML content
+        '302':
+          description: Redirect to login
+
+  /barcode:
+    get:
+      tags:
+        - Pages
+      summary: Barcode scanner page
+      description: Returns the barcode scanner page (requires authentication)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: HTML content
+        '302':
+          description: Redirect to login
+
+  /dashboard:
+    get:
+      tags:
+        - Pages
+      summary: Dashboard page
+      description: Returns the statistics dashboard page (requires authentication)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: HTML content
+        '302':
+          description: Redirect to login
+
+  /assets/{path}:
+    get:
+      tags:
+        - Assets
+      summary: Serve static assets
+      description: Serves static files like JS, CSS, images, etc.
+      parameters:
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Path to the asset file
+          example: js/main.js
+      responses:
+        '200':
+          description: Asset file content
+        '404':
+          description: Asset not found
+
+  /api/receipts:
+    get:
+      tags:
+        - Receipts
+      summary: Get receipts with filters
+      description: Retrieve receipts with pagination and filtering options
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+          description: Number of receipts to return
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: Offset for pagination
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [PRINTED, FAILED]
+          description: Filter by receipt type
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Start date filter (ISO 8601)
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+          description: End date filter (ISO 8601)
+      responses:
+        '200':
+          description: List of receipts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '400':
+          description: Invalid parameters
+        '500':
+          description: Internal server error
+
+  /api/receipts/{id}/print:
+    post:
+      tags:
+        - Receipts
+      summary: Reprint a receipt
+      description: Reprint a specific receipt by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Receipt ID
+      responses:
+        '200':
+          description: Print job sent successfully
+
+  /api/receipts/{id}/printAt:
+    post:
+      tags:
+        - Receipts
+      summary: Print receipt at specific destination
+      description: Print a receipt at a specific printer destination
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Receipt ID
+        - name: dest
+          in: query
+          schema:
+            type: string
+          description: Destination printer name
+      responses:
+        '200':
+          description: Print job sent successfully
+
+  /api/printers/getAll:
+    get:
+      tags:
+        - Printers
+      summary: Get all printers
+      description: Retrieve all configured printers
+      responses:
+        '200':
+          description: List of printers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    key:
+                      type: string
+                    printerName:
+                      type: string
+                    printerIp:
+                      type: string
+                    printerPort:
+                      type: integer
+                    printerDestinations:
+                      type: string
+                    active:
+                      type: boolean
+                    upsideDown:
+                      type: boolean
+                    beepEnable:
+                      type: boolean
+                    description:
+                      type: string
+        '500':
+          description: Internal server error
+
+  /api/printers/delete/{key}:
+    post:
+      tags:
+        - Printers
+      summary: Delete a printer
+      description: Delete a printer configuration by key
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Printer key
+      responses:
+        '200':
+          description: Printer deleted successfully
+        '400':
+          description: Printer key is required
+        '500':
+          description: Internal server error
+
+  /api/printers/update:
+    post:
+      tags:
+        - Printers
+      summary: Update a printer
+      description: Update an existing printer configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - key
+                - printerName
+                - printerIp
+                - printerPort
+              properties:
+                key:
+                  type: string
+                printerName:
+                  type: string
+                printerIp:
+                  type: string
+                printerPort:
+                  type: integer
+                printerDestinations:
+                  type: string
+                active:
+                  type: boolean
+                upsideDown:
+                  type: boolean
+                beepEnable:
+                  type: boolean
+                description:
+                  type: string
+      responses:
+        '200':
+          description: Printer updated successfully
+        '400':
+          description: Invalid printer data
+        '500':
+          description: Internal server error
+
+  /api/printers/add:
+    post:
+      tags:
+        - Printers
+      summary: Add a new printer
+      description: Add a new printer configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - printerName
+                - printerIp
+                - printerPort
+              properties:
+                key:
+                  type: string
+                printerName:
+                  type: string
+                printerIp:
+                  type: string
+                printerPort:
+                  type: integer
+                printerDestinations:
+                  type: string
+                active:
+                  type: boolean
+                  default: false
+                upsideDown:
+                  type: boolean
+                  default: false
+                beepEnable:
+                  type: boolean
+                  default: false
+                description:
+                  type: string
+      responses:
+        '200':
+          description: Printer added successfully
+        '400':
+          description: Invalid printer data
+        '500':
+          description: Internal server error
+
+  /api/printers/test/{key}:
+    post:
+      tags:
+        - Printers
+      summary: Test a printer
+      description: Send a test print to a specific printer
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Printer key
+      responses:
+        '200':
+          description: Test print sent
+        '400':
+          description: Printer key is required
+        '404':
+          description: Printer not found
+        '500':
+          description: Internal server error
+
+  /api/printers/saveAll:
+    post:
+      tags:
+        - Printers
+      summary: Save multiple printers
+      description: Bulk save/update multiple printer configurations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+                required:
+                  - key
+                  - name
+                  - ip
+                  - port
+                properties:
+                  key:
+                    type: string
+                  name:
+                    type: string
+                  ip:
+                    type: string
+                  port:
+                    type: integer
+                  destination:
+                    type: string
+                  active:
+                    type: boolean
+                  upsideDown:
+                    type: boolean
+                  beepEnable:
+                    type: boolean
+                  description:
+                    type: string
+      responses:
+        '200':
+          description: All printers saved successfully
+        '400':
+          description: Invalid printer data
+        '500':
+          description: Internal server error
+
+  /api/barcodes/getAll:
+    get:
+      tags:
+        - Barcodes
+      summary: Get all barcodes
+      description: Retrieve all scanned barcodes
+      responses:
+        '200':
+          description: List of barcodes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '500':
+          description: Internal server error
+
+  /api/barcodes/add/{id}:
+    post:
+      tags:
+        - Barcodes
+      summary: Add/scan a barcode
+      description: Add a scanned barcode and update order status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Barcode/Order ID
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [pass, kitchen]
+          description: Role of the scanner (pass or kitchen)
+      responses:
+        '201':
+          description: Barcode added successfully
+        '500':
+          description: Internal server error
+
+  /api/statistics/totals:
+    get:
+      tags:
+        - Statistics
+      summary: Get total statistics
+      description: Get general KPIs and totals for the specified date range
+      parameters:
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          description: Start date (YYYY-MM-DD)
+          example: "2025-09-01"
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          description: End date (YYYY-MM-DD)
+          example: "2025-09-30"
+      responses:
+        '200':
+          description: Total statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ordini:
+                    type: integer
+                  incasso_totale:
+                    type: number
+                  scontrino_medio:
+                    type: number
+                  totale_coperto:
+                    type: number
+                  totale_asporto:
+                    type: number
+        '400':
+          description: Missing required parameters
+        '500':
+          description: Internal server error
+
+  /api/statistics/trend:
+    get:
+      tags:
+        - Statistics
+      summary: Get hourly trend
+      description: Get orders and revenue trend by hour
+      parameters:
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Hourly trend data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    ora:
+                      type: string
+                      format: date-time
+                    ordini:
+                      type: integer
+                    incasso:
+                      type: number
+        '400':
+          description: Missing required parameters
+        '500':
+          description: Internal server error
+
+  /api/statistics/by-area:
+    get:
+      tags:
+        - Statistics
+      summary: Get statistics by area
+      description: Get orders and revenue breakdown by area
+      parameters:
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Statistics by area
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    area:
+                      type: string
+                    ordini:
+                      type: integer
+                    incasso:
+                      type: number
+        '400':
+          description: Missing required parameters
+        '500':
+          description: Internal server error
+
+  /api/statistics/by-payment:
+    get:
+      tags:
+        - Statistics
+      summary: Get statistics by payment type
+      description: Get orders and revenue breakdown by payment method
+      parameters:
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Statistics by payment type
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    tipo_pagamento:
+                      type: string
+                    ordini:
+                      type: integer
+                    incasso:
+                      type: number
+        '400':
+          description: Missing required parameters
+        '500':
+          description: Internal server error
+
+  /api/statistics/channel:
+    get:
+      tags:
+        - Statistics
+      summary: Get statistics by channel
+      description: Get orders and revenue breakdown by channel (PIAZZA vs ASPORTO)
+      parameters:
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Statistics by channel
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    canale:
+                      type: string
+                      enum: [PIAZZA, ASPORTO]
+                    ordini:
+                      type: integer
+                    incasso:
+                      type: number
+        '400':
+          description: Missing required parameters
+        '500':
+          description: Internal server error
+
+  /api/statistics/top-products:
+    get:
+      tags:
+        - Statistics
+      summary: Get top selling products
+      description: Get top 50 best-selling products
+      parameters:
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Top products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    descrizione:
+                      type: string
+                    pezzi:
+                      type: integer
+        '400':
+          description: Missing required parameters
+        '500':
+          description: Internal server error
+
+  /api/statistics/top-categories:
+    get:
+      tags:
+        - Statistics
+      summary: Get top categories
+      description: Get top selling categories/aggregates
+      parameters:
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Top categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    aggregato:
+                      type: string
+                    pezzi:
+                      type: integer
+        '400':
+          description: Missing required parameters
+        '500':
+          description: Internal server error
+
+  /api/statistics/by-cashier:
+    get:
+      tags:
+        - Statistics
+      summary: Get statistics by cashier
+      description: Get performance metrics by cashier
+      parameters:
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Statistics by cashier
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    cassiere:
+                      type: string
+                    ordini:
+                      type: integer
+                    incasso:
+                      type: number
+        '400':
+          description: Missing required parameters
+        '500':
+          description: Internal server error
+
+  /api/statistics/by-table:
+    get:
+      tags:
+        - Statistics
+      summary: Get statistics by table
+      description: Get performance metrics by table number
+      parameters:
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Statistics by table
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    numeroTavolo:
+                      type: string
+                    n_ordini:
+                      type: integer
+                    incasso:
+                      type: number
+        '400':
+          description: Missing required parameters
+        '500':
+          description: Internal server error
+
+  /api/statistics/departments:
+    get:
+      tags:
+        - Statistics
+      summary: Get department statistics
+      description: Get status statistics by department (cucina, pizzeria, bar, rosticceria)
+      parameters:
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Department statistics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    reparto:
+                      type: string
+                      enum: [cucina, pizzeria, bar, rosticceria]
+                    stato:
+                      type: string
+                    ordini:
+                      type: integer
+        '400':
+          description: Missing required parameters
+        '500':
+          description: Internal server error
+
+  /api/ws:
+    get:
+      tags:
+        - WebSocket
+      summary: WebSocket connection
+      description: |
+        Establish a WebSocket connection for real-time updates.
+        
+        **Connection**: ws://localhost:4000/api/ws?id=optional-client-id
+        
+        **Messages**:
+        - On connect: Receives `{type: 'hello', id: 'assigned-client-id'}`
+        - Ping: Send `{type: 'ping'}` → Receives `{type: 'pong', ts: timestamp}`
+        - Echo: Send any JSON → Receives `{type: 'echo', data: your-data}`
+        
+        **Keep-alive**: Server sends ping every 30 seconds
+      responses:
+        '101':
+          description: WebSocket connection established
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT token obtained from /api/login endpoint.
+        Token can also be passed as query parameter: ?token=YOUR_TOKEN
