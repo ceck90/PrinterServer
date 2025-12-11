@@ -855,6 +855,36 @@ export class HttpServerController {
                 });
             }
         });
+
+        this.app.get("/api/statistics/total-covers", async ({ request }) => {
+            try {
+                const url = new URL(request.url);
+                const startDate = url.searchParams.get("startDate");
+                const endDate = url.searchParams.get("endDate");
+                
+                if (!startDate || !endDate) {
+                    return new Response(JSON.stringify({ error: "startDate and endDate are required" }), { 
+                        status: 400, 
+                        headers: { "Content-Type": "application/json" } 
+                    });
+                }
+                
+                const gsgController = GSGController.getInstance();
+                const statsController = new StatisticsController(gsgController["listener"]!);
+                const data = await statsController.getTotalCovers(startDate, endDate);
+                
+                return new Response(JSON.stringify(data), { 
+                    status: 200, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            } catch (err) {
+                console.error("[API] Error getting total covers:", err);
+                return new Response(JSON.stringify({ error: "Internal Server Error" }), { 
+                    status: 500, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            }
+        });
         //#endregion API
         
         // Avvia il server HTTP sulla porta 4000

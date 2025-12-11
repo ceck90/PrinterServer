@@ -77,23 +77,23 @@ export class StatisticsController {
    */
   async getChannel(startDate: string, endDate: string) {
     try {
-      console.log("[Statistics] getChannel called with:", { startDate, endDate });
-      console.log("[Statistics] startDate type:", typeof startDate, "value:", startDate);
-      console.log("[Statistics] endDate type:", typeof endDate, "value:", endDate);
+      // console.log("[Statistics] getChannel called with:", { startDate, endDate });
+      // console.log("[Statistics] startDate type:", typeof startDate, "value:", startDate);
+      // console.log("[Statistics] endDate type:", typeof endDate, "value:", endDate);
       
       // Test query to check if there's ANY data in the date range
       const testQuery = `SELECT COUNT(*) as total, MIN(serata) as min_serata, MAX(serata) as max_serata FROM ordini WHERE serata BETWEEN $1 AND $2`;
       const testResult = await this.pgClient.query(testQuery, [startDate, endDate]);
-      console.log("[Statistics] Test query result:", testResult.rows[0]);
+      // console.log("[Statistics] Test query result:", testResult.rows[0]);
       
       // Check all ordini in general
       const allCheck = await this.pgClient.query(`SELECT COUNT(*) as total, MIN(serata) as min_serata, MAX(serata) as max_serata FROM ordini`);
-      console.log("[Statistics] All ordini:", allCheck.rows[0]);
+      // console.log("[Statistics] All ordini:", allCheck.rows[0]);
       
-      console.log("[Statistics] Query:", gsg_queries.piazzaVsAsporto);
+      // console.log("[Statistics] Query:", gsg_queries.piazzaVsAsporto);
       const result = await this.pgClient.query(gsg_queries.piazzaVsAsporto, [startDate, endDate]);
-      console.log("[Statistics] getChannel result rows:", result.rows);
-      console.log("[Statistics] getChannel row count:", result.rowCount);
+      // console.log("[Statistics] getChannel result rows:", result.rows);
+      // console.log("[Statistics] getChannel row count:", result.rowCount);
       return result.rows;
     } catch (error) {
       console.error("[Statistics] Error fetching channel:", error);
