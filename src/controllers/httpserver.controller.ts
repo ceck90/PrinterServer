@@ -123,85 +123,7 @@ export class HttpServerController {
         //#endregion LOGIN API
 
         //#region ROUTES
-        //enable routes base on .env flag
-        const ENABLE_AUTH_PAGES = process.env.ENABLE_AUTH_PAGES === "true";
-        if (ENABLE_AUTH_PAGES) {
-
-            // Route per la pagina principale
-            console.log("[WWW] ❗ Auth pages disabled via .env");
-            this.app.get("/", requireAuth(() => {
-                try {
-                    const html = readFileSync(join(import.meta.dir, "../www/index.html"), "utf8");
-                    return new Response(html, { headers: { "Content-Type": "text/html" } });
-                } catch (err) {
-                    return new Response("File index.html Not found", { status: 404 });
-                }
-            }));
-
-
-            // Route per la pagina di login
-            this.app.get("/login", () => {
-                try {
-                    const html = readFileSync(join(import.meta.dir, "../www/login.html"), "utf8");
-                    return new Response(html, { headers: { "Content-Type": "text/html" } });
-                } catch (err) {
-                    return new Response("File login.html Not found", { status: 404 });
-                }
-            });
-            
-            // Route per la pagina di tickets
-            this.app.get("/tickets", requireAuth(() => {
-                try {
-                    const html = readFileSync(join(import.meta.dir, "../www/tickets.html"), "utf8");
-                    return new Response(html, { headers: { "Content-Type": "text/html" } });
-                } catch (err) {
-                    return new Response("File tickets.html Not found", { status: 404 });
-                }
-            }));
-
-            // Route per la pagina di stato
-            this.app.get("/status", requireAuth(() => {
-                try {
-                    const html = readFileSync(join(import.meta.dir, "../www/status.html"), "utf8");
-                    return new Response(html, { headers: { "Content-Type": "text/html" } });
-                } catch (err) {
-                    return new Response("File status.html Not found", { status: 404 });
-                }
-            }));
-            
-            // Route per la pagina di stato
-            this.app.get("/settings", requireAuth(() => {
-                try {
-                    const html = readFileSync(join(import.meta.dir, "../www/settings.html"), "utf8");
-                    return new Response(html, { headers: { "Content-Type": "text/html" } });
-                } catch (err) {
-                    return new Response("File settings.html Not found", { status: 404 });
-                }
-            }));
-
-            // Route per la pagina di stato
-            this.app.get("/barcode", requireAuth(() => {
-                try {
-                    const html = readFileSync(join(import.meta.dir, "../www/barcode.html"), "utf8");
-                    return new Response(html, { headers: { "Content-Type": "text/html" } });
-                } catch (err) {
-                    return new Response("File barcode.html Not found", { status: 404 });
-                }
-            }));
-
-            // Route per la pagina di dashboard statistiche
-            this.app.get("/dashboard", requireAuth(() => {
-                try {
-                    const html = readFileSync(join(import.meta.dir, "../www/dashboard.html"), "utf8");
-                    return new Response(html, { headers: { "Content-Type": "text/html" } });
-                } catch (err) {
-                    return new Response("File dashboard.html Not found", { status: 404 });
-                }
-            }));
-
-        }
-        
-        // Route per servire asset statici (js, css, immagini, ecc.)
+        // Route per servire asset statici (immagini, font, etc. nella cartella assets/)
         this.app.get("/assets/*", ({ request }) => {
             const url = new URL(request.url);
             const assetPath = url.pathname.replace(/^\/assets\//, "");
@@ -219,23 +141,118 @@ export class HttpServerController {
                     "svg": "image/svg+xml",
                     "ico": "image/x-icon",
                     "html": "text/html",
-                    "json": "application/json"
+                    "json": "application/json",
+                    "woff": "font/woff",
+                    "woff2": "font/woff2",
+                    "ttf": "font/ttf",
+                    "eot": "application/vnd.ms-fontobject"
                 };
                 const contentType = contentTypes[ext || ""] || "application/octet-stream";
-                return new Response(file, { headers: { "Content-Type": contentType } });
+                return new Response(file, { 
+                    headers: { 
+                        "Content-Type": contentType,
+                        "Cache-Control": "public, max-age=31536000, immutable"
+                    } 
+                });
             } catch {
                 return new Response("Not found", { status: 404 });
             }
         });
 
-        // Catch-all per tutte le altre route non definite (404)
-        this.app.all("*", () => {
-            try 
-            {
-                const html = readFileSync(join(import.meta.dir, "../www/404.html"), "utf8");
-                return new Response(html, { headers: { "Content-Type": "text/html" } });
-            } catch (err) {
-                return new Response("File 404.html Not found", { status: 404 });
+        // Route per servire media (immagini, video, etc. nella cartella media/)
+        this.app.get("/media/*", ({ request }) => {
+            const url = new URL(request.url);
+            const mediaPath = url.pathname.replace(/^\/media\//, "");
+            const filePath = join(import.meta.dir, "../www/media", mediaPath);
+
+            try {
+                const file = readFileSync(filePath);
+                const ext = filePath.split('.').pop()?.toLowerCase();
+                const contentTypes: Record<string, string> = {
+                    "png": "image/png",
+                    "jpg": "image/jpeg",
+                    "jpeg": "image/jpeg",
+                    "gif": "image/gif",
+                    "svg": "image/svg+xml",
+                    "webp": "image/webp",
+                    "mp4": "video/mp4",
+                    "webm": "video/webm"
+                };
+                const contentType = contentTypes[ext || ""] || "application/octet-stream";
+                return new Response(file, { 
+                    headers: { 
+                        "Content-Type": contentType,
+                        "Cache-Control": "public, max-age=31536000, immutable"
+                    } 
+                });
+            } catch {
+                return new Response("Not found", { status: 404 });
+            }
+        });
+
+        // Catch-all: serve static files o index.html
+        this.app.all("*", ({ request }) => {
+            const url = new URL(request.url);
+            const pathname = url.pathname;
+            
+            // Se è una chiamata API, non serve file statici
+            if (pathname.startsWith("/api/")) {
+                return new Response("API endpoint not found", { status: 404 });
+            }
+            
+            // Prova a servire il file statico dalla root di www
+            const fileName = pathname.substring(1); // rimuove il leading "/"
+            const filePath = join(import.meta.dir, "../www", fileName);
+            
+            try {
+                const file = readFileSync(filePath);
+                const ext = filePath.split('.').pop()?.toLowerCase();
+                
+                // Mappa estensioni a MIME types
+                const contentTypes: Record<string, string> = {
+                    "js": "application/javascript",
+                    "css": "text/css",
+                    "json": "application/json",
+                    "ico": "image/x-icon",
+                    "png": "image/png",
+                    "jpg": "image/jpeg",
+                    "jpeg": "image/jpeg",
+                    "svg": "image/svg+xml",
+                    "html": "text/html"
+                };
+                
+                const contentType = contentTypes[ext || ""] || "application/octet-stream";
+                
+                // Cache headers in base al tipo di file
+                let cacheControl = "no-cache";
+                if (ext === "js" || ext === "css") {
+                    // File con hash hanno cache immutabile
+                    if (fileName.match(/-([\w]{8,})\.(?:js|css)$/)) {
+                        cacheControl = "public, max-age=31536000, immutable";
+                    }
+                } else if (ext === "ico") {
+                    cacheControl = "public, max-age=86400";
+                }
+                
+                return new Response(file, { 
+                    headers: { 
+                        "Content-Type": contentType,
+                        "Cache-Control": cacheControl
+                    } 
+                });
+            } catch {
+                // File non trovato, serve index.html per Angular router
+                try {
+                    const html = readFileSync(join(import.meta.dir, "../www/index.html"), "utf8");
+                    return new Response(html, { 
+                        headers: { 
+                            "Content-Type": "text/html",
+                            "Cache-Control": "no-cache"
+                        } 
+                    });
+                } catch (err) {
+                    return new Response("Application not found", { status: 404 });
+                }
             }
         });
         //#endregion ROUTES

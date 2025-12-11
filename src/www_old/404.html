@@ -1,9 +1,11 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="it" data-bs-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>404 - Pagina Non Trovata | MusicFestOn</title>
+    <title>404 - Pagina Non Trovata</title>
+    <link href="/assets/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/assets/bootstrap/css/bootstrap-icons.min.css" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -35,12 +37,12 @@
             position: absolute;
             opacity: 0.1;
             animation: float 20s infinite ease-in-out;
-            font-size: 100px;
         }
 
         .floating-element:nth-child(1) {
             top: 10%;
             left: 10%;
+            font-size: 100px;
             animation-delay: 0s;
         }
 
@@ -95,13 +97,6 @@
             }
         }
 
-        .error-logo {
-            height: 80px;
-            width: auto;
-            margin-bottom: 1.5rem;
-            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
-        }
-
         .error-code {
             font-size: 120px;
             font-weight: 900;
@@ -115,9 +110,19 @@
             animation: pulse 2s ease-in-out infinite;
         }
 
+        .error-logo {
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
+        }
+
         .error-icon {
             font-size: 80px;
             margin-bottom: 1rem;
+            /* animation: bounce 2s infinite; */
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
         }
 
         @keyframes pulse {
@@ -159,7 +164,6 @@
             text-decoration: none;
             transition: all 0.3s ease;
             box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4);
-            cursor: pointer;
         }
 
         .btn-home:hover {
@@ -168,11 +172,8 @@
             color: white;
         }
 
-        /* Icon styles */
-        .icon {
-            display: inline-block;
-            width: 24px;
-            height: 24px;
+        .btn-home i {
+            font-size: 1.2rem;
         }
 
         /* Responsive */
@@ -193,10 +194,6 @@
             .error-message {
                 font-size: 1rem;
             }
-
-            .floating-element {
-                font-size: 60px;
-            }
         }
     </style>
 </head>
@@ -211,7 +208,7 @@
 
     <!-- Main error content -->
     <div class="error-container">
-        <img src="/assets/img/mfo-logo.png" alt="MusicFestOn" class="error-logo">
+        <img src="/assets/img/mfo-logo.png" alt="MusicFestOn" class="error-logo mb-3" style="height: 80px; width: auto;">
         <h1 class="error-code">404</h1>
         <div class="error-icon">🚀</div>
         <h2 class="error-title">Houston, abbiamo un problema!</h2>
@@ -220,12 +217,11 @@
             Clicca qui sotto per tornare alla home.
         </p>
         <a href="/" class="btn-home">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                <polyline points="9 22 9 12 15 12 15 22"></polyline>
-            </svg>
+            <i class="bi bi-house-door-fill"></i>
             <span>Torna alla Home</span>
         </a>
     </div>
+
+    <script src="/assets/bootstrap/js/bootstrap.min.js"></script>
 </body>
 </html>
