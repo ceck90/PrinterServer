@@ -258,19 +258,37 @@ export class HttpServerController {
         //#endregion ROUTES
 
         //#region WEBSOCKET
-        // Use closure to access wsClients
+        // Use closure to access wsClients and verifyToken
         const wsClients = this.wsClients;
         this.app.ws("/api/ws", {
             open(ws) {
                 console.log("[WS] New connection request");
                 const url = new URL(ws.data.request.url);
+                
+                // Verifica autenticazione tramite token (query param o header)
+                const tokenFromQuery = url.searchParams.get('token');
+                const authHeader = ws.data.request.headers.get('authorization');
+                const tokenFromHeader = authHeader?.replace('Bearer ', '');
+                const token = tokenFromQuery || tokenFromHeader;
+
+                if (!verifyToken(token)) {
+                    console.warn("[WS] Unauthorized connection attempt - invalid or missing token");
+                    ws.send(JSON.stringify({ 
+                        type: 'error', 
+                        message: 'Unauthorized - Invalid or missing token' 
+                    }));
+                    ws.close(1008, "Unauthorized");
+                    return;
+                }
+
                 // Permetti passaggio opzionale di ?id=xxx dal client
                 let id = url.searchParams.get('id') ?? crypto.randomUUID();
                 while (wsClients.has(id)) id = crypto.randomUUID(); // garantisci unicità
 
                 console.log(`[WS] Assigned client ID: ${id}`);
 
-                // Memorizza l'id sulla connessione (nota: "any" per comodità)
+                // Memorizza l'id sulla connessione
+                (ws as any).id = id;
                 wsClients.set(id, ws as any);
                 
                 // Facoltativo: keep-alive a livello di singola connessione
@@ -278,9 +296,9 @@ export class HttpServerController {
                     try { ws.ping(); } catch { /* ignore */ }
                 }, 30_000);
                 
-                // Notifica l'id assegnato
-                ws.send(JSON.stringify({ type: 'hello', id }));
-                console.log(`[WS] Client connected: ${id}`);
+                // Notifica l'id assegnato e autenticazione riuscita
+                ws.send(JSON.stringify({ type: 'hello', id, authenticated: true }));
+                console.log(`[WS] Client connected and authenticated: ${id}`);
             },
             message(ws, message) {
                 try {

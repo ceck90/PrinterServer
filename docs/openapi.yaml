@@ -979,19 +979,75 @@ paths:
         - WebSocket
       summary: WebSocket connection
       description: |
-        Establish a WebSocket connection for real-time updates.
+        Establish a WebSocket connection for real-time updates and notifications.
         
-        **Connection**: ws://localhost:4000/api/ws?id=optional-client-id
+        **Authentication Required**: Must provide valid JWT token obtained from /api/login
+        
+        **Connection Methods**:
+        1. Query Parameter: `ws://localhost:4000/api/ws?token=YOUR_JWT_TOKEN`
+        2. Authorization Header: `Authorization: Bearer YOUR_JWT_TOKEN` (browser support varies)
+        
+        **Authentication Flow**:
+        - Server verifies token during WebSocket handshake
+        - Valid token: Connection accepted, receives hello message with `authenticated: true`
+        - Invalid/missing token: Connection rejected with close code 1008 (Policy Violation)
         
         **Messages**:
-        - On connect: Receives `{type: 'hello', id: 'assigned-client-id'}`
+        - On connect (authenticated): `{type: 'hello', id: 'client-uuid', authenticated: true}`
         - Ping: Send `{type: 'ping'}` → Receives `{type: 'pong', ts: timestamp}`
         - Echo: Send any JSON → Receives `{type: 'echo', data: your-data}`
+        - Notifications: Receives `{type: 'NOTIFICATION', timestamp: 'ISO8601', data: {notificationType: string, severity: string, payload: object}}`
+        
+        **Notification Types**:
+        - RECEIPT_PRINTED: Receipt successfully printed
+        - RECEIPT_PRINT_FAILED: Receipt printing failed
+        - ORDER_RECEIVED: New order received from GSG
+        - ORDER_STATUS_CHANGED: Order status updated
+        - PRINTER_STATUS_CHANGE: Printer online/offline
+        - PRINTER_ADDED/DELETED/UPDATED: Printer configuration changed
+        - And more (see websocket-notifications.md)
         
         **Keep-alive**: Server sends ping every 30 seconds
+      parameters:
+        - name: token
+          in: query
+          required: false
+          schema:
+            type: string
+          description: JWT authentication token (alternative to Authorization header)
+      security:
+        - BearerAuth: []
       responses:
         '101':
-          description: WebSocket connection established
+          description: WebSocket connection established (authenticated)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    example: hello
+                  id:
+                    type: string
+                    format: uuid
+                    example: "550e8400-e29b-41d4-a716-446655440000"
+                  authenticated:
+                    type: boolean
+                    example: true
+        '401':
+          description: Unauthorized - invalid or missing token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    example: error
+                  message:
+                    type: string
+                    example: Unauthorized
 
 components:
   securitySchemes:
