@@ -304,23 +304,122 @@ httpController.sendNotification(
 
 ## Client-Side Implementation
 
-### Connessione WebSocket
+### Connessione WebSocket con Autenticazione
 
+Il WebSocket richiede un token JWT valido per connettersi. Il token può essere passato in due modi:
+
+#### Opzione 1: Token come Query Parameter
 ```typescript
-const ws = new WebSocket('ws://localhost:4000/api/ws');
+const token = 'YOUR_JWT_TOKEN'; // Ottenuto dal login
+const ws = new WebSocket(`ws://localhost:4000/api/ws?token=${token}`);
 
 ws.onopen = () => {
-  console.log('WebSocket connesso');
+  console.log('WebSocket connesso e autenticato');
 };
 
 ws.onmessage = (event) => {
   const message = JSON.parse(event.data);
   
-  if (message.type === 'NOTIFICATION') {
+  if (message.type === 'hello') {
+    console.log(`Connesso con ID: ${message.id}`);
+    console.log(`Autenticato: ${message.authenticated}`);
+  } else if (message.type === 'error') {
+    console.error('Errore:', message.message);
+  } else if (message.type === 'NOTIFICATION') {
     handleNotification(message.data);
   }
 };
 
+ws.onerror = (error) => {
+  console.error('WebSocket error:', error);
+};
+
+ws.onclose = (event) => {
+  if (event.code === 1008) {
+    console.error('Connessione chiusa: Non autorizzato');
+  }
+};
+```
+
+#### Opzione 2: Token nell'Header (Browser moderni)
+```typescript
+const token = 'YOUR_JWT_TOKEN';
+
+// Nota: alcuni browser non supportano header custom nei WebSocket
+// In tal caso, usa l'opzione 1 (query parameter)
+const ws = new WebSocket('ws://localhost:4000/api/ws', {
+  headers: {
+    'Authorization': `Bearer ${token}`
+  }
+});
+```
+
+### Gestione Autenticazione
+
+**Token non valido o mancante:**
+```json
+{
+  "type": "error",
+  "message": "Unauthorized - Invalid or missing token"
+}
+```
+La connessione verrà chiusa automaticamente con codice `1008` (Policy Violation).
+
+**Autenticazione riuscita:**
+```json
+{
+  "type": "hello",
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "authenticated": true
+}
+```
+
+### Esempio Completo con Angular Service
+
+```typescript
+import { Injectable } from '@angular/core';
+import { BehaviorSubject } from 'rxjs';
+
+@Injectable({ providedIn: 'root' })
+export class WebSocketService {
+  private ws?: WebSocket;
+  private notifications$ = new BehaviorSubject<any>(null);
+  
+  connect(token: string) {
+    this.ws = new WebSocket(`ws://localhost:4000/api/ws?token=${token}`);
+    
+    this.ws.onopen = () => console.log('WebSocket connected');
+    
+    this.ws.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      if (message.type === 'NOTIFICATION') {
+        this.notifications$.next(message.data);
+      }
+    };
+    
+    this.ws.onerror = (error) => console.error('WS error:', error);
+    
+    this.ws.onclose = (event) => {
+      if (event.code === 1008) {
+        console.error('Unauthorized - reconnecting...');
+        // Implementa logica di riconnessione
+      }
+    };
+  }
+  
+  getNotifications() {
+    return this.notifications$.asObservable();
+  }
+  
+  disconnect() {
+    this.ws?.close();
+  }
+}
+```
+
+### Handler Notifiche
+
+```typescript
 function handleNotification(data: any) {
   const { notificationType, severity, payload } = data;
   
