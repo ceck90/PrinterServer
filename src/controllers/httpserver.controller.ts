@@ -975,6 +975,46 @@ export class HttpServerController {
         return count;
     }
 
+    /**
+     * Invia una notifica strutturata a tutti i client connessi via WebSocket.
+     * Utilizza un formato standard per tutte le notifiche del sistema.
+     * 
+     * @param type Tipo di notifica (es: 'ORDER_RECEIVED', 'PRINT_SUCCESS', 'PRINT_FAILED', etc.)
+     * @param payload Dati specifici della notifica
+     * @param severity Livello di gravità: 'info' | 'success' | 'warning' | 'error'
+     * @returns numero di client a cui è stata inviata la notifica
+     * 
+     * @example
+     * // Notifica ordine ricevuto
+     * this.sendNotification('ORDER_RECEIVED', { orderId: 123, table: 5 }, 'info');
+     * 
+     * @example
+     * // Notifica stampa fallita
+     * this.sendNotification('PRINT_FAILED', { 
+     *   receiptId: 456, 
+     *   printer: 'CUCINA', 
+     *   error: 'Connection timeout' 
+     * }, 'error');
+     */
+    public sendNotification(
+        type: string, 
+        payload: any, 
+        severity: 'info' | 'success' | 'warning' | 'error' = 'info'
+    ): number {
+        const notification = {
+            type: 'NOTIFICATION',
+            timestamp: new Date().toISOString(),
+            data: {
+                notificationType: type,
+                severity,
+                payload
+            }
+        };
+        
+        console.log(`[WS] Sending notification: ${type} (${severity}) to ${this.wsClients.size} clients`);
+        return this.broadcast(notification);
+    }
+
     /** Utility opzionali */
     public listClients(): string[] { return [...this.wsClients.keys()]; }
 
