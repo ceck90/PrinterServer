@@ -18,24 +18,41 @@ Email: [ceccato.roberto@alice.it](mailto:ceccato.roberto@alice.it)
 
 Tutte le variabili di ambiente sono definite nel file `.env`:
 
-```properties
+```
 # Ambiente di esecuzione
 NODE_ENV=development
 
-# Configurazione Database
-DB_PATH=.data/db.sqlite
+# Configurazione Database SQLite
+DB_PATH=./data/db.sqlite
 
 # Configurazione WebSocket Client
 KITCHEN_MGMT_SERVER_URL=http://127.0.0.1:8080
 WS_CLIENT_RECONNECT_ATTEMPTS=-1
 WS_CLIENT_RECONNECT_DELAY_MS=2000
+
+# Chiave di autenticazione token
+TOKEN_KEY="05q8GiW=atxs"
+
+# Configurazione Database GSG (PostgreSQL)
+GSG_DB_HOST=127.0.0.1
+GSG_DB_PORT=5432
+GSG_DB_USER=postgres
+GSG_DB_PASSWORD=postgres
+GSG_DB_DATABASE=dbname
 ```
 
-- **NODE_ENV**: Modalità ambiente (`development`, `production`, ecc.)
-- **DB_PATH**: Percorso del file database SQLite (verrà creato se non esiste)
-- **KITCHEN_MGMT_SERVER_URL**: Endpoint WebSocket per ricevere ordini in tempo reale
-- **WS_CLIENT_RECONNECT_ATTEMPTS**: Numero massimo tentativi di riconnessione WebSocket (`-1` = infinito)
-- **WS_CLIENT_RECONNECT_DELAY_MS**: Millisecondi tra i tentativi di riconnessione
+- **NODE_ENV**: Specifica l'ambiente di esecuzione dell'applicazione (`development`, `production`, ecc.).
+- **DB_PATH**: Percorso del file del database SQLite (verrà creato automaticamente se non esiste).
+- **KITCHEN_MGMT_SERVER_URL**: URL del server WebSocket da cui ricevere gli ordini in tempo reale.
+- **WS_CLIENT_RECONNECT_ATTEMPTS**: Numero massimo di tentativi di riconnessione al WebSocket (`-1` = tentativi infiniti).
+- **WS_CLIENT_RECONNECT_DELAY_MS**: Intervallo in millisecondi tra i tentativi di riconnessione al WebSocket.
+- **TOKEN_KEY**: Chiave segreta utilizzata per la generazione e la verifica dei token di autenticazione.
+- **BASE_PATH**: Percorso base per supporto reverse proxy (es. `/printers` se servito su `dominio.com/printers/`). Lasciare vuoto per deployment su percorso root.
+- **GSG_DB_HOST**: Indirizzo host del database PostgreSQL GSG.
+- **GSG_DB_PORT**: Porta di connessione al database PostgreSQL GSG.
+- **GSG_DB_USER**: Nome utente per l'accesso al database PostgreSQL GSG.
+- **GSG_DB_PASSWORD**: Password per l'accesso al database PostgreSQL GSG.
+- **GSG_DB_DATABASE**: Nome del database PostgreSQL GSG da utilizzare.
 
 ---
 
@@ -68,6 +85,31 @@ Il server HTTP sarà disponibile su [http://localhost:4000](http://localhost:400
 - **Gestione e visualizzazione ricevute** tramite API REST
 - **Seed automatico** delle stampanti se il database è vuoto
 - **Configurazione centralizzata** tramite file `.env`
+
+---
+
+## Supporto Reverse Proxy
+
+Il server supporta deployment dietro un reverse proxy su un percorso personalizzato. Per configurare:
+
+1. Imposta la variabile d'ambiente `BASE_PATH` nel file `.env`:
+   ```bash
+   BASE_PATH=/printers
+   ```
+
+2. Configura il tuo reverse proxy per inoltrare le richieste. Esempio con Nginx:
+   ```nginx
+   location /printers/ {
+       proxy_pass http://localhost:4000/;
+       proxy_http_version 1.1;
+       proxy_set_header Upgrade $http_upgrade;
+       proxy_set_header Connection "upgrade";
+       proxy_set_header Host $host;
+       proxy_set_header X-Real-IP $remote_addr;
+   }
+   ```
+
+Il server adatterà automaticamente tutti i percorsi (API, WebSocket, assets) al prefisso configurato e inietterà il corretto `<base href>` nell'HTML per il routing del frontend Angular.
 
 ---
 

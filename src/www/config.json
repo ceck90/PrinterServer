@@ -1,0 +1,17 @@
+{
+  "/api": {
+    "target": "http://localhost:4000",
+    "secure": false,
+    "logLevel": "debug",
+    "changeOrigin": true
+  },
+  "/piastre": {
+    "target": "http://10.10.1.12",
+    "secure": false,
+    "logLevel": "debug",
+    "changeOrigin": true,
+    "pathRewrite": {
+      "^/piastre": ""
+    }
+  }
+}

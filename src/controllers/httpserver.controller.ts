@@ -5,6 +5,8 @@ import { DatabaseController } from "./db.controller";
 import { printSpecificOrder, printTestTicket, regenerateSpecificReceipt } from "../dispatcher";
 import { loadPrintersFromDb } from "../print-routing.config";
 import { KitchenManagementController } from "./kitchenmgmt.controller";
+import { GSGController } from "./gsg.controller";
+import { StatisticsController } from "./statistics.controller";
 import { ServerWebSocket } from "bun";
 import { config } from "dotenv";
 import { verify } from "crypto";
@@ -33,6 +35,10 @@ export class HttpServerController {
         config();
         const TOKEN_SECRET = process.env.TOKEN_KEY ?? "";
         const TOKEN_EXPIRY_MS = 600 * 60 * 1000; // 10 ore
+        
+        // Base path per supporto proxy reverse (es. "/printers" se servito su dominio.com/printers/)
+        const BASE_PATH = process.env.BASE_PATH?.replace(/\/$/, '') ?? ""; // rimuove trailing slash
+        console.log(`[SERVER] Base path configured: '${BASE_PATH || '/'}'`);
 
         function generateToken(): string {
             const payload = {
@@ -56,7 +62,7 @@ export class HttpServerController {
 
         //#region LOGIN API
 
-        this.app.post("/api/login", async ({ request }) => {
+        this.app.post(`${BASE_PATH}/api/login`, async ({ request }) => {
             // console.log("[LOGIN] Login attempt");
             const { username, password } = await request.json();
             if (!username || !password) {
@@ -79,7 +85,7 @@ export class HttpServerController {
             });
         });
 
-        this.app.post("/api/verify-token", ({ request, body }) => {
+        this.app.post(`${BASE_PATH}/api/verify-token`, ({ request, body }) => {
             const token = request.headers.get("authorization")?.replace("Bearer ", "") ?? "";
             if (!verifyToken(token)) {
                 return new Response("Unauthorized", { status: 401 });
@@ -98,7 +104,7 @@ export class HttpServerController {
                 if (!verifyToken(token)) {
                 return new Response(null, {
                     status: 302,
-                    headers: { "Location": "/login" }
+                    headers: { "Location": `${BASE_PATH}/login` }
                 });
             }
             return handler(ctx);
@@ -121,80 +127,16 @@ export class HttpServerController {
         //#endregion LOGIN API
 
         //#region ROUTES
-        // Route per la pagina principale
-        this.app.get("/", requireAuth(() => {
-            try {
-                const html = readFileSync(join(import.meta.dir, "../www/index.html"), "utf8");
-                return new Response(html, { headers: { "Content-Type": "text/html" } });
-            } catch (err) {
-                return new Response("File index.html Not found", { status: 404 });
-            }
-        }));
-
-        // Route per la pagina di login
-        this.app.get("/login", () => {
-            try {
-                const html = readFileSync(join(import.meta.dir, "../www/login.html"), "utf8");
-                return new Response(html, { headers: { "Content-Type": "text/html" } });
-            } catch (err) {
-                return new Response("File login.html Not found", { status: 404 });
-            }
-        });
-        
-        // Route per la pagina di tickets
-        this.app.get("/tickets", requireAuth(() => {
-            try {
-                const html = readFileSync(join(import.meta.dir, "../www/tickets.html"), "utf8");
-                return new Response(html, { headers: { "Content-Type": "text/html" } });
-            } catch (err) {
-                return new Response("File tickets.html Not found", { status: 404 });
-            }
-        }));
-
-        // Route per la pagina di stato
-        this.app.get("/status", requireAuth(() => {
-            try {
-                const html = readFileSync(join(import.meta.dir, "../www/status.html"), "utf8");
-                return new Response(html, { headers: { "Content-Type": "text/html" } });
-            } catch (err) {
-                return new Response("File status.html Not found", { status: 404 });
-            }
-        }));
-        
-        // Route per la pagina di stato
-        this.app.get("/settings", requireAuth(() => {
-            try {
-                const html = readFileSync(join(import.meta.dir, "../www/settings.html"), "utf8");
-                return new Response(html, { headers: { "Content-Type": "text/html" } });
-            } catch (err) {
-                return new Response("File settings.html Not found", { status: 404 });
-            }
-        }));
-
-        // Route per la pagina di stato
-        this.app.get("/barcode", requireAuth(() => {
-            try {
-                const html = readFileSync(join(import.meta.dir, "../www/barcode.html"), "utf8");
-                return new Response(html, { headers: { "Content-Type": "text/html" } });
-            } catch (err) {
-                return new Response("File barcode.html Not found", { status: 404 });
-            }
-        }));
-
-        // Route per la pagina di dashboard statistiche
-        this.app.get("/dashboard", requireAuth(() => {
-            try {
-                const html = readFileSync(join(import.meta.dir, "../www/dashboard.html"), "utf8");
-                return new Response(html, { headers: { "Content-Type": "text/html" } });
-            } catch (err) {
-                return new Response("File dashboard.html Not found", { status: 404 });
-            }
-        }));
-
-        // Route per servire asset statici (js, css, immagini, ecc.)
-        this.app.get("/assets/*", ({ request }) => {
+        // Route per servire asset statici (immagini, font, etc. nella cartella assets/)
+        this.app.get(`${BASE_PATH}/assets/*`, ({ request }) => {
             const url = new URL(request.url);
-            const assetPath = url.pathname.replace(/^\/assets\//, "");
+            let pathname = url.pathname;
+            // Rimuove BASE_PATH se presente
+            if (BASE_PATH && pathname.startsWith(BASE_PATH)) {
+                pathname = pathname.substring(BASE_PATH.length);
+            }
+            // Rimuove /assets/ dal path
+            const assetPath = pathname.replace(/^\/assets\//, "");
             const filePath = join(import.meta.dir, "../www/assets", assetPath);
 
             try {
@@ -209,33 +151,177 @@ export class HttpServerController {
                     "svg": "image/svg+xml",
                     "ico": "image/x-icon",
                     "html": "text/html",
-                    "json": "application/json"
+                    "json": "application/json",
+                    "woff": "font/woff",
+                    "woff2": "font/woff2",
+                    "ttf": "font/ttf",
+                    "eot": "application/vnd.ms-fontobject"
                 };
                 const contentType = contentTypes[ext || ""] || "application/octet-stream";
-                return new Response(file, { headers: { "Content-Type": contentType } });
+                return new Response(file, { 
+                    headers: { 
+                        "Content-Type": contentType,
+                        "Cache-Control": "public, max-age=31536000, immutable"
+                    } 
+                });
             } catch {
                 return new Response("Not found", { status: 404 });
             }
         });
 
-        // Catch-all per tutte le altre route non definite (404)
-        this.app.all("*", () => new Response("404 Not Found", { status: 404 }));
+        // Route per servire media (immagini, video, etc. nella cartella media/)
+        this.app.get(`${BASE_PATH}/media/*`, ({ request }) => {
+            const url = new URL(request.url);
+            let pathname = url.pathname;
+            // Rimuove BASE_PATH se presente
+            if (BASE_PATH && pathname.startsWith(BASE_PATH)) {
+                pathname = pathname.substring(BASE_PATH.length);
+            }
+            // Rimuove /media/ dal path
+            const mediaPath = pathname.replace(/^\/media\//, "");
+            const filePath = join(import.meta.dir, "../www/media", mediaPath);
+
+            try {
+                const file = readFileSync(filePath);
+                const ext = filePath.split('.').pop()?.toLowerCase();
+                const contentTypes: Record<string, string> = {
+                    "png": "image/png",
+                    "jpg": "image/jpeg",
+                    "jpeg": "image/jpeg",
+                    "gif": "image/gif",
+                    "svg": "image/svg+xml",
+                    "webp": "image/webp",
+                    "mp4": "video/mp4",
+                    "webm": "video/webm"
+                };
+                const contentType = contentTypes[ext || ""] || "application/octet-stream";
+                return new Response(file, { 
+                    headers: { 
+                        "Content-Type": contentType,
+                        "Cache-Control": "public, max-age=31536000, immutable"
+                    } 
+                });
+            } catch {
+                return new Response("Not found", { status: 404 });
+            }
+        });
+
+        // Catch-all: serve static files o index.html
+        this.app.all("*", ({ request }) => {
+            const url = new URL(request.url);
+            let pathname = url.pathname;
+            
+            // Rimuove il BASE_PATH dal pathname per il matching interno
+            if (BASE_PATH && pathname.startsWith(BASE_PATH)) {
+                pathname = pathname.substring(BASE_PATH.length);
+            }
+            
+            // Se è una chiamata API, non serve file statici
+            if (pathname.startsWith("/api/")) {
+                return new Response("API endpoint not found", { status: 404 });
+            }
+            
+            // Prova a servire il file statico dalla root di www
+            const fileName = pathname.substring(1); // rimuove il leading "/"
+            const filePath = join(import.meta.dir, "../www", fileName);
+            
+            try {
+                const file = readFileSync(filePath);
+                const ext = filePath.split('.').pop()?.toLowerCase();
+                
+                // Mappa estensioni a MIME types
+                const contentTypes: Record<string, string> = {
+                    "js": "application/javascript",
+                    "css": "text/css",
+                    "json": "application/json",
+                    "ico": "image/x-icon",
+                    "png": "image/png",
+                    "jpg": "image/jpeg",
+                    "jpeg": "image/jpeg",
+                    "svg": "image/svg+xml",
+                    "html": "text/html"
+                };
+                
+                const contentType = contentTypes[ext || ""] || "application/octet-stream";
+                
+                // Cache headers in base al tipo di file
+                let cacheControl = "no-cache";
+                if (ext === "js" || ext === "css") {
+                    // File con hash hanno cache immutabile
+                    if (fileName.match(/-([\w]{8,})\.(?:js|css)$/)) {
+                        cacheControl = "public, max-age=31536000, immutable";
+                    }
+                } else if (ext === "ico") {
+                    cacheControl = "public, max-age=86400";
+                }
+                
+                return new Response(file, { 
+                    headers: { 
+                        "Content-Type": contentType,
+                        "Cache-Control": cacheControl
+                    } 
+                });
+            } catch {
+                // File non trovato, serve index.html per Angular router
+                try {
+                    let html = readFileSync(join(import.meta.dir, "../www/index.html"), "utf8");
+                    
+                    // Inietta il base href dinamicamente se BASE_PATH è configurato
+                    if (BASE_PATH) {
+                        const baseHref = `${BASE_PATH}/`;
+                        // Se esiste già un tag <base>, lo sostituisce, altrimenti lo aggiunge nell'head
+                        if (html.includes('<base')) {
+                            html = html.replace(/<base[^>]*>/i, `<base href="${baseHref}">`);
+                        } else {
+                            html = html.replace('</head>', `  <base href="${baseHref}">\n</head>`);
+                        }
+                    }
+                    
+                    return new Response(html, { 
+                        headers: { 
+                            "Content-Type": "text/html",
+                            "Cache-Control": "no-cache"
+                        } 
+                    });
+                } catch (err) {
+                    return new Response("Application not found", { status: 404 });
+                }
+            }
+        });
         //#endregion ROUTES
 
         //#region WEBSOCKET
-        // Use closure to access wsClients
+        // Use closure to access wsClients and verifyToken
         const wsClients = this.wsClients;
-        this.app.ws("/api/ws", {
+        this.app.ws(`${BASE_PATH}/api/ws`, {
             open(ws) {
                 console.log("[WS] New connection request");
                 const url = new URL(ws.data.request.url);
+                
+                // Verifica autenticazione tramite token (query param o header)
+                const tokenFromQuery = url.searchParams.get('token');
+                const authHeader = ws.data.request.headers.get('authorization');
+                const tokenFromHeader = authHeader?.replace('Bearer ', '');
+                const token = tokenFromQuery || tokenFromHeader;
+
+                if (!verifyToken(token)) {
+                    console.warn("[WS] Unauthorized connection attempt - invalid or missing token");
+                    ws.send(JSON.stringify({ 
+                        type: 'error', 
+                        message: 'Unauthorized - Invalid or missing token' 
+                    }));
+                    ws.close(1008, "Unauthorized");
+                    return;
+                }
+
                 // Permetti passaggio opzionale di ?id=xxx dal client
                 let id = url.searchParams.get('id') ?? crypto.randomUUID();
                 while (wsClients.has(id)) id = crypto.randomUUID(); // garantisci unicità
 
                 console.log(`[WS] Assigned client ID: ${id}`);
 
-                // Memorizza l'id sulla connessione (nota: "any" per comodità)
+                // Memorizza l'id sulla connessione
+                (ws as any).id = id;
                 wsClients.set(id, ws as any);
                 
                 // Facoltativo: keep-alive a livello di singola connessione
@@ -243,9 +329,9 @@ export class HttpServerController {
                     try { ws.ping(); } catch { /* ignore */ }
                 }, 30_000);
                 
-                // Notifica l'id assegnato
-                ws.send(JSON.stringify({ type: 'hello', id }));
-                console.log(`[WS] Client connected: ${id}`);
+                // Notifica l'id assegnato e autenticazione riuscita
+                ws.send(JSON.stringify({ type: 'hello', id, authenticated: true }));
+                console.log(`[WS] Client connected and authenticated: ${id}`);
             },
             message(ws, message) {
                 try {
@@ -276,12 +362,10 @@ export class HttpServerController {
         });
         
         //#endregion WEBSOCKET
-
         
-
         //#region API
         // API: restituisce le ricevute con filtri e paginazione
-        this.app.get("/api/receipts", async ({ request }) => {
+        this.app.get(`${BASE_PATH}/api/receipts`, async ({ request }) => {
             try {
                 const url = new URL(request.url);
                 const limitParam = url.searchParams.get("limit");
@@ -326,7 +410,7 @@ export class HttpServerController {
         });
 
         // API: ristampa una ricevuta tramite ID
-        this.app.post("/api/receipts/:id/print", ({ params }) => {
+        this.app.post(`${BASE_PATH}/api/receipts/:id/print`, ({ params }) => {
             console.log("[API] Ristampa ticket @ ID:", params.id);
             // printSpecificOrder(parseInt(params.id));
             regenerateSpecificReceipt(parseInt(params.id));
@@ -334,7 +418,7 @@ export class HttpServerController {
         
 
         // API: ristampa una ricevuta tramite ID
-        this.app.post("/api/receipts/:id/printAt", ({ params, request }) => {
+        this.app.post(`${BASE_PATH}/api/receipts/:id/printAt`, ({ params, request }) => {
             const url = new URL(request.url);
             const dest = url.searchParams.get("dest");
             console.log("[API] Ristampa ticket @ ID:", params.id, "dest:", dest);
@@ -342,7 +426,7 @@ export class HttpServerController {
             regenerateSpecificReceipt(parseInt(params.id), dest ? dest : undefined);
         });
 
-        this.app.get("/api/printers/getAll", async () => {
+        this.app.get(`${BASE_PATH}/api/printers/getAll`, async () => {
             try {
                 const printers = await DatabaseController.getInstance().getPrinterSettings();
                 return new Response(JSON.stringify(printers), { headers: { "Content-Type": "application/json" } });
@@ -352,7 +436,7 @@ export class HttpServerController {
             }
         });
 
-        this.app.post("/api/printers/delete/:key", async ({ params }) => {
+        this.app.post(`${BASE_PATH}/api/printers/delete/:key`, async ({ params }) => {
             try {
                 const key = params.key;
                 if (!key) {
@@ -367,7 +451,7 @@ export class HttpServerController {
             }
         });
 
-        this.app.post("/api/printers/update", async ({ request }) => {
+        this.app.post(`${BASE_PATH}/api/printers/update`, async ({ request }) => {
             try {
                 const data = await request.json();
                 if (!data || !data.key || !data.printerName || !data.printerIp || !data.printerPort) {
@@ -392,7 +476,7 @@ export class HttpServerController {
             }
         });
 
-        this.app.post("/api/printers/add", async ({ request }) => {
+        this.app.post(`${BASE_PATH}/api/printers/add`, async ({ request }) => {
             try {
                 const data = await request.json();
                 if (!data || !data.printerName || !data.printerIp || !data.printerPort) {
@@ -418,7 +502,7 @@ export class HttpServerController {
             }
         }); 
 
-        this.app.post("/api/printers/test/:key", async ({ params }) => {
+        this.app.post(`${BASE_PATH}/api/printers/test/:key`, async ({ params }) => {
             try {
                 const key = params.key;
                 if (!key) {
@@ -443,7 +527,7 @@ export class HttpServerController {
             }
         });
 
-        this.app.post("/api/printers/saveAll", async ({ request }) => {
+        this.app.post(`${BASE_PATH}/api/printers/saveAll`, async ({ request }) => {
             try {   
                 const data = await request.json();
                 if (!Array.isArray(data) || data.length === 0) {
@@ -481,7 +565,7 @@ export class HttpServerController {
             }
         });
 
-        this.app.get("/api/barcodes/getAll", async () => {
+        this.app.get(`${BASE_PATH}/api/barcodes/getAll`, async () => {
             try {
                 const barcodes = await DatabaseController.getInstance().getAllBarcodes();
                 return new Response(JSON.stringify(barcodes), { status: 200, headers: { "Content-Type": "application/json" } });
@@ -491,7 +575,7 @@ export class HttpServerController {
             }
         });
 
-        this.app.post("/api/barcodes/add/:id", async ({ request, params }) => {
+        this.app.post(`${BASE_PATH}/api/barcodes/add/:id`, async ({ request, params }) => {
             try {
             const url = new URL(request.url);
             const role = url.searchParams.get("role");
@@ -535,6 +619,340 @@ export class HttpServerController {
             }
         });
 
+
+        // ==================
+        // Statistics API Routes
+        // ==================
+        
+        this.app.get(`${BASE_PATH}/api/statistics/totals`, async ({ request }) => {
+            try {
+                const url = new URL(request.url);
+                const startDate = url.searchParams.get("startDate");
+                const endDate = url.searchParams.get("endDate");
+                
+                if (!startDate || !endDate) {
+                    return new Response(JSON.stringify({ error: "startDate and endDate are required" }), { 
+                        status: 400, 
+                        headers: { "Content-Type": "application/json" } 
+                    });
+                }
+                
+                const gsgController = GSGController.getInstance();
+                const statsController = new StatisticsController(gsgController["listener"]!);
+                const data = await statsController.getTotals(startDate, endDate);
+                
+                return new Response(JSON.stringify(data), { 
+                    status: 200, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            } catch (err) {
+                console.error("[API] Error getting statistics totals:", err);
+                return new Response(JSON.stringify({ error: "Internal Server Error" }), { 
+                    status: 500, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            }
+        });
+        
+        this.app.get(`${BASE_PATH}/api/statistics/trend`, async ({ request }) => {
+            try {
+                const url = new URL(request.url);
+                const startDate = url.searchParams.get("startDate");
+                const endDate = url.searchParams.get("endDate");
+                
+                if (!startDate || !endDate) {
+                    return new Response(JSON.stringify({ error: "startDate and endDate are required" }), { 
+                        status: 400, 
+                        headers: { "Content-Type": "application/json" } 
+                    });
+                }
+                
+                const gsgController = GSGController.getInstance();
+                const statsController = new StatisticsController(gsgController["listener"]!);
+                const data = await statsController.getTrend(startDate, endDate);
+                
+                return new Response(JSON.stringify(data), { 
+                    status: 200, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            } catch (err) {
+                console.error("[API] Error getting statistics trend:", err);
+                return new Response(JSON.stringify({ error: "Internal Server Error" }), { 
+                    status: 500, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            }
+        });
+        
+        this.app.get(`${BASE_PATH}/api/statistics/by-area`, async ({ request }) => {
+            try {
+                const url = new URL(request.url);
+                const startDate = url.searchParams.get("startDate");
+                const endDate = url.searchParams.get("endDate");
+                
+                if (!startDate || !endDate) {
+                    return new Response(JSON.stringify({ error: "startDate and endDate are required" }), { 
+                        status: 400, 
+                        headers: { "Content-Type": "application/json" } 
+                    });
+                }
+                
+                const gsgController = GSGController.getInstance();
+                const statsController = new StatisticsController(gsgController["listener"]!);
+                const data = await statsController.getByArea(startDate, endDate);
+                
+                return new Response(JSON.stringify(data), { 
+                    status: 200, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            } catch (err) {
+                console.error("[API] Error getting statistics by area:", err);
+                return new Response(JSON.stringify({ error: "Internal Server Error" }), { 
+                    status: 500, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            }
+        });
+        
+        this.app.get(`${BASE_PATH}/api/statistics/by-payment`, async ({ request }) => {
+            try {
+                const url = new URL(request.url);
+                const startDate = url.searchParams.get("startDate");
+                const endDate = url.searchParams.get("endDate");
+                
+                if (!startDate || !endDate) {
+                    return new Response(JSON.stringify({ error: "startDate and endDate are required" }), { 
+                        status: 400, 
+                        headers: { "Content-Type": "application/json" } 
+                    });
+                }
+                
+                const gsgController = GSGController.getInstance();
+                const statsController = new StatisticsController(gsgController["listener"]!);
+                const data = await statsController.getByPayment(startDate, endDate);
+                
+                return new Response(JSON.stringify(data), { 
+                    status: 200, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            } catch (err) {
+                console.error("[API] Error getting statistics by payment:", err);
+                return new Response(JSON.stringify({ error: "Internal Server Error" }), { 
+                    status: 500, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            }
+        });
+        
+        this.app.get(`${BASE_PATH}/api/statistics/channel`, async ({ request }) => {
+            try {
+                const url = new URL(request.url);
+                const startDate = url.searchParams.get("startDate");
+                const endDate = url.searchParams.get("endDate");
+                
+                if (!startDate || !endDate) {
+                    return new Response(JSON.stringify({ error: "startDate and endDate are required" }), { 
+                        status: 400, 
+                        headers: { "Content-Type": "application/json" } 
+                    });
+                }
+                
+                const gsgController = GSGController.getInstance();
+                const statsController = new StatisticsController(gsgController["listener"]!);
+                const data = await statsController.getChannel(startDate, endDate);
+                
+                return new Response(JSON.stringify(data), { 
+                    status: 200, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            } catch (err) {
+                console.error("[API] Error getting statistics channel:", err);
+                return new Response(JSON.stringify({ error: "Internal Server Error" }), { 
+                    status: 500, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            }
+        });
+        
+        this.app.get(`${BASE_PATH}/api/statistics/top-products`, async ({ request }) => {
+            try {
+                const url = new URL(request.url);
+                const startDate = url.searchParams.get("startDate");
+                const endDate = url.searchParams.get("endDate");
+                
+                if (!startDate || !endDate) {
+                    return new Response(JSON.stringify({ error: "startDate and endDate are required" }), { 
+                        status: 400, 
+                        headers: { "Content-Type": "application/json" } 
+                    });
+                }
+                
+                const gsgController = GSGController.getInstance();
+                const statsController = new StatisticsController(gsgController["listener"]!);
+                const data = await statsController.getTopProducts(startDate, endDate);
+                
+                return new Response(JSON.stringify(data), { 
+                    status: 200, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            } catch (err) {
+                console.error("[API] Error getting top products:", err);
+                return new Response(JSON.stringify({ error: "Internal Server Error" }), { 
+                    status: 500, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            }
+        });
+        
+        this.app.get(`${BASE_PATH}/api/statistics/top-categories`, async ({ request }) => {
+            try {
+                const url = new URL(request.url);
+                const startDate = url.searchParams.get("startDate");
+                const endDate = url.searchParams.get("endDate");
+                
+                if (!startDate || !endDate) {
+                    return new Response(JSON.stringify({ error: "startDate and endDate are required" }), { 
+                        status: 400, 
+                        headers: { "Content-Type": "application/json" } 
+                    });
+                }
+                
+                const gsgController = GSGController.getInstance();
+                const statsController = new StatisticsController(gsgController["listener"]!);
+                const data = await statsController.getTopCategories(startDate, endDate);
+                
+                return new Response(JSON.stringify(data), { 
+                    status: 200, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            } catch (err) {
+                console.error("[API] Error getting top categories:", err);
+                return new Response(JSON.stringify({ error: "Internal Server Error" }), { 
+                    status: 500, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            }
+        });
+        
+        this.app.get("/api/statistics/by-cashier", async ({ request }) => {
+            try {
+                const url = new URL(request.url);
+                const startDate = url.searchParams.get("startDate");
+                const endDate = url.searchParams.get("endDate");
+                
+                if (!startDate || !endDate) {
+                    return new Response(JSON.stringify({ error: "startDate and endDate are required" }), { 
+                        status: 400, 
+                        headers: { "Content-Type": "application/json" } 
+                    });
+                }
+                
+                const gsgController = GSGController.getInstance();
+                const statsController = new StatisticsController(gsgController["listener"]!);
+                const data = await statsController.getByCashier(startDate, endDate);
+                
+                return new Response(JSON.stringify(data), { 
+                    status: 200, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            } catch (err) {
+                console.error("[API] Error getting statistics by cashier:", err);
+                return new Response(JSON.stringify({ error: "Internal Server Error" }), { 
+                    status: 500, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            }
+        });
+        
+        this.app.get("/api/statistics/by-table", async ({ request }) => {
+            try {
+                const url = new URL(request.url);
+                const startDate = url.searchParams.get("startDate");
+                const endDate = url.searchParams.get("endDate");
+                
+                if (!startDate || !endDate) {
+                    return new Response(JSON.stringify({ error: "startDate and endDate are required" }), { 
+                        status: 400, 
+                        headers: { "Content-Type": "application/json" } 
+                    });
+                }
+                
+                const gsgController = GSGController.getInstance();
+                const statsController = new StatisticsController(gsgController["listener"]!);
+                const data = await statsController.getByTable(startDate, endDate);
+                
+                return new Response(JSON.stringify(data), { 
+                    status: 200, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            } catch (err) {
+                console.error("[API] Error getting statistics by table:", err);
+                return new Response(JSON.stringify({ error: "Internal Server Error" }), { 
+                    status: 500, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            }
+        });
+        
+        this.app.get("/api/statistics/departments", async ({ request }) => {
+            try {
+                const url = new URL(request.url);
+                const startDate = url.searchParams.get("startDate");
+                const endDate = url.searchParams.get("endDate");
+                
+                if (!startDate || !endDate) {
+                    return new Response(JSON.stringify({ error: "startDate and endDate are required" }), { 
+                        status: 400, 
+                        headers: { "Content-Type": "application/json" } 
+                    });
+                }
+                
+                const gsgController = GSGController.getInstance();
+                const statsController = new StatisticsController(gsgController["listener"]!);
+                const data = await statsController.getDepartments(startDate, endDate);
+                
+                return new Response(JSON.stringify(data), { 
+                    status: 200, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            } catch (err) {
+                console.error("[API] Error getting statistics departments:", err);
+                return new Response(JSON.stringify({ error: "Internal Server Error" }), { 
+                    status: 500, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            }
+        });
+
+        this.app.get("/api/statistics/total-covers", async ({ request }) => {
+            try {
+                const url = new URL(request.url);
+                const startDate = url.searchParams.get("startDate");
+                const endDate = url.searchParams.get("endDate");
+                
+                if (!startDate || !endDate) {
+                    return new Response(JSON.stringify({ error: "startDate and endDate are required" }), { 
+                        status: 400, 
+                        headers: { "Content-Type": "application/json" } 
+                    });
+                }
+                
+                const gsgController = GSGController.getInstance();
+                const statsController = new StatisticsController(gsgController["listener"]!);
+                const data = await statsController.getTotalCovers(startDate, endDate);
+                
+                return new Response(JSON.stringify(data), { 
+                    status: 200, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            } catch (err) {
+                console.error("[API] Error getting total covers:", err);
+                return new Response(JSON.stringify({ error: "Internal Server Error" }), { 
+                    status: 500, 
+                    headers: { "Content-Type": "application/json" } 
+                });
+            }
+        });
         //#endregion API
         
         // Avvia il server HTTP sulla porta 4000
@@ -608,6 +1026,46 @@ export class HttpServerController {
         return count;
     }
 
+    /**
+     * Invia una notifica strutturata a tutti i client connessi via WebSocket.
+     * Utilizza un formato standard per tutte le notifiche del sistema.
+     * 
+     * @param type Tipo di notifica (es: 'ORDER_RECEIVED', 'PRINT_SUCCESS', 'PRINT_FAILED', etc.)
+     * @param payload Dati specifici della notifica
+     * @param severity Livello di gravità: 'info' | 'success' | 'warning' | 'error'
+     * @returns numero di client a cui è stata inviata la notifica
+     * 
+     * @example
+     * // Notifica ordine ricevuto
+     * this.sendNotification('ORDER_RECEIVED', { orderId: 123, table: 5 }, 'info');
+     * 
+     * @example
+     * // Notifica stampa fallita
+     * this.sendNotification('PRINT_FAILED', { 
+     *   receiptId: 456, 
+     *   printer: 'CUCINA', 
+     *   error: 'Connection timeout' 
+     * }, 'error');
+     */
+    public sendNotification(
+        type: string, 
+        payload: any, 
+        severity: 'info' | 'success' | 'warning' | 'error' = 'info'
+    ): number {
+        const notification = {
+            type: 'NOTIFICATION',
+            timestamp: new Date().toISOString(),
+            data: {
+                notificationType: type,
+                severity,
+                payload
+            }
+        };
+        
+        console.log(`[WS] Sending notification: ${type} (${severity}) to ${this.wsClients.size} clients`);
+        return this.broadcast(notification);
+    }
+
     /** Utility opzionali */
     public listClients(): string[] { return [...this.wsClients.keys()]; }
 
@@ -617,5 +1075,3 @@ export class HttpServerController {
         try { ws.close(code, reason); this.wsClients.delete(id); return true; } catch { return false; }
     }
 }
-
-

@@ -49,6 +49,7 @@ if (!fs.existsSync(envPath)) {
         GSG_DB_PASSWORD=postgres
         GSG_DB_DATABASE=sagra
         NODE_ENV=development
+        ENABLE_AUTH_PAGES=false
     `;
     fs.writeFileSync(envPath, defaultEnv, { encoding: 'utf8' });
     console.log("[MAIN] ⚠️  File .env non trovato. Creato file .env di default.");

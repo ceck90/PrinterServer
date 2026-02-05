@@ -186,3 +186,5 @@ dist
 *.exe
 
 bun.lock
+
+.github

@@ -5,6 +5,7 @@ import { sendToPrinter } from "./print";
 import { printers } from "./print-routing.config";
 import type { PrinterConfig } from "./print-routing.config";
 import { DatabaseController } from "./controllers/db.controller";
+import { HttpServerController } from "./controllers/httpserver.controller";
 import { sleep } from "bun";
 
 export async function handleSingleOrderData(data: any) {
@@ -169,6 +170,25 @@ export async function handleIncomingOrder(order: OrderPayload) {
                 printed: true,
                 takeAway: order.items[0].takeAway
             });
+
+            // Invia notifica WebSocket ai client connessi
+            if (printer.active) {
+                HttpServerController.instance.sendNotification(
+                    'RECEIPT_PRINTED',
+                    {
+                        receiptId: order.id,
+                        orderId: order.orderId,
+                        orderNumber: order.orderNumber,
+                        printerName: printer.name,
+                        destination: dest,
+                        itemName: order.items[0].name,
+                        tableNumber: order.items[0].tableNumber,
+                        clientName: order.items[0].clientName,
+                        takeAway: order.items[0].takeAway
+                    },
+                    'success'
+                );
+            }
         } catch (err) {
             // In caso di errore di stampa, salva comunque la ticket come FAILED
             console.error(`Errore stampando ${dest}:`, err);
@@ -189,6 +209,23 @@ export async function handleIncomingOrder(order: OrderPayload) {
                 printed: true,
                 takeAway: order.items[0].takeAway
             });
+
+            // Invia notifica WebSocket di errore
+            HttpServerController.instance.sendNotification(
+                'RECEIPT_PRINT_FAILED',
+                {
+                    receiptId: order.id,
+                    orderId: order.orderId,
+                    orderNumber: order.orderNumber,
+                    printerName: printer.name,
+                    destination: dest,
+                    error: err instanceof Error ? err.message : String(err),
+                    itemName: order.items[0].name,
+                    tableNumber: order.items[0].tableNumber,
+                    clientName: order.items[0].clientName
+                },
+                'error'
+            );
         }
     }
 }
@@ -299,9 +336,9 @@ export async function regenerateSpecificReceipt(orderNumber: number, destination
                     takeAway: receipt.takeAway
                 }]
             };
-            console.log(`[DISPATCHER] Rigenero il ticket per ordine ${receipt.id} con dati:`, order);
+            // console.log(`[DISPATCHER] Rigenero il ticket per ordine ${receipt.id} con dati:`, order);
             const buffer = await buildKitchenTicket_v2(order, destination ? destination : receipt.destination, order.items, printer.upsideDown, printer.beepEnable);
-            await sendToPrinter(printer.destination, printer.ip, printer.port, buffer);
+            await sendToPrinter(destination ? destination : receipt.destination, printer.ip, printer.port, buffer);
             console.log(`[DISPATCHER] ticket per ordine ${receipt.id} rigenerata e stampata su ${destination ? destination : receipt.destination}`);
         } else {
             console.warn(`[DISPATCHER] Stampante ${destination ? destination : receipt.destination} non attiva, non posso rigenerare il ticket per ordine ${receipt.id}`);
