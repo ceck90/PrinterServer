@@ -47,6 +47,7 @@ GSG_DB_DATABASE=dbname
 - **WS_CLIENT_RECONNECT_ATTEMPTS**: Numero massimo di tentativi di riconnessione al WebSocket (`-1` = tentativi infiniti).
 - **WS_CLIENT_RECONNECT_DELAY_MS**: Intervallo in millisecondi tra i tentativi di riconnessione al WebSocket.
 - **TOKEN_KEY**: Chiave segreta utilizzata per la generazione e la verifica dei token di autenticazione.
+- **BASE_PATH**: Percorso base per supporto reverse proxy (es. `/printers` se servito su `dominio.com/printers/`). Lasciare vuoto per deployment su percorso root.
 - **GSG_DB_HOST**: Indirizzo host del database PostgreSQL GSG.
 - **GSG_DB_PORT**: Porta di connessione al database PostgreSQL GSG.
 - **GSG_DB_USER**: Nome utente per l'accesso al database PostgreSQL GSG.
@@ -84,6 +85,31 @@ Il server HTTP sarà disponibile su [http://localhost:4000](http://localhost:400
 - **Gestione e visualizzazione ricevute** tramite API REST
 - **Seed automatico** delle stampanti se il database è vuoto
 - **Configurazione centralizzata** tramite file `.env`
+
+---
+
+## Supporto Reverse Proxy
+
+Il server supporta deployment dietro un reverse proxy su un percorso personalizzato. Per configurare:
+
+1. Imposta la variabile d'ambiente `BASE_PATH` nel file `.env`:
+   ```bash
+   BASE_PATH=/printers
+   ```
+
+2. Configura il tuo reverse proxy per inoltrare le richieste. Esempio con Nginx:
+   ```nginx
+   location /printers/ {
+       proxy_pass http://localhost:4000/;
+       proxy_http_version 1.1;
+       proxy_set_header Upgrade $http_upgrade;
+       proxy_set_header Connection "upgrade";
+       proxy_set_header Host $host;
+       proxy_set_header X-Real-IP $remote_addr;
+   }
+   ```
+
+Il server adatterà automaticamente tutti i percorsi (API, WebSocket, assets) al prefisso configurato e inietterà il corretto `<base href>` nell'HTML per il routing del frontend Angular.
 
 ---
 
