@@ -23,11 +23,15 @@ export class HttpServerController {
     static #instance: HttpServerController;
 
     private wsClients = new Map<string, ServerWebSocket<any>>();
+    private wsClientIds = new WeakMap<ServerWebSocket<any>, string>();
+    private readonly instanceId = crypto.randomUUID();
 
     /**
      * Costruttore privato: definisce tutte le route HTTP.
      */
     private constructor() {
+        console.log(`[HttpServerController] Constructor called - creating new instance with ID: ${this.instanceId}`);
+        console.log("[HttpServerController] wsClients map initialized:", this.wsClients instanceof Map);
 
         //#region TOKEN
         // Simple authentication middleware
@@ -291,47 +295,61 @@ export class HttpServerController {
         //#endregion ROUTES
 
         //#region WEBSOCKET
-        // Use closure to access wsClients and verifyToken
-        const wsClients = this.wsClients;
+        // Usa arrow function per mantenere il contesto `this`
+        const wsClientsMap = this.wsClients;
+        const wsClientIdsMap = this.wsClientIds;
+        const self = this;
+        
         this.app.ws(`${BASE_PATH}/api/ws`, {
             open(ws) {
-                console.log("[WS] New connection request");
-                const url = new URL(ws.data.request.url);
-                
-                // Verifica autenticazione tramite token (query param o header)
-                const tokenFromQuery = url.searchParams.get('token');
-                const authHeader = ws.data.request.headers.get('authorization');
-                const tokenFromHeader = authHeader?.replace('Bearer ', '');
-                const token = tokenFromQuery || tokenFromHeader;
+                try {
+                    console.log("[WS] New connection request");
+                    const url = new URL(ws.data.request.url);
+                    
+                    // Verifica autenticazione tramite token (query param o header)
+                    const tokenFromQuery = url.searchParams.get('token');
+                    const authHeader = ws.data.request.headers.get('authorization');
+                    const tokenFromHeader = authHeader?.replace('Bearer ', '');
+                    const token = tokenFromQuery || tokenFromHeader;
 
-                if (!verifyToken(token)) {
-                    console.warn("[WS] Unauthorized connection attempt - invalid or missing token");
-                    ws.send(JSON.stringify({ 
-                        type: 'error', 
-                        message: 'Unauthorized - Invalid or missing token' 
-                    }));
-                    ws.close(1008, "Unauthorized");
-                    return;
+                    if (!verifyToken(token)) {
+                        console.warn("[WS] Unauthorized connection attempt - invalid or missing token");
+                        ws.send(JSON.stringify({ 
+                            type: 'error', 
+                            message: 'Unauthorized - Invalid or missing token' 
+                        }));
+                        ws.close(1008, "Unauthorized");
+                        return;
+                    }
+
+                    // Permetti passaggio opzionale di ?id=xxx dal client
+                    let id = url.searchParams.get('id') ?? crypto.randomUUID();
+                    while (wsClientsMap.has(id)) id = crypto.randomUUID(); // garantisci unicità
+
+                    console.log(`[WS] Assigned client ID: ${id}`);
+
+                    // Memorizza l'id associato al WebSocket usando WeakMap
+                    wsClientIdsMap.set(ws, id);
+                    wsClientsMap.set(id, ws as any);
+                    console.log(`[WS] Instance ${self.instanceId} - Client added to wsClients map. Total clients: ${wsClientsMap.size}`);
+                    console.log(`[WS] Instance ${self.instanceId} - Verification self.wsClients.size: ${self.wsClients.size}`);
+                    console.log(`[WS] Instance ${self.instanceId} - Are they the same Map? ${wsClientsMap === self.wsClients}`);
+                    
+                    // Facoltativo: keep-alive a livello di singola connessione
+                    const keepAlive = setInterval(() => {
+                        try { ws.ping(); } catch { /* ignore */ }
+                    }, 30_000);
+                    
+                    // Memorizza il timer nella WeakMap per poterlo cancellare dopo
+                    (wsClientIdsMap as any).keepAliveTimers = (wsClientIdsMap as any).keepAliveTimers || new WeakMap();
+                    (wsClientIdsMap as any).keepAliveTimers.set(ws, keepAlive);
+                    
+                    // Notifica l'id assegnato e autenticazione riuscita
+                    ws.send(JSON.stringify({ type: 'hello', id, authenticated: true }));
+                    console.log(`[WS] Client connected and authenticated: ${id}`);
+                } catch (err) {
+                    console.error("[WS] ERROR in open handler:", err);
                 }
-
-                // Permetti passaggio opzionale di ?id=xxx dal client
-                let id = url.searchParams.get('id') ?? crypto.randomUUID();
-                while (wsClients.has(id)) id = crypto.randomUUID(); // garantisci unicità
-
-                console.log(`[WS] Assigned client ID: ${id}`);
-
-                // Memorizza l'id sulla connessione
-                (ws as any).id = id;
-                wsClients.set(id, ws as any);
-                
-                // Facoltativo: keep-alive a livello di singola connessione
-                (ws as any).__ka = setInterval(() => {
-                    try { ws.ping(); } catch { /* ignore */ }
-                }, 30_000);
-                
-                // Notifica l'id assegnato e autenticazione riuscita
-                ws.send(JSON.stringify({ type: 'hello', id, authenticated: true }));
-                console.log(`[WS] Client connected and authenticated: ${id}`);
             },
             message(ws, message) {
                 try {
@@ -350,11 +368,17 @@ export class HttpServerController {
                 console.log("[WS] Message from client:", message);
             },
             close(ws) {
-                const id = (ws as any).id as string | undefined;
-                if (id) wsClients.delete(id);
-                const ka = (ws as any).__ka as ReturnType<typeof setInterval> | undefined;
-                if (ka) clearInterval(ka);
-                console.log("[WS] Client disconnected:", id);
+                const id = wsClientIdsMap.get(ws);
+                if (id) wsClientsMap.delete(id);
+                
+                // Cancella il keep-alive timer
+                const keepAliveTimers = (wsClientIdsMap as any).keepAliveTimers;
+                if (keepAliveTimers) {
+                    const ka = keepAliveTimers.get(ws);
+                    if (ka) clearInterval(ka);
+                }
+                
+                console.log(`[WS] Client disconnected: ${id}. Total clients remaining: ${wsClientsMap.size}`);
             },
             drain(ws) {
                 console.log("[WS] Client drain");
@@ -364,6 +388,18 @@ export class HttpServerController {
         //#endregion WEBSOCKET
         
         //#region API
+        // API DEBUG: verifica stato client WebSocket connessi
+        this.app.get(`${BASE_PATH}/api/ws/status`, ({ request }) => {
+            const clients = this.listClients();
+            return new Response(JSON.stringify({
+                connectedClients: clients.length,
+                clientIds: clients,
+                wsClientsMapSize: this.wsClients.size
+            }), {
+                headers: { "Content-Type": "application/json" }
+            });
+        });
+
         // API: restituisce le ricevute con filtri e paginazione
         this.app.get(`${BASE_PATH}/api/receipts`, async ({ request }) => {
             try {
@@ -966,7 +1002,10 @@ export class HttpServerController {
      */
     public static get instance(): HttpServerController {
         if (!HttpServerController.#instance) {
+            console.log("[HttpServerController] Creating new singleton instance");
             HttpServerController.#instance = new HttpServerController();
+        } else {
+            console.log("[HttpServerController] Returning existing singleton instance");
         }
         return HttpServerController.#instance;
     }
@@ -1019,10 +1058,18 @@ export class HttpServerController {
     public broadcast(data: any): number {
         const payload = typeof data === 'string' ? data : JSON.stringify(data);
         console.log(`[WS] Broadcasting message to ${this.wsClients.size} clients`);
+        console.log(`[WS] wsClients map keys:`, [...this.wsClients.keys()]);
         let count = 0;
         for (const ws of this.wsClients.values()) {
-        try { ws.send(payload); count++; } catch { /* ignore */ }
+            try { 
+                ws.send(payload); 
+                count++; 
+                console.log(`[WS] Message sent successfully to client ${count}`);
+            } catch (err) { 
+                console.error(`[WS] Failed to send to client:`, err);
+            }
         }
+        console.log(`[WS] Broadcast completed. Sent to ${count} clients`);
         return count;
     }
 
@@ -1062,8 +1109,12 @@ export class HttpServerController {
             }
         };
         
-        console.log(`[WS] Sending notification: ${type} (${severity}) to ${this.wsClients.size} clients`);
-        return this.broadcast(notification);
+        console.log(`[WS] Instance ${this.instanceId} - Preparing to send notification: ${type} (${severity})`);
+        console.log(`[WS] Instance ${this.instanceId} - Current wsClients.size: ${this.wsClients.size}`);
+        console.log(`[WS] Notification payload:`, JSON.stringify(notification, null, 2));
+        const result = this.broadcast(notification);
+        console.log(`[WS] Notification sent to ${result} clients`);
+        return result;
     }
 
     /** Utility opzionali */

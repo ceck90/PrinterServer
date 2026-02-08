@@ -113,6 +113,20 @@ export async function handleIncomingData(data: any) {
 export async function handleIncomingOrder(order: OrderPayload) {
     // console.log("[DISPATCHER] Gestione ordine:", order);
 
+    // Invia notifica WebSocket ai client connessi per aggiornare la lista dei ticket
+    console.log("[DISPATCHER] About to send NEW_TICKETS notification for order:", order.orderId);
+    const notificationResult = HttpServerController.instance.sendNotification(
+        'NEW_TICKETS',
+        {
+            orderId: order.orderId,
+            orderNumber: order.orderNumber,
+            orderStatus: order.status,
+            timestamp: order.timestamp
+        },
+        'info'
+    );
+    console.log("[DISPATCHER] NEW_TICKETS notification sent to", notificationResult, "clients");
+
     // Raggruppa gli item per destinazione (es: CUCINA, BAR, ecc.)
     const grouped = groupBy(order.items, i => i.dest);
 
@@ -245,6 +259,19 @@ export async function handleIncomingOrderFromGSG(order: any) {
         //console.log("[DISPATCHER] Cliente:", order.cliente);
         //console.log("[DISPATCHER] Timestamp:", order.ora);
         //console.log("[DISPATCHER] Cassiere:", order.cassiere);
+
+        // Invia notifica WebSocket ai client connessi per aggiornare la lista dei ticket
+        HttpServerController.instance.sendNotification(
+            'NEW_TICKETS',
+            {
+                orderId: order.id,
+                orderNumber: order.numeroOrdine || order.id,
+                tableNumber: order.numeroTavolo,
+                clientName: order.cliente,
+                timestamp: new Date().toISOString()
+            },
+            'info'
+        );
 
         // Costruisce il ticket di coperti
 

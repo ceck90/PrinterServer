@@ -71,6 +71,41 @@ Inviato dal server quando un client si connette con successo.
 
 ### 📋 Ordini e Ricevute
 
+#### `NEW_TICKETS`
+Notifica inviata quando arrivano nuovi ticket/ordini nel sistema. Il frontend deve ricaricare la lista dei ticket tramite le API REST.
+
+**Severity**: `info`
+
+**Payload**:
+```typescript
+{
+  orderId: string | number; // ID dell'ordine
+  orderNumber: number;      // Numero ordine
+  orderStatus?: string;     // Stato ordine (TODO, PROGRESS, DONE, CANCELLED)
+  timestamp: string;        // Timestamp ISO 8601
+  tableNumber?: string;     // Numero tavolo (opzionale)
+  clientName?: string;      // Nome cliente (opzionale)
+}
+```
+
+**Esempio**:
+```json
+{
+  "type": "NOTIFICATION",
+  "timestamp": "2026-02-08T10:30:00.000Z",
+  "data": {
+    "notificationType": "NEW_TICKETS",
+    "severity": "info",
+    "payload": {
+      "orderId": 12345,
+      "orderNumber": 42,
+      "orderStatus": "PROGRESS",
+      "timestamp": "2026-02-08T10:30:00.000Z"
+    }
+  }
+}
+```
+
 #### `ORDER_RECEIVED`
 Notifica quando un nuovo ordine viene ricevuto dal sistema GSG.
 
@@ -452,6 +487,7 @@ function handleNotification(data: any) {
 
 Le seguenti notifiche devono ancora essere implementate nei rispettivi moduli:
 
+- [x] `NEW_TICKETS` - **IMPLEMENTATO** in `dispatcher.ts` → `handleIncomingOrder()` e `handleIncomingOrderFromGSG()`
 - [x] `RECEIPT_PRINTED` / `RECEIPT_PRINT_FAILED` - **IMPLEMENTATO** in `dispatcher.ts` → `handleIncomingOrder()`
 - [ ] `ORDER_RECEIVED` - da implementare in `gsg.controller.ts`
 - [ ] `PRINTER_STATUS_CHANGE` - da implementare nel monitoring delle stampanti
