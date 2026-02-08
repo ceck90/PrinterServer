@@ -3,7 +3,7 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import { DatabaseController } from "./db.controller";
 import { printSpecificOrder, printTestTicket, regenerateSpecificReceipt } from "../dispatcher";
-import { loadPrintersFromDb } from "../print-routing.config";
+import { loadPrintersFromDb, printers } from "../print-routing.config";
 import { KitchenManagementController } from "./kitchenmgmt.controller";
 import { GSGController } from "./gsg.controller";
 import { StatisticsController } from "./statistics.controller";
@@ -11,6 +11,7 @@ import { ServerWebSocket } from "bun";
 import { config } from "dotenv";
 import { verify } from "crypto";
 import { verifyPassword } from "../users";
+import { getAllPrinterStatuses, getPrinterStatus, checkAllPrintersStatus } from "../printer-status";
 import * as logger from "../logger.ts";
 
 
@@ -596,6 +597,72 @@ export class HttpServerController {
                 return new Response("All printers saved successfully", { status: 200 });
             } catch (err) {
                 console.error("[API] Error saving all printers:", err);
+                return new Response("Internal Server Error", { status: 500 });
+            }
+        });
+
+        // API: ottiene lo stato di tutte le stampanti
+        this.app.get(`${BASE_PATH}/api/printers/status`, async () => {
+            try {
+                const statusMap = getAllPrinterStatuses();
+                const statusArray = Array.from(statusMap.entries()).map(([name, status]) => ({
+                    printerName: name,
+                    ...status,
+                    lastCheck: status.lastCheck.toISOString()
+                }));
+                return new Response(JSON.stringify(statusArray), {
+                    status: 200,
+                    headers: { "Content-Type": "application/json" }
+                });
+            } catch (err) {
+                console.error("[API] Error getting printer statuses:", err);
+                return new Response("Internal Server Error", { status: 500 });
+            }
+        });
+
+        // API: ottiene lo stato di una stampante specifica
+        this.app.get(`${BASE_PATH}/api/printers/status/:name`, async ({ params }) => {
+            try {
+                const name = params.name;
+                if (!name) {
+                    return new Response("Printer name is required", { status: 400 });
+                }
+                const status = getPrinterStatus(name);
+                if (!status) {
+                    return new Response("Printer status not found", { status: 404 });
+                }
+                return new Response(JSON.stringify({
+                    printerName: name,
+                    ...status,
+                    lastCheck: status.lastCheck.toISOString()
+                }), {
+                    status: 200,
+                    headers: { "Content-Type": "application/json" }
+                });
+            } catch (err) {
+                console.error("[API] Error getting printer status:", err);
+                return new Response("Internal Server Error", { status: 500 });
+            }
+        });
+
+        // API: avvia manualmente il controllo dello stato di tutte le stampanti
+        this.app.post(`${BASE_PATH}/api/printers/check-status`, async () => {
+            try {
+                logger.info("[API] Controllo manuale stato stampanti richiesto");
+                // Esegui il controllo in modo asincrono
+                checkAllPrintersStatus(printers).catch(err => {
+                    logger.error("[API] Errore durante controllo stampanti:", err);
+                });
+                
+                return new Response(JSON.stringify({ 
+                    message: "Printer status check initiated",
+                    timestamp: new Date().toISOString()
+                }), {
+                    status: 202, // Accepted
+                    headers: { "Content-Type": "application/json" }
+                });
+            } catch (err) {
+                console.error("[API] Error initiating printer status check:", err);
                 return new Response("Internal Server Error", { status: 500 });
             }
         });

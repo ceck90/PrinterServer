@@ -2,9 +2,10 @@ import { HttpServerController } from './controllers/httpserver.controller.ts';
 import { DatabaseController } from './controllers/db.controller.ts';
 import { GSGController } from './controllers/gsg.controller.ts';
 import { KitchenManagementController, WSClientController } from './controllers/kitchenmgmt.controller.ts';
-import { loadPrintersFromDb, seedPrintersIfDbEmpty } from './print-routing.config.ts';
+import { loadPrintersFromDb, seedPrintersIfDbEmpty, printers } from './print-routing.config.ts';
 import { JobController } from "./controllers/cron.controller.ts";
 import { printSpecificOrder } from './dispatcher.ts';
+import { checkAllPrintersStatus } from './printer-status.ts';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Client } from 'pg';
@@ -217,6 +218,19 @@ jobController.create({
         await dbController.backupDatabase(dbController.getDbPath());
     },
     startNow: false,
+    meta: { env: process.env.NODE_ENV ?? "development" },
+});
+
+jobController.create({
+    id: "PRINTER_STATUS_CHECK",
+    name: "Printer Status Monitor",
+    cron: "0 */2 * * * *", // ogni 2 minuti (syntax con seconds abilitata da node-cron)
+    timezone: "Europe/Rome",
+    task: async () => {
+        console.log(`[JOB - PRINTER_STATUS_CHECK] Verifico stato stampanti...`);
+        await checkAllPrintersStatus(printers);
+    },
+    startNow: true,
     meta: { env: process.env.NODE_ENV ?? "development" },
 });
 
