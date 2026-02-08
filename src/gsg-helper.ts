@@ -196,4 +196,20 @@ export const gsg_queries = {
     ORDER BY r.id;
   `,
 
+  // 🔹 Dati completi di un ordine specifico
+  datiOrdine: `
+    SELECT 
+      id, 
+      "numeroTavolo", 
+      cliente, 
+      coperti, 
+      cassiere, 
+      esportazione, 
+      serata, 
+      ora, 
+      data
+    FROM ordini 
+    WHERE id = $1;
+  `,
+
 };

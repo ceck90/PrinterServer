@@ -138,8 +138,19 @@ export class GSGController {
     }
 
     try {
-      let result = await this.query(gsg_queries.righePerOrdineConTipologia, [data.item.id]);
-      await this.enqueueEvent(result.rows);
+      // Recupera le righe dell'ordine
+      let righeResult = await this.query(gsg_queries.righePerOrdineConTipologia, [data.item.id]);
+      
+      // Recupera i dati dell'ordine dalla tabella ordini
+      let ordineResult = await this.query(gsg_queries.datiOrdine, [data.item.id]);
+      
+      // Combina righe e dati ordine
+      const eventData = {
+        righe: righeResult.rows,
+        ordine: ordineResult.rows.length > 0 ? ordineResult.rows[0] : null
+      };
+      
+      await this.enqueueEvent(eventData);
     } catch (err) {
       console.error("[GSG] errore processEvent:", err);
       // opzionale: DLQ / retry
@@ -169,16 +180,34 @@ export class GSGController {
     while (this.queue.length > 0) {
       console.log(`[GSG] Processing queue, items left: ${this.queue.length}`);
       const event = this.queue.shift();
+      
+      // Log dettagliati per debug
+      console.log(`[GSG] Event structure: ${JSON.stringify(event, null, 2)}`);
+      
       try {
-        // Qui inserisci l'evento in SQLite, ad esempio con una query.
-        await this.insertIntoSQLite(event);
-        // Filtro business: esportazione=false (coerente col tuo esempio)
-        if (event?.item?.esportazione === false && event?.item?.coperti > 0 && event?.item?.numeroTavolo != "") {
-          await this.printOrderSittingsCount(event.item);
+        // Inserisci le righe in SQLite
+        if (event?.righe) {
+          await this.insertIntoSQLite(event.righe);
+        }
+        
+        // Verifica se abbiamo i dati dell'ordine per la stampa coperti
+        if (event?.ordine) {
+          const ordine = event.ordine;
+          console.log(`[GSG] Dati ordine: id=${ordine.id}, esportazione=${ordine.esportazione}, coperti=${ordine.coperti}, numeroTavolo=${ordine.numeroTavolo}`);
+          
+          // Filtro business: esportazione=false, coperti>0, numeroTavolo non vuoto
+          if (ordine.esportazione === false && ordine.coperti > 0 && ordine.numeroTavolo && ordine.numeroTavolo !== "") {
+            console.log(`[GSG] Ordine id ${ordine.id} filtrato per stampa coperti (esportazione=false, coperti=${ordine.coperti}, tavolo=${ordine.numeroTavolo})`);
+            await this.printOrderSittingsCount(ordine);
+          }
+          else {
+            console.log(`[GSG] Ordine id ${ordine.id} NON soddisfa i criteri per stampa coperti`);
+          }
+        } else {
+          console.warn(`[GSG] Event senza dati ordine, skip stampa coperti`);
         }
       } catch (error) {
         console.error("[GSG] Errore durante l'inserimento in SQLite:", error);
-        // Qui potresti anche gestire un retry o un log.
       }
     }
 

@@ -45,7 +45,7 @@ export async function handleIncomingData(data: any) {
     // console.log("[DISPATCHER] Dati ricevuti:", data);
 
     // Ignora tipi di messaggio non gestiti
-    if (data.type != "PKMI_UPDATE" && data.type != "PKMI_ADD_ALL") {
+    if (data.type != "PKMI_UPDATE" && data.type != "PKMI_ADD_ALL" && data.type != "PKMI_ADD") {
         console.warn("[DISPATCHER] Tipo di dato non gestito:", data.type);
         return;
     }
