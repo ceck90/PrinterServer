@@ -17,7 +17,7 @@ const printingMap = new Map<string, boolean>();
  * Comandi ESC/POS per richiedere lo stato in tempo reale
  */
 export const ESC_POS_STATUS_COMMANDS = {
-    // DLE EOT n - Real-time status transmission
+    // DLE EOT n - Real-time status transmission (standard ESC/POS)
     DLE: 0x10,          // Data Link Escape
     EOT: 0x04,          // End of Transmission
     
@@ -26,6 +26,11 @@ export const ESC_POS_STATUS_COMMANDS = {
     OFFLINE_STATUS: 0x02,    // n = 2: Stato offline
     ERROR_STATUS: 0x03,      // n = 3: Stato errori
     PAPER_STATUS: 0x04,      // n = 4: Stato sensore carta
+    
+    // GS a n - Alternative status command (molte stampanti cinesi lo supportano meglio)
+    GS: 0x1D,                // Group Separator
+    STATUS_CMD: 0x61,        // 'a' per status automatico
+    FULL_STATUS: 0x00,       // n = 0: stato completo
 };
 
 /**
@@ -38,6 +43,18 @@ export function buildStatusCommand(statusType: number): Buffer {
         ESC_POS_STATUS_COMMANDS.DLE,
         ESC_POS_STATUS_COMMANDS.EOT,
         statusType
+    ]);
+}
+
+/**
+ * Costruisce il comando alternativo GS a per stampanti cinesi
+ * @returns Buffer con il comando GS a
+ */
+export function buildAlternativeStatusCommand(): Buffer {
+    return Buffer.from([
+        ESC_POS_STATUS_COMMANDS.GS,
+        ESC_POS_STATUS_COMMANDS.STATUS_CMD,
+        ESC_POS_STATUS_COMMANDS.FULL_STATUS
     ]);
 }
 
@@ -83,20 +100,42 @@ export async function queryPrinterStatus(printer: PrinterConfig): Promise<Printe
     };
 
     try {
-        logger.debug(`[PRINTER-STATUS] ==================== Interrogazione ${printer.name} ====================`);
+        logger.debug(`[PRINTER-STATUS] ============================================================`);
+        logger.debug(`[PRINTER-STATUS] Checking status for printer: ${printer.name} (${printer.ip}:${printer.port})`);
         
-        // Interroga tutti i tipi di stato
-        const printerStatusByte = await sendStatusQuery(printer, ESC_POS_STATUS_COMMANDS.PRINTER_STATUS);
+        // Prova prima con comandi DLE EOT standard
+        let printerStatusByte = await sendStatusQuery(printer, ESC_POS_STATUS_COMMANDS.PRINTER_STATUS);
+        let offlineStatusByte = await sendStatusQuery(printer, ESC_POS_STATUS_COMMANDS.OFFLINE_STATUS);
+        let errorStatusByte = await sendStatusQuery(printer, ESC_POS_STATUS_COMMANDS.ERROR_STATUS);
+        let paperStatusByte = await sendStatusQuery(printer, ESC_POS_STATUS_COMMANDS.PAPER_STATUS);
+        
+        // Se tutti i comandi standard falliscono, prova comando alternativo GS a (per stampanti cinesi)
+        const allResponsesNull = printerStatusByte === null && offlineStatusByte === null && 
+                                 errorStatusByte === null && paperStatusByte === null;
+        
+        if (allResponsesNull) {
+            logger.warn(`[PRINTER-STATUS] ${printer.name} - Nessuna risposta ai comandi DLE EOT standard, provo comandi alternativi GS a`);
+            const alternativeStatus = await sendAlternativeStatusQuery(printer);
+            if (alternativeStatus !== null) {
+                // Interpreta la risposta alternativa (formato diverso, dipende dal produttore)
+                printerStatusByte = alternativeStatus;
+                logger.info(`[PRINTER-STATUS] ${printer.name} - Risposta ricevuta da comando alternativo GS a`);
+            }
+        }
+        
         logStatusByte("PRINTER_STATUS (DLE EOT 1)", printerStatusByte, printer.name);
-        
-        const offlineStatusByte = await sendStatusQuery(printer, ESC_POS_STATUS_COMMANDS.OFFLINE_STATUS);
         logStatusByte("OFFLINE_STATUS (DLE EOT 2)", offlineStatusByte, printer.name);
-        
-        const errorStatusByte = await sendStatusQuery(printer, ESC_POS_STATUS_COMMANDS.ERROR_STATUS);
         logStatusByte("ERROR_STATUS (DLE EOT 3)", errorStatusByte, printer.name);
-        
-        const paperStatusByte = await sendStatusQuery(printer, ESC_POS_STATUS_COMMANDS.PAPER_STATUS);
         logStatusByte("PAPER_STATUS (DLE EOT 4)", paperStatusByte, printer.name);
+
+        // Se non abbiamo ricevuto alcuna risposta, consideriamo la stampante offline
+        if (allResponsesNull && printerStatusByte === null) {
+            logger.warn(`[PRINTER-STATUS] ${printer.name} - Nessuna risposta da tutti i comandi, stampante probabilmente offline o non supporta query status`);
+            status.online = false;
+            status.error = true;
+            status.errorMessage = "Stampante non risponde ai comandi di stato";
+            return status;
+        }
 
         // Analizza i byte di risposta secondo lo standard ESC/POS
         
@@ -123,8 +162,14 @@ export async function queryPrinterStatus(printer: PrinterConfig): Promise<Printe
             const coverOpenBit5 = (offlineStatusByte & 0b00100000) !== 0; // Bit 5 (alternative)
             const errorOccurred = (offlineStatusByte & 0b01000000) !== 0; // Bit 6
             
-            status.online = status.online && !offlineCause && !errorOccurred;
+            // Aggiorna coverOpen con i bit addizionali
             status.coverOpen = status.coverOpen || coverOpenBit2 || coverOpenBit5;
+            
+            // Non considerare offline se l'unica causa è il coperchio aperto
+            // La stampante va offline solo se c'è un errore reale, non solo coperchio aperto
+            if (!status.coverOpen) {
+                status.online = status.online && !offlineCause && !errorOccurred;
+            }
             
             logger.debug(`[PRINTER-STATUS] ${printer.name} - Decoded OFFLINE_STATUS: offlineCause=${offlineCause}, bit2_coverOpen=${coverOpenBit2}, bit5_coverOpen=${coverOpenBit5}, errorOccurred=${errorOccurred}`);
         }
@@ -144,8 +189,8 @@ export async function queryPrinterStatus(printer: PrinterConfig): Promise<Printe
         // Paper Status (DLE EOT 4)
         // Bit 2,3: Paper roll sensor - 00=present, 01 o 11=paper end
         // Bit 5,6: Paper near-end sensor - 00=not near end, 01 o 11=near end
-        // NOTA: Molte stampanti non implementano il sensore near-end o ritornano sempre 0
-        if (paperStatusByte !== null) {
+        // NOTA: Ignora lo stato carta se il coperchio è aperto (sensori non affidabili)
+        if (paperStatusByte !== null && !status.coverOpen) {
             // Check bit 2 e 3 per paper end (se almeno uno è 1, carta finita)
             const paperBits = (paperStatusByte >> 2) & 0b11; // Estrai bit 2-3
             status.paperEnd = paperBits !== 0; // Se 01, 10 o 11 = carta finita
@@ -156,6 +201,8 @@ export async function queryPrinterStatus(printer: PrinterConfig): Promise<Printe
             status.paperNearEnd = nearEndBits === 0b11; // Solo se 11 = carta quasi finita
             
             logger.debug(`[PRINTER-STATUS] ${printer.name} - Decoded PAPER_STATUS: paperBits=${paperBits.toString(2).padStart(2,'0')}, nearEndBits=${nearEndBits.toString(2).padStart(2,'0')}, paperEnd=${status.paperEnd}, paperNearEnd=${status.paperNearEnd}`);
+        } else if (status.coverOpen) {
+            logger.debug(`[PRINTER-STATUS] ${printer.name} - PAPER_STATUS ignorato (coperchio aperto, sensori non affidabili)`);
         }
 
         logger.debug(`[PRINTER-STATUS] ${printer.name} - FINAL STATUS: coverOpen=${status.coverOpen}, online=${status.online}, paperEnd=${status.paperEnd}, paperNearEnd=${status.paperNearEnd}`);
@@ -242,7 +289,104 @@ async function sendStatusQuery(printer: PrinterConfig, statusType: number): Prom
                         }
                     },
                     error(err) {
+                        clearTimeout(timeout);
+                        logger.error(`[PRINTER-STATUS] Errore connessione TCP a ${printer.name}:`, err);
+                        resolve(null);
+                    }
+                }
+            });
+        } catch (err) {
+            clearTimeout(timeout);
+            logger.error(`[PRINTER-STATUS] Errore durante la query di ${printer.name}:`, err);
+            resolve(null);
+        }
+    });
+}
+
+/**
+ * Invia un comando alternativo GS a per stampanti che non supportano DLE EOT
+ * @param printer Configurazione stampante
+ * @returns Promise<number | null> Byte di stato ricevuto o null in caso di errore
+ */
+async function sendAlternativeStatusQuery(printer: PrinterConfig): Promise<number | null> {
+    return new Promise((resolve) => {
+        const command = buildAlternativeStatusCommand();
+        let received = false;
+        let responseData: Buffer | null = null;
+
+        logger.debug(`[PRINTER-STATUS] Invio comando alternativo GS a a ${printer.name} - Comando: [${Array.from(command).map(b => '0x' + b.toString(16).toUpperCase().padStart(2, '0')).join(', ')}]`);
+
+        const timeout = setTimeout(() => {
+            if (!received) {
+                logger.warn(`[PRINTER-STATUS] Timeout comando alternativo ${printer.name}`);
+                resolve(null);
+            }
+        }, 3000); // Timeout più lungo per comandi alternativi
+
+        try {
+            Bun.connect({
+                hostname: printer.ip,
+                port: printer.port,
+                socket: {
+                    open(sock) {
+                        sock.write(command);
+                        logger.debug(`[PRINTER-STATUS] Comando alternativo inviato a ${printer.name}`);
+                    },
+                    data(sock, data) {
                         if (!received) {
+                            received = true;
+                            responseData = Buffer.from(data);
+                            clearTimeout(timeout);
+                            
+                            logger.debug(`[PRINTER-STATUS] Risposta alternativa ricevuta da ${printer.name}:`);
+                            logger.debug(`  Lunghezza: ${responseData.length} byte(s)`);
+                            logger.debug(`  Hex dump: ${Array.from(responseData).map(b => '0x' + b.toString(16).toUpperCase().padStart(2, '0')).join(' ')}`);
+                            logger.debug(`  Decimal: ${Array.from(responseData).join(' ')}`);
+                            logger.debug(`  Binary: ${Array.from(responseData).map(b => b.toString(2).padStart(8, '0')).join(' ')}`);
+                            
+                            sock.end();
+                            
+                            if (responseData && responseData.length > 0) {
+                                resolve(responseData[0]);
+                            } else {
+                                resolve(null);
+                            }
+                        }
+                    },
+                    error(err) {
+                        if (!received) {
+                            received = true;
+                            clearTimeout(timeout);
+                            logger.error(`[PRINTER-STATUS] Errore comando alternativo per ${printer.name}:`, err);
+                            resolve(null);
+                        }
+                    },
+                    close() {
+                        if (!received) {
+                            received = true;
+                            clearTimeout(timeout);
+                            resolve(null);
+                        }
+                    }
+                }
+            }).catch(err => {
+                if (!received) {
+                    received = true;
+                    clearTimeout(timeout);
+                    logger.error(`[PRINTER-STATUS] Errore connessione comando alternativo per ${printer.name}:`, err);
+                    resolve(null);
+                }
+            });
+        } catch (err) {
+            clearTimeout(timeout);
+            logger.error(`[PRINTER-STATUS] Eccezione comando alternativo ${printer.name}:`, err);
+            resolve(null);
+        }
+    });
+}
+
+/**
+ *                      if (!received) {
                             received = true;
                             clearTimeout(timeout);
                             logger.error(`[PRINTER-STATUS] Errore socket per ${printer.name}:`, err);
