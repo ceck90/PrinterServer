@@ -11,6 +11,7 @@ import { ServerWebSocket } from "bun";
 import { config } from "dotenv";
 import { verify } from "crypto";
 import { verifyPassword } from "../users";
+import * as logger from "../logger.ts";
 
 
 /**
@@ -30,8 +31,8 @@ export class HttpServerController {
      * Costruttore privato: definisce tutte le route HTTP.
      */
     private constructor() {
-        console.log(`[HttpServerController] Constructor called - creating new instance with ID: ${this.instanceId}`);
-        console.log("[HttpServerController] wsClients map initialized:", this.wsClients instanceof Map);
+        logger.debug(`[HttpServerController] Constructor called - creating new instance with ID: ${this.instanceId}`);
+        logger.debug("[HttpServerController] wsClients map initialized:", this.wsClients instanceof Map);
 
         //#region TOKEN
         // Simple authentication middleware
@@ -303,7 +304,7 @@ export class HttpServerController {
         this.app.ws(`${BASE_PATH}/api/ws`, {
             open(ws) {
                 try {
-                    console.log("[WS] New connection request");
+                    logger.debug("[WS] New connection request");
                     const url = new URL(ws.data.request.url);
                     
                     // Verifica autenticazione tramite token (query param o header)
@@ -326,14 +327,12 @@ export class HttpServerController {
                     let id = url.searchParams.get('id') ?? crypto.randomUUID();
                     while (wsClientsMap.has(id)) id = crypto.randomUUID(); // garantisci unicità
 
-                    console.log(`[WS] Assigned client ID: ${id}`);
+                    logger.debug(`[WS] Assigned client ID: ${id}`);
 
                     // Memorizza l'id associato al WebSocket usando WeakMap
                     wsClientIdsMap.set(ws, id);
                     wsClientsMap.set(id, ws as any);
-                    console.log(`[WS] Instance ${self.instanceId} - Client added to wsClients map. Total clients: ${wsClientsMap.size}`);
-                    console.log(`[WS] Instance ${self.instanceId} - Verification self.wsClients.size: ${self.wsClients.size}`);
-                    console.log(`[WS] Instance ${self.instanceId} - Are they the same Map? ${wsClientsMap === self.wsClients}`);
+                    logger.debug(`[WS] Client added to wsClients map. Total clients: ${wsClientsMap.size}`);
                     
                     // Facoltativo: keep-alive a livello di singola connessione
                     const keepAlive = setInterval(() => {
@@ -365,7 +364,7 @@ export class HttpServerController {
                     // Se non è JSON, fallo rimbalzare come testo
                     ws.send(String(message));
                 }
-                console.log("[WS] Message from client:", message);
+                logger.debug("[WS] Message from client:", message);
             },
             close(ws) {
                 const id = wsClientIdsMap.get(ws);
@@ -378,7 +377,7 @@ export class HttpServerController {
                     if (ka) clearInterval(ka);
                 }
                 
-                console.log(`[WS] Client disconnected: ${id}. Total clients remaining: ${wsClientsMap.size}`);
+                logger.info(`[WS] Client disconnected: ${id}. Total clients: ${wsClientsMap.size}`);
             },
             drain(ws) {
                 console.log("[WS] Client drain");
@@ -1109,11 +1108,10 @@ export class HttpServerController {
             }
         };
         
-        console.log(`[WS] Instance ${this.instanceId} - Preparing to send notification: ${type} (${severity})`);
-        console.log(`[WS] Instance ${this.instanceId} - Current wsClients.size: ${this.wsClients.size}`);
-        console.log(`[WS] Notification payload:`, JSON.stringify(notification, null, 2));
+        logger.debug(`[WS] Preparing to send notification: ${type} (${severity})`);
+        logger.debug(`[WS] Notification payload:`, JSON.stringify(notification, null, 2));
         const result = this.broadcast(notification);
-        console.log(`[WS] Notification sent to ${result} clients`);
+        logger.debug(`[WS] Notification sent to ${result} clients`);
         return result;
     }
 

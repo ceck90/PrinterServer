@@ -1,6 +1,7 @@
 import { Client } from "pg";
 import { handleIncomingOrderFromGSG } from "../dispatcher.ts";
 import { gsg_queries } from "../gsg-helper.ts";
+import * as logger from "../logger.ts";
 
 type NewOrderPayload = { operation: string; item: any };
 type PgConfig = ConstructorParameters<typeof Client>[0];
@@ -91,10 +92,10 @@ export class GSGController {
       if (!this.listener) return;
       try {
         await this.listener.query("SELECT 1").then(() => {
-            console.log("[GSG] heartbeat OK");
+            logger.debug("[GSG] heartbeat OK");
         });
       } catch (err) {
-        console.warn("[GSG] heartbeat failed:", err);
+        logger.warn("[GSG] heartbeat failed:", err);
         this.handleDisconnect();
       }
     }, 20000);
@@ -167,7 +168,7 @@ export class GSGController {
 
   public async enqueueEvent(eventData: any) {
     this.queue.push(eventData);
-    console.log(`[GSG] Event enqueued, data: ${JSON.stringify(eventData)}`);
+    logger.debug(`[GSG] Event enqueued, data: ${JSON.stringify(eventData)}`);
     this.processQueue();
   }
 
@@ -175,14 +176,14 @@ export class GSGController {
     if (this.isProcessing) return;
     this.isProcessing = true;
 
-    console.log(`[GSG] Starting to process queue, items: ${this.queue.length}`);
+    logger.debug(`[GSG] Starting to process queue, items: ${this.queue.length}`);
 
     while (this.queue.length > 0) {
-      console.log(`[GSG] Processing queue, items left: ${this.queue.length}`);
+      logger.debug(`[GSG] Processing queue, items left: ${this.queue.length}`);
       const event = this.queue.shift();
       
       // Log dettagliati per debug
-      console.log(`[GSG] Event structure: ${JSON.stringify(event, null, 2)}`);
+      logger.debug(`[GSG] Event structure: ${JSON.stringify(event, null, 2)}`);
       
       try {
         // Inserisci le righe in SQLite
@@ -193,15 +194,15 @@ export class GSGController {
         // Verifica se abbiamo i dati dell'ordine per la stampa coperti
         if (event?.ordine) {
           const ordine = event.ordine;
-          console.log(`[GSG] Dati ordine: id=${ordine.id}, esportazione=${ordine.esportazione}, coperti=${ordine.coperti}, numeroTavolo=${ordine.numeroTavolo}`);
+          logger.debug(`[GSG] Dati ordine: id=${ordine.id}, esportazione=${ordine.esportazione}, coperti=${ordine.coperti}, numeroTavolo=${ordine.numeroTavolo}`);
           
           // Filtro business: esportazione=false, coperti>0, numeroTavolo non vuoto
           if (ordine.esportazione === false && ordine.coperti > 0 && ordine.numeroTavolo && ordine.numeroTavolo !== "") {
-            console.log(`[GSG] Ordine id ${ordine.id} filtrato per stampa coperti (esportazione=false, coperti=${ordine.coperti}, tavolo=${ordine.numeroTavolo})`);
+            logger.info(`[GSG] Stampa coperti per ordine ${ordine.id} - tavolo ${ordine.numeroTavolo}, ${ordine.coperti} coperti`);
             await this.printOrderSittingsCount(ordine);
           }
           else {
-            console.log(`[GSG] Ordine id ${ordine.id} NON soddisfa i criteri per stampa coperti`);
+            logger.debug(`[GSG] Ordine id ${ordine.id} NON soddisfa i criteri per stampa coperti`);
           }
         } else {
           console.warn(`[GSG] Event senza dati ordine, skip stampa coperti`);
@@ -218,7 +219,7 @@ export class GSGController {
   private async insertIntoSQLite(event: any) {
     // Esegui la tua query di inserimento su SQLite
     // Ad esempio db.run("INSERT INTO ordini ...", [event.data]);
-    console.log("[GSG] Evento inserito:", event);
+    logger.debug("[GSG] Evento inserito:", event);
   };
 
 }
