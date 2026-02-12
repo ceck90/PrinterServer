@@ -215,7 +215,11 @@ jobController.create({
     cron: "0 */30 * * * *", // ogni 30 minuti (syntax con seconds abilitata da node-cron)
     timezone: "Europe/Rome",
     task: async () => {
-        await dbController.backupDatabase(dbController.getDbPath());
+        try {
+            await dbController.backupDatabase(dbController.getDbPath());
+        } catch (err) {
+            console.error(`[JOB - DB_BACKUP] Errore durante il backup del database:`, err);
+        }
     },
     startNow: false,
     meta: { env: process.env.NODE_ENV ?? "development" },
@@ -227,8 +231,12 @@ jobController.create({
     cron: "0 */2 * * * *", // ogni 2 minuti (syntax con seconds abilitata da node-cron)
     timezone: "Europe/Rome",
     task: async () => {
-        console.log(`[JOB - PRINTER_STATUS_CHECK] Verifico stato stampanti...`);
-        await checkAllPrintersStatus(printers);
+        try {
+            console.log(`[JOB - PRINTER_STATUS_CHECK] Verifico stato stampanti...`);
+            await checkAllPrintersStatus(printers);
+        } catch (err) {
+            console.error(`[JOB - PRINTER_STATUS_CHECK] Errore durante il controllo stampanti:`, err);
+        }
     },
     startNow: true,
     meta: { env: process.env.NODE_ENV ?? "development" },

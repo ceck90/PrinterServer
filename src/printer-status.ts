@@ -289,15 +289,33 @@ async function sendStatusQuery(printer: PrinterConfig, statusType: number): Prom
                         }
                     },
                     error(err) {
-                        clearTimeout(timeout);
-                        logger.error(`[PRINTER-STATUS] Errore connessione TCP a ${printer.name}:`, err);
-                        resolve(null);
+                        if (!received) {
+                            received = true;
+                            clearTimeout(timeout);
+                            logger.error(`[PRINTER-STATUS] Errore socket per ${printer.name}:`, err);
+                            resolve(null);
+                        }
+                    },
+                    close() {
+                        if (!received) {
+                            received = true;
+                            clearTimeout(timeout);
+                            logger.debug(`[PRINTER-STATUS] Connessione chiusa con ${printer.name} (nessun dato ricevuto)`);
+                            resolve(null);
+                        }
                     }
+                }
+            }).catch(err => {
+                if (!received) {
+                    received = true;
+                    clearTimeout(timeout);
+                    logger.error(`[PRINTER-STATUS] Errore connessione per ${printer.name}:`, err);
+                    resolve(null);
                 }
             });
         } catch (err) {
             clearTimeout(timeout);
-            logger.error(`[PRINTER-STATUS] Errore durante la query di ${printer.name}:`, err);
+            logger.error(`[PRINTER-STATUS] Eccezione durante query ${printer.name}:`, err);
             resolve(null);
         }
     });
