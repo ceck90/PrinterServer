@@ -1,3 +1,20 @@
+/**
+ * Gestione stato stampanti termiche ESC/POS
+ * 
+ * TESTATO E OTTIMIZZATO PER: Stampanti termiche cinesi 80-VI-UL (80mm)
+ * 
+ * Mappatura bit verificata con test reali (15/02/2026):
+ * 
+ * IMPORTANTE - Limitazioni hardware 80-VI-UL:
+ * - Cover aperto: NON rilevabile via ESC/POS (LED si accende ma nessun bit cambia)
+ * - Offline vero: Solo quando NON risponde alle query TCP (timeout)
+ * - Bit3 di DLE EOT 1: Indica "errore carta" non offline reale
+ * - Carta quasi finita: DLE EOT 4, Bit5-6 (11=near-end)
+ * 
+ * NOTA: Queste stampanti cinesi hanno segnalazione limitata rispetto allo standard Epson.
+ * Il LED errore è puramente locale e non comunicato via rete.
+ */
+
 import type { PrinterStatus, PrinterStatusChangeEvent } from "./types";
 import type { PrinterConfig } from "./print-routing.config";
 import { HttpServerController } from "./controllers/httpserver.controller";
@@ -128,92 +145,96 @@ export async function queryPrinterStatus(printer: PrinterConfig): Promise<Printe
         logStatusByte("ERROR_STATUS (DLE EOT 3)", errorStatusByte, printer.name);
         logStatusByte("PAPER_STATUS (DLE EOT 4)", paperStatusByte, printer.name);
 
-        // Se non abbiamo ricevuto alcuna risposta, consideriamo la stampante offline
+        // Se non abbiamo ricevuto alcuna risposta, la stampante è VERAMENTE offline (timeout TCP)
+        // Questo è l'UNICO modo affidabile per rilevare offline su 80-VI-UL
         if (allResponsesNull && printerStatusByte === null) {
-            logger.warn(`[PRINTER-STATUS] ${printer.name} - Nessuna risposta da tutti i comandi, stampante probabilmente offline o non supporta query status`);
+            logger.warn(`[PRINTER-STATUS] ${printer.name} - TIMEOUT: Nessuna risposta TCP, stampante offline o spenta`);
             status.online = false;
             status.error = true;
-            status.errorMessage = "Stampante non risponde ai comandi di stato";
+            status.errorMessage = "Stampante non risponde (timeout connessione)";
             return status;
         }
 
-        // Analizza i byte di risposta secondo lo standard ESC/POS
+        // Analizza i byte di risposta basandosi su test reali con stampanti cinesi 80-VI-UL
+        // I bit possono variare rispetto allo standard Epson ESC/POS
+        
+        // Se arriviamo qui, la stampante HA RISPOSTO via TCP quindi è online dal punto di vista rete
+        status.online = true;
         
         // Printer Status (DLE EOT 1)
-        // Bit 3: 0=online, 1=offline
-        // Bit 5: 1=cover open, 0=cover closed (standard ESC/POS)
-        // Bit 6: 1=paper feed button pressed
+        // Bit 3: Su 80-VI-UL NON indica offline TCP, ma "errore carta mancante"
+        // Se Bit3=1 con risposta TCP valida = carta finita/problema carta
         if (printerStatusByte !== null) {
-            status.online = (printerStatusByte & 0b00001000) === 0; // Bit 3: 0 = online
-            const coverOpenBit5 = (printerStatusByte & 0b00100000) !== 0; // Bit 5
-            const coverOpenBit6 = (printerStatusByte & 0b01000000) !== 0; // Bit 6 (alcune stampanti)
-            status.coverOpen = coverOpenBit5 || coverOpenBit6;
-            logger.debug(`[PRINTER-STATUS] ${printer.name} - Decoded PRINTER_STATUS: online=${status.online}, bit5_coverOpen=${coverOpenBit5}, bit6=${coverOpenBit6}`);
+            const bit3 = (printerStatusByte & 0b00001000) !== 0;
+            if (bit3) {
+                // Bit3=1 indica problema carta (verificato: succede quando togli carta)
+                logger.debug(`[PRINTER-STATUS] ${printer.name} - Bit3=1: Probabile carta finita`);
+            }
+            logger.debug(`[PRINTER-STATUS] ${printer.name} - PRINTER_STATUS: byte=0x${printerStatusByte.toString(16).toUpperCase()}, bit3=${bit3}`);
         }
 
         // Offline Status (DLE EOT 2)
-        // Bit 2: 1=cover open (standard)
-        // Bit 3: 1=paper feed/offline cause
-        // Bit 5: 1=cover open (alcune varianti)
-        // Bit 6: 1=error occurred
+        // NOTA 80-VI-UL: Questo byte NON è affidabile per rilevare cover/errori
+        // Test reali mostrano che il LED errore si accende ma i bit non cambiano
+        // Lo leggiamo solo per debug/log
         if (offlineStatusByte !== null) {
-            const offlineCause = (offlineStatusByte & 0b00001000) !== 0; // Bit 3
-            const coverOpenBit2 = (offlineStatusByte & 0b00000100) !== 0; // Bit 2
-            const coverOpenBit5 = (offlineStatusByte & 0b00100000) !== 0; // Bit 5 (alternative)
-            const errorOccurred = (offlineStatusByte & 0b01000000) !== 0; // Bit 6
-            
-            // Aggiorna coverOpen con i bit addizionali
-            status.coverOpen = status.coverOpen || coverOpenBit2 || coverOpenBit5;
-            
-            // Non considerare offline se l'unica causa è il coperchio aperto
-            // La stampante va offline solo se c'è un errore reale, non solo coperchio aperto
-            if (!status.coverOpen) {
-                status.online = status.online && !offlineCause && !errorOccurred;
-            }
-            
-            logger.debug(`[PRINTER-STATUS] ${printer.name} - Decoded OFFLINE_STATUS: offlineCause=${offlineCause}, bit2_coverOpen=${coverOpenBit2}, bit5_coverOpen=${coverOpenBit5}, errorOccurred=${errorOccurred}`);
+            logger.debug(`[PRINTER-STATUS] ${printer.name} - OFFLINE_STATUS: byte=0x${offlineStatusByte.toString(16).toUpperCase()}`);
         }
+        
+        // Cover open: NON RILEVABILE via ESC/POS su 80-VI-UL
+        // Il LED si accende ma nessun bit cambia nelle risposte ESC/POS
+        status.coverOpen = false; // Non possiamo saperlo via software
 
         // Error Status (DLE EOT 3)
-        // Bit 3: 1=cutter error
-        // Bit 5: 1=unrecoverable error
-        // Bit 6: 1=auto-recoverable error
+        // Su 80-VI-UL questo byte è sempre 0x12 (00010010) in tutti i test
+        // Non sembra riportare errori reali, lo leggiamo solo per completezza
         if (errorStatusByte !== null) {
-            status.cutterError = (errorStatusByte & 0b00001000) !== 0; // Bit 3: errore taglierina
-            const unrecoverableError = (errorStatusByte & 0b00100000) !== 0; // Bit 5: errore non recuperabile
-            const autoRecoverableError = (errorStatusByte & 0b01000000) !== 0; // Bit 6: errore auto-recuperabile
-            status.error = autoRecoverableError || unrecoverableError || status.cutterError;
-            logger.debug(`[PRINTER-STATUS] ${printer.name} - Decoded ERROR_STATUS: cutterError=${status.cutterError}, autoRecoverableError=${autoRecoverableError}, unrecoverableError=${unrecoverableError}`);
+            const cutterError = (errorStatusByte & 0b00001000) !== 0;
+            const unrecoverableError = (errorStatusByte & 0b00100000) !== 0;
+            const autoRecoverableError = (errorStatusByte & 0b01000000) !== 0;
+            
+            if (cutterError || unrecoverableError || autoRecoverableError) {
+                status.cutterError = cutterError;
+                status.error = true;
+                logger.warn(`[PRINTER-STATUS] ${printer.name} - ERROR_STATUS riporta errori (raro su 80-VI-UL)`);
+            }
+            
+            logger.debug(`[PRINTER-STATUS] ${printer.name} - ERROR_STATUS: byte=0x${errorStatusByte.toString(16).toUpperCase()}`);
         }
 
         // Paper Status (DLE EOT 4)
-        // Bit 2,3: Paper roll sensor - 00=present, 01 o 11=paper end
-        // Bit 5,6: Paper near-end sensor - 00=not near end, 01 o 11=near end
-        // NOTA: Ignora lo stato carta se il coperchio è aperto (sensori non affidabili)
-        if (paperStatusByte !== null && !status.coverOpen) {
-            // Check bit 2 e 3 per paper end (se almeno uno è 1, carta finita)
-            const paperBits = (paperStatusByte >> 2) & 0b11; // Estrai bit 2-3
-            status.paperEnd = paperBits !== 0; // Se 01, 10 o 11 = carta finita
+        // Per stampanti cinesi 80-VI-UL (verificato con test reali):
+        // Tutto OK: 0x12 (00010010) - Bit2-3=00, Bit5-6=00
+        // Problemi: 0x72 (01110010) - Bit5-6=11 (near-end)
+        // Bit 5,6: Paper near-end sensor - 11=carta quasi finita (AFFIDABILE)
+        // Bit 2,3: Paper roll sensor - Su 80-VI-UL non cambia in modo affidabile
+        if (paperStatusByte !== null) {
+            // Check bit 5 e 6 per paper near end (QUESTO FUNZIONA)
+            const nearEndBits = (paperStatusByte >> 5) & 0b11;
+            status.paperNearEnd = nearEndBits === 0b11; // 11 = carta quasi finita
             
-            // Check bit 5 e 6 per paper near end (più conservativo)
-            // Solo se ENTRAMBI i bit sono 1, consideriamo near end
-            const nearEndBits = (paperStatusByte >> 5) & 0b11; // Estrai bit 5-6
-            status.paperNearEnd = nearEndBits === 0b11; // Solo se 11 = carta quasi finita
+            // Paper end: usa Bit3 di DLE EOT 1 come indicatore principale
+            // Quando la carta finisce, Bit3=1 (verificato nei test)
+            if (printerStatusByte !== null) {
+                const bit3 = (printerStatusByte & 0b00001000) !== 0;
+                if (bit3) {
+                    status.paperEnd = true;
+                    logger.debug(`[PRINTER-STATUS] ${printer.name} - Carta finita rilevata (Bit3=1 in DLE EOT 1)`);
+                }
+            }
             
-            logger.debug(`[PRINTER-STATUS] ${printer.name} - Decoded PAPER_STATUS: paperBits=${paperBits.toString(2).padStart(2,'0')}, nearEndBits=${nearEndBits.toString(2).padStart(2,'0')}, paperEnd=${status.paperEnd}, paperNearEnd=${status.paperNearEnd}`);
-        } else if (status.coverOpen) {
-            logger.debug(`[PRINTER-STATUS] ${printer.name} - PAPER_STATUS ignorato (coperchio aperto, sensori non affidabili)`);
+            logger.debug(`[PRINTER-STATUS] ${printer.name} - PAPER_STATUS: byte=0x${paperStatusByte.toString(16).toUpperCase()}, nearEndBits=${nearEndBits.toString(2).padStart(2,'0')}, paperEnd=${status.paperEnd}, paperNearEnd=${status.paperNearEnd}`);
         }
 
-        logger.debug(`[PRINTER-STATUS] ${printer.name} - FINAL STATUS: coverOpen=${status.coverOpen}, online=${status.online}, paperEnd=${status.paperEnd}, paperNearEnd=${status.paperNearEnd}`);
+        logger.debug(`[PRINTER-STATUS] ${printer.name} - FINAL STATUS: online=${status.online}, paperEnd=${status.paperEnd}, paperNearEnd=${status.paperNearEnd}`);
 
         // Costruisce messaggio di errore se necessario
         const errors: string[] = [];
-        if (!status.online) errors.push("Stampante offline");
+        if (!status.online) errors.push("Stampante offline (timeout TCP)");
         if (status.paperEnd) errors.push("Carta finita");
         if (status.paperNearEnd) errors.push("Carta quasi finita");
-        if (status.coverOpen) errors.push("Coperchio aperto");
         if (status.cutterError) errors.push("Errore taglierina");
+        // Cover open NON è rilevabile su 80-VI-UL
         
         if (errors.length > 0) {
             status.errorMessage = errors.join(", ");

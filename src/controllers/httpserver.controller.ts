@@ -25,7 +25,7 @@ export class HttpServerController {
     static #instance: HttpServerController;
 
     private wsClients = new Map<string, ServerWebSocket<any>>();
-    private wsClientIds = new WeakMap<ServerWebSocket<any>, string>();
+    private wsClientIds = new WeakMap<any, string>();
     private readonly instanceId = crypto.randomUUID();
 
     /**
@@ -331,7 +331,7 @@ export class HttpServerController {
                     logger.debug(`[WS] Assigned client ID: ${id}`);
 
                     // Memorizza l'id associato al WebSocket usando WeakMap
-                    wsClientIdsMap.set(ws, id);
+                    wsClientIdsMap.set(ws.raw, id);
                     wsClientsMap.set(id, ws as any);
                     logger.debug(`[WS] Client added to wsClients map. Total clients: ${wsClientsMap.size}`);
                     
@@ -342,7 +342,7 @@ export class HttpServerController {
                     
                     // Memorizza il timer nella WeakMap per poterlo cancellare dopo
                     (wsClientIdsMap as any).keepAliveTimers = (wsClientIdsMap as any).keepAliveTimers || new WeakMap();
-                    (wsClientIdsMap as any).keepAliveTimers.set(ws, keepAlive);
+                    (wsClientIdsMap as any).keepAliveTimers.set(ws.raw, keepAlive);
                     
                     // Notifica l'id assegnato e autenticazione riuscita
                     ws.send(JSON.stringify({ type: 'hello', id, authenticated: true }));
@@ -368,13 +368,13 @@ export class HttpServerController {
                 logger.debug("[WS] Message from client:", message);
             },
             close(ws) {
-                const id = wsClientIdsMap.get(ws);
+                const id = wsClientIdsMap.get(ws.raw);
                 if (id) wsClientsMap.delete(id);
                 
                 // Cancella il keep-alive timer
                 const keepAliveTimers = (wsClientIdsMap as any).keepAliveTimers;
                 if (keepAliveTimers) {
-                    const ka = keepAliveTimers.get(ws);
+                    const ka = keepAliveTimers.get(ws.raw);
                     if (ka) clearInterval(ka);
                 }
                 
