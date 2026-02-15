@@ -3,7 +3,7 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import { DatabaseController } from "./db.controller";
 import { printSpecificOrder, printTestTicket, regenerateSpecificReceipt } from "../dispatcher";
-import { loadPrintersFromDb } from "../print-routing.config";
+import { loadPrintersFromDb, printers } from "../print-routing.config";
 import { KitchenManagementController } from "./kitchenmgmt.controller";
 import { GSGController } from "./gsg.controller";
 import { StatisticsController } from "./statistics.controller";
@@ -11,6 +11,8 @@ import { ServerWebSocket } from "bun";
 import { config } from "dotenv";
 import { verify } from "crypto";
 import { verifyPassword } from "../users";
+import { getAllPrinterStatuses, getPrinterStatus, checkAllPrintersStatus } from "../printer-status";
+import * as logger from "../logger.ts";
 
 
 /**
@@ -23,11 +25,15 @@ export class HttpServerController {
     static #instance: HttpServerController;
 
     private wsClients = new Map<string, ServerWebSocket<any>>();
+    private wsClientIds = new WeakMap<any, string>();
+    private readonly instanceId = crypto.randomUUID();
 
     /**
      * Costruttore privato: definisce tutte le route HTTP.
      */
     private constructor() {
+        logger.debug(`[HttpServerController] Constructor called - creating new instance with ID: ${this.instanceId}`);
+        logger.debug("[HttpServerController] wsClients map initialized:", this.wsClients instanceof Map);
 
         //#region TOKEN
         // Simple authentication middleware
@@ -291,47 +297,59 @@ export class HttpServerController {
         //#endregion ROUTES
 
         //#region WEBSOCKET
-        // Use closure to access wsClients and verifyToken
-        const wsClients = this.wsClients;
+        // Usa arrow function per mantenere il contesto `this`
+        const wsClientsMap = this.wsClients;
+        const wsClientIdsMap = this.wsClientIds;
+        const self = this;
+        
         this.app.ws(`${BASE_PATH}/api/ws`, {
             open(ws) {
-                console.log("[WS] New connection request");
-                const url = new URL(ws.data.request.url);
-                
-                // Verifica autenticazione tramite token (query param o header)
-                const tokenFromQuery = url.searchParams.get('token');
-                const authHeader = ws.data.request.headers.get('authorization');
-                const tokenFromHeader = authHeader?.replace('Bearer ', '');
-                const token = tokenFromQuery || tokenFromHeader;
+                try {
+                    logger.debug("[WS] New connection request");
+                    const url = new URL(ws.data.request.url);
+                    
+                    // Verifica autenticazione tramite token (query param o header)
+                    const tokenFromQuery = url.searchParams.get('token');
+                    const authHeader = ws.data.request.headers.get('authorization');
+                    const tokenFromHeader = authHeader?.replace('Bearer ', '');
+                    const token = tokenFromQuery || tokenFromHeader;
 
-                if (!verifyToken(token)) {
-                    console.warn("[WS] Unauthorized connection attempt - invalid or missing token");
-                    ws.send(JSON.stringify({ 
-                        type: 'error', 
-                        message: 'Unauthorized - Invalid or missing token' 
-                    }));
-                    ws.close(1008, "Unauthorized");
-                    return;
+                    if (!verifyToken(token)) {
+                        console.warn("[WS] Unauthorized connection attempt - invalid or missing token");
+                        ws.send(JSON.stringify({ 
+                            type: 'error', 
+                            message: 'Unauthorized - Invalid or missing token' 
+                        }));
+                        ws.close(1008, "Unauthorized");
+                        return;
+                    }
+
+                    // Permetti passaggio opzionale di ?id=xxx dal client
+                    let id = url.searchParams.get('id') ?? crypto.randomUUID();
+                    while (wsClientsMap.has(id)) id = crypto.randomUUID(); // garantisci unicità
+
+                    logger.debug(`[WS] Assigned client ID: ${id}`);
+
+                    // Memorizza l'id associato al WebSocket usando WeakMap
+                    wsClientIdsMap.set(ws.raw, id);
+                    wsClientsMap.set(id, ws as any);
+                    logger.debug(`[WS] Client added to wsClients map. Total clients: ${wsClientsMap.size}`);
+                    
+                    // Facoltativo: keep-alive a livello di singola connessione
+                    const keepAlive = setInterval(() => {
+                        try { ws.ping(); } catch { /* ignore */ }
+                    }, 30_000);
+                    
+                    // Memorizza il timer nella WeakMap per poterlo cancellare dopo
+                    (wsClientIdsMap as any).keepAliveTimers = (wsClientIdsMap as any).keepAliveTimers || new WeakMap();
+                    (wsClientIdsMap as any).keepAliveTimers.set(ws.raw, keepAlive);
+                    
+                    // Notifica l'id assegnato e autenticazione riuscita
+                    ws.send(JSON.stringify({ type: 'hello', id, authenticated: true }));
+                    console.log(`[WS] Client connected and authenticated: ${id}`);
+                } catch (err) {
+                    console.error("[WS] ERROR in open handler:", err);
                 }
-
-                // Permetti passaggio opzionale di ?id=xxx dal client
-                let id = url.searchParams.get('id') ?? crypto.randomUUID();
-                while (wsClients.has(id)) id = crypto.randomUUID(); // garantisci unicità
-
-                console.log(`[WS] Assigned client ID: ${id}`);
-
-                // Memorizza l'id sulla connessione
-                (ws as any).id = id;
-                wsClients.set(id, ws as any);
-                
-                // Facoltativo: keep-alive a livello di singola connessione
-                (ws as any).__ka = setInterval(() => {
-                    try { ws.ping(); } catch { /* ignore */ }
-                }, 30_000);
-                
-                // Notifica l'id assegnato e autenticazione riuscita
-                ws.send(JSON.stringify({ type: 'hello', id, authenticated: true }));
-                console.log(`[WS] Client connected and authenticated: ${id}`);
             },
             message(ws, message) {
                 try {
@@ -347,14 +365,20 @@ export class HttpServerController {
                     // Se non è JSON, fallo rimbalzare come testo
                     ws.send(String(message));
                 }
-                console.log("[WS] Message from client:", message);
+                logger.debug("[WS] Message from client:", message);
             },
             close(ws) {
-                const id = (ws as any).id as string | undefined;
-                if (id) wsClients.delete(id);
-                const ka = (ws as any).__ka as ReturnType<typeof setInterval> | undefined;
-                if (ka) clearInterval(ka);
-                console.log("[WS] Client disconnected:", id);
+                const id = wsClientIdsMap.get(ws.raw);
+                if (id) wsClientsMap.delete(id);
+                
+                // Cancella il keep-alive timer
+                const keepAliveTimers = (wsClientIdsMap as any).keepAliveTimers;
+                if (keepAliveTimers) {
+                    const ka = keepAliveTimers.get(ws.raw);
+                    if (ka) clearInterval(ka);
+                }
+                
+                logger.info(`[WS] Client disconnected: ${id}. Total clients: ${wsClientsMap.size}`);
             },
             drain(ws) {
                 console.log("[WS] Client drain");
@@ -364,6 +388,18 @@ export class HttpServerController {
         //#endregion WEBSOCKET
         
         //#region API
+        // API DEBUG: verifica stato client WebSocket connessi
+        this.app.get(`${BASE_PATH}/api/ws/status`, ({ request }) => {
+            const clients = this.listClients();
+            return new Response(JSON.stringify({
+                connectedClients: clients.length,
+                clientIds: clients,
+                wsClientsMapSize: this.wsClients.size
+            }), {
+                headers: { "Content-Type": "application/json" }
+            });
+        });
+
         // API: restituisce le ricevute con filtri e paginazione
         this.app.get(`${BASE_PATH}/api/receipts`, async ({ request }) => {
             try {
@@ -561,6 +597,72 @@ export class HttpServerController {
                 return new Response("All printers saved successfully", { status: 200 });
             } catch (err) {
                 console.error("[API] Error saving all printers:", err);
+                return new Response("Internal Server Error", { status: 500 });
+            }
+        });
+
+        // API: ottiene lo stato di tutte le stampanti
+        this.app.get(`${BASE_PATH}/api/printers/status`, async () => {
+            try {
+                const statusMap = getAllPrinterStatuses();
+                const statusArray = Array.from(statusMap.entries()).map(([name, status]) => ({
+                    printerName: name,
+                    ...status,
+                    lastCheck: status.lastCheck.toISOString()
+                }));
+                return new Response(JSON.stringify(statusArray), {
+                    status: 200,
+                    headers: { "Content-Type": "application/json" }
+                });
+            } catch (err) {
+                console.error("[API] Error getting printer statuses:", err);
+                return new Response("Internal Server Error", { status: 500 });
+            }
+        });
+
+        // API: ottiene lo stato di una stampante specifica
+        this.app.get(`${BASE_PATH}/api/printers/status/:name`, async ({ params }) => {
+            try {
+                const name = params.name;
+                if (!name) {
+                    return new Response("Printer name is required", { status: 400 });
+                }
+                const status = getPrinterStatus(name);
+                if (!status) {
+                    return new Response("Printer status not found", { status: 404 });
+                }
+                return new Response(JSON.stringify({
+                    printerName: name,
+                    ...status,
+                    lastCheck: status.lastCheck.toISOString()
+                }), {
+                    status: 200,
+                    headers: { "Content-Type": "application/json" }
+                });
+            } catch (err) {
+                console.error("[API] Error getting printer status:", err);
+                return new Response("Internal Server Error", { status: 500 });
+            }
+        });
+
+        // API: avvia manualmente il controllo dello stato di tutte le stampanti
+        this.app.post(`${BASE_PATH}/api/printers/check-status`, async () => {
+            try {
+                logger.info("[API] Controllo manuale stato stampanti richiesto");
+                // Esegui il controllo in modo asincrono
+                checkAllPrintersStatus(printers).catch(err => {
+                    logger.error("[API] Errore durante controllo stampanti:", err);
+                });
+                
+                return new Response(JSON.stringify({ 
+                    message: "Printer status check initiated",
+                    timestamp: new Date().toISOString()
+                }), {
+                    status: 202, // Accepted
+                    headers: { "Content-Type": "application/json" }
+                });
+            } catch (err) {
+                console.error("[API] Error initiating printer status check:", err);
                 return new Response("Internal Server Error", { status: 500 });
             }
         });
@@ -966,7 +1068,10 @@ export class HttpServerController {
      */
     public static get instance(): HttpServerController {
         if (!HttpServerController.#instance) {
+            console.log("[HttpServerController] Creating new singleton instance");
             HttpServerController.#instance = new HttpServerController();
+        } else {
+            console.log("[HttpServerController] Returning existing singleton instance");
         }
         return HttpServerController.#instance;
     }
@@ -1019,10 +1124,18 @@ export class HttpServerController {
     public broadcast(data: any): number {
         const payload = typeof data === 'string' ? data : JSON.stringify(data);
         console.log(`[WS] Broadcasting message to ${this.wsClients.size} clients`);
+        console.log(`[WS] wsClients map keys:`, [...this.wsClients.keys()]);
         let count = 0;
         for (const ws of this.wsClients.values()) {
-        try { ws.send(payload); count++; } catch { /* ignore */ }
+            try { 
+                ws.send(payload); 
+                count++; 
+                console.log(`[WS] Message sent successfully to client ${count}`);
+            } catch (err) { 
+                console.error(`[WS] Failed to send to client:`, err);
+            }
         }
+        console.log(`[WS] Broadcast completed. Sent to ${count} clients`);
         return count;
     }
 
@@ -1062,8 +1175,11 @@ export class HttpServerController {
             }
         };
         
-        console.log(`[WS] Sending notification: ${type} (${severity}) to ${this.wsClients.size} clients`);
-        return this.broadcast(notification);
+        logger.debug(`[WS] Preparing to send notification: ${type} (${severity})`);
+        logger.debug(`[WS] Notification payload:`, JSON.stringify(notification, null, 2));
+        const result = this.broadcast(notification);
+        logger.debug(`[WS] Notification sent to ${result} clients`);
+        return result;
     }
 
     /** Utility opzionali */

@@ -1,3 +1,5 @@
+import { setPrinterPrinting } from "./printer-status";
+
 /**
  * Invia un buffer di dati a una stampante di rete tramite TCP/IP.
  * Usa Bun.connect per aprire una connessione socket verso la stampante.
@@ -9,6 +11,21 @@
  * @returns Promise<void> che si risolve al termine dell'invio
  */
 export async function sendToPrinter(name: string, ip: string, port: number, buffer: Buffer): Promise<void> {
+    // Segna la stampante come "in stampa"
+    setPrinterPrinting(name, true);
+    
+    try {
+        await sendToPrinterInternal(name, ip, port, buffer);
+    } finally {
+        // Segna la stampante come "non più in stampa" dopo 5 secondi
+        // (tempo di elaborazione tipico della stampante)
+        setTimeout(() => {
+            setPrinterPrinting(name, false);
+        }, 5000);
+    }
+}
+
+async function sendToPrinterInternal(name: string, ip: string, port: number, buffer: Buffer): Promise<void> {
     return new Promise((resolve, reject) => {
         console.log(`[PRINT] Inviando dati alla stampante [${name}] @ ${ip}:${port}`);
         // console.log(`[PRINT] Dati da inviare:`, buffer.toString('hex'));

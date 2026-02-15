@@ -525,6 +525,76 @@ paths:
         '500':
           description: Internal server error
 
+  /api/printers/status:
+    get:
+      tags:
+        - Printers
+      summary: Get status of all printers
+      description: Retrieve the current operational status of all monitored printers (online, paper, errors, etc.)
+      responses:
+        '200':
+          description: Status of all printers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PrinterStatus'
+        '500':
+          description: Internal server error
+
+  /api/printers/status/{name}:
+    get:
+      tags:
+        - Printers
+      summary: Get status of a specific printer
+      description: Retrieve the current operational status of a specific printer by name
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Printer name
+          example: CUCINA
+      responses:
+        '200':
+          description: Printer status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrinterStatus'
+        '400':
+          description: Printer name is required
+        '404':
+          description: Printer status not found
+        '500':
+          description: Internal server error
+
+  /api/printers/check-status:
+    post:
+      tags:
+        - Printers
+      summary: Manually trigger printer status check
+      description: Initiate a manual check of all enabled printers' status. The operation runs asynchronously and results are sent via WebSocket notifications.
+      responses:
+        '202':
+          description: Status check initiated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Printer status check initiated
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: '2026-02-08T15:30:00.000Z'
+        '500':
+          description: Internal server error
+
   /api/barcodes/getAll:
     get:
       tags:
@@ -1003,7 +1073,7 @@ paths:
         - RECEIPT_PRINT_FAILED: Receipt printing failed
         - ORDER_RECEIVED: New order received from GSG
         - ORDER_STATUS_CHANGED: Order status updated
-        - PRINTER_STATUS_CHANGE: Printer online/offline
+        - PRINTER_STATUS_CHANGE: Printer status changed (online/offline, paper status, errors, cover, cutter)
         - PRINTER_ADDED/DELETED/UPDATED: Printer configuration changed
         - And more (see websocket-notifications.md)
         
@@ -1058,3 +1128,61 @@ components:
       description: |
         JWT token obtained from /api/login endpoint.
         Token can also be passed as query parameter: ?token=YOUR_TOKEN
+
+  schemas:
+    PrinterStatus:
+      type: object
+      description: Operational status of a thermal printer (ESC/POS compatible)
+      required:
+        - printerName
+        - online
+        - paperEnd
+        - paperNearEnd
+        - coverOpen
+        - cutterError
+        - error
+        - lastCheck
+      properties:
+        printerName:
+          type: string
+          description: Name of the printer
+          example: CUCINA
+        online:
+          type: boolean
+          description: Whether the printer is online and reachable
+          example: true
+        paperEnd:
+          type: boolean
+          description: Paper roll is empty
+          example: false
+        paperNearEnd:
+          type: boolean
+          description: Paper roll is nearly empty
+          example: false
+        coverOpen:
+          type: boolean
+          description: Printer cover is open
+          example: false
+        cutterError:
+          type: boolean
+          description: Error with the paper cutter mechanism
+          example: false
+        error:
+          type: boolean
+          description: General error flag (any error condition)
+          example: false
+        errorMessage:
+          type: string
+          description: Detailed error message (if any error is present)
+          example: "Carta finita, Coperchio aperto"
+          nullable: true
+        lastCheck:
+          type: string
+          format: date-time
+          description: Timestamp of the last status check
+          example: "2026-02-08T15:30:00.000Z"
+        printing:
+          type: boolean
+          description: Whether the printer is currently processing a print job
+          example: false
+
