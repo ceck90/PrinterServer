@@ -706,6 +706,9 @@ export class HttpServerController {
                                 await KitchenManagementController.getInstance().changeOrderPlate(id, "FORNO");
                             }
                             break;
+                        case "delivery":
+                            await KitchenManagementController.getInstance().changeOrderPlate(id, "PASS");
+                            break;
                         default:
                             console.warn("[API] Unknown role:", role);
                     }
