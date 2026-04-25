@@ -65,7 +65,7 @@ export async function buildKitchenTicket(order: OrderPayload, dest: string, item
         align: Align.Center,
         }, async () => {
             await printer.writeln(`ORDINE: ${order.orderNumber}`);
-            await printer.writeln(`TAVOLO: ${items[0].tableNumber}`);
+            await printer.writeln(`TAVOLO: ${items[0].tableNumber.toUpperCase()}`);
             await printer.writeln(`CLIENTE: ${items[0].clientName}`);
             if( items[0].itemNote ) {
                 await printer.writeln(`NOTE PIATTO: ${items[0].itemNote}`);
@@ -179,7 +179,7 @@ export async function buildKitchenTicket_v2(order: OrderPayload, dest: string, i
     // INFORMAZIONI ORDINE
     printer.alignLeft();
     printer.setTextSize(1, 0);
-    printer.println(`ORDINE: ${order.orderNumber} TAVOLO: ${items[0].tableNumber}`);
+    printer.println(`ORDINE: ${order.orderNumber} TAVOLO: ${items[0].tableNumber.toUpperCase()}`);
     printer.println(`CLIENTE: ${items[0].clientName}`);
 
     //SEZIONE NOTE
@@ -353,7 +353,7 @@ export async function buildSittingPlaceTicket(
     await printer.printImage(path.join(__dirname, 'www/assets/img/mfo-logo-bw.png'));
     printer.setTextSize(0, 0);
     printer.underlineThick(false);
-    printer.println(`Ordine: ${orderId} - Tavolo: ${tableNumber}`);
+    printer.println(`Ordine: ${orderId} - Tavolo: ${tableNumber.toUpperCase()}`);
     printer.println(`Cliente: ${clientName}`);
     
     printer.setTextSize(1,1);

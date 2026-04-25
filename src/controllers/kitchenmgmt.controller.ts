@@ -1,4 +1,4 @@
-import { handleIncomingData, handleSingleOrderData as handleSyncOrderData, handleSyncOrders } from "../dispatcher";
+import { handleIncomingData, handleSingleOrderData as handleSyncOrderData, handleSyncOrders, setResyncCallback } from "../dispatcher";
 import Stomp from "stompjs";
 import SockJS from "sockjs-client";
 
@@ -99,6 +99,14 @@ export class WSClientController {
                 }
             }).catch(error => {
                 console.error("[SOCK] Error fetching items:", error);   
+            });
+
+            // Registra la callback di resync per il debounce su PKMI_UPDATE
+            setResyncCallback(async () => {
+                const items = await KitchenManagementController.getInstance().fetchItems();
+                if (Array.isArray(items) && items.length > 0) {
+                    await handleSyncOrderData(items);
+                }
             });
 
             // Sottoscrizione ai topic

@@ -9,6 +9,82 @@ import { HttpServerController } from "./controllers/httpserver.controller";
 import { sleep } from "bun";
 import * as logger from "./logger.ts";
 
+// ==================
+// Resync su PKMI_UPDATE (debounced)
+// ==================
+
+/**
+ * Callback registrata dall'esterno (kitchenmgmt.controller) per evitare
+ * una dipendenza circolare. Viene invocata con debounce ad ogni PKMI_UPDATE
+ * per sincronizzare gli ordini in PROGRESS che potrebbero essere stati persi.
+ */
+let _resyncCallback: (() => Promise<void>) | null = null;
+let _resyncTimer: ReturnType<typeof setTimeout> | null = null;
+const RESYNC_DEBOUNCE_MS = 1500;
+
+/**
+ * Registra la funzione di resync chiamata con debounce ad ogni PKMI_UPDATE.
+ * Da invocare dopo la connessione WebSocket per evitare dipendenze circolari.
+ */
+export function setResyncCallback(fn: () => Promise<void>): void {
+    _resyncCallback = fn;
+}
+
+/**
+ * Schedula il resync con debounce: se arrivano più PKMI_UPDATE ravvicinati,
+ * il timer viene resettato e il resync viene eseguito una sola volta.
+ */
+function scheduleResync(): void {
+    if (!_resyncCallback) return;
+    if (_resyncTimer) clearTimeout(_resyncTimer);
+    _resyncTimer = setTimeout(async () => {
+        _resyncTimer = null;
+        logger.info("[DISPATCHER] Resync debounced su PKMI_UPDATE in corso...");
+        try {
+            await _resyncCallback!();
+        } catch (err) {
+            logger.error("[DISPATCHER] Errore durante il resync su PKMI_UPDATE:", err);
+        }
+    }, RESYNC_DEBOUNCE_MS);
+}
+
+// ==================
+// Per-printer burst limiter (coda sequenziale)
+// ==================
+
+/**
+ * Ritardo minimo tra stampe consecutive sulla stessa stampante (ms).
+ * Evita di saturare la memoria interna delle stampanti termiche.
+ */
+const INTER_PRINT_DELAY_MS = 100;
+
+/**
+ * Code per stampante: ogni destinazione ha una Promise chain sequenziale,
+ * così i job vengono eseguiti uno alla volta e in ordine per ciascuna stampante.
+ */
+const _printerQueues = new Map<string, Promise<void>>();
+
+/**
+ * Accoda un job per la stampante indicata.
+ * Il job parte solo quando tutti i job precedenti per quella destinazione
+ * sono completati; al termine attende INTER_PRINT_DELAY_MS prima di
+ * sbloccare il prossimo, lasciando tempo alla stampante di svuotare il buffer.
+ * La coda non si interrompe mai: un eventuale errore nel job viene gestito
+ * internamente e la chain prosegue normalmente.
+ */
+function enqueuePrinterJob(destination: string, job: () => Promise<void>): Promise<void> {
+    const prev = _printerQueues.get(destination) ?? Promise.resolve();
+    // Il job gestisce i propri errori internamente, quindi next non rigetta mai.
+    const next = prev.then(async () => {
+        await job();
+        await sleep(INTER_PRINT_DELAY_MS);
+    });
+    // Salva la chain senza il .catch in modo che eventuali errori imprevisti
+    // non rompano la coda delle chiamate successive.
+    _printerQueues.set(destination, next.catch(() => sleep(INTER_PRINT_DELAY_MS)));
+    return next;
+}
+
 export async function handleSingleOrderData(data: any) {
     // console.log("[DISPATCHER] Dati ricevuti:", data);
     if (Array.isArray(data)) {
@@ -43,7 +119,7 @@ export async function handleSingleOrderData(data: any) {
  * Filtra solo i messaggi di tipo PKMI_UPDATE e costruisce l'oggetto ordine.
  */
 export async function handleIncomingData(data: any) {
-    // console.log("[DISPATCHER] Dati ricevuti:", data);
+    console.log("[DISPATCHER] Dati ricevuti:", data);
 
     // Ignora tipi di messaggio non gestiti
     if (data.type != "PKMI_UPDATE" && data.type != "PKMI_ADD_ALL" && data.type != "PKMI_ADD") {
@@ -61,6 +137,11 @@ export async function handleIncomingData(data: any) {
     // console.log(data);
 
     // console.log(`[DISPATCHER] Ricevuto PKMI_UPDATE per ordine ${data.plateKitchenMenuItem.orderNumber} - ${data.plateKitchenMenuItem.plate.name}/${data.plateKitchenMenuItem.menuItem.name}`);
+
+    // Schedula un resync per catturare eventuali ordini PROGRESS mancati
+    if (data.type === "PKMI_UPDATE" && (data.plateKitchenMenuItem.status === "PROGRESS" || data.plateKitchenMenuItem.status === "DONE")) {
+        scheduleResync();
+    }
 
     // Gestione degli stati dell'ordine
     switch (data.plateKitchenMenuItem.status) {
@@ -105,6 +186,8 @@ export async function handleIncomingData(data: any) {
 
     // Passa l'ordine alla funzione di gestione principale
     await handleIncomingOrder(order);
+
+    
 }
 
 /**
@@ -140,106 +223,110 @@ export async function handleIncomingOrder(order: OrderPayload) {
 
         // Gestisce solo stati specifici
         if (order.status == "TODO" || order.status == "DONE") {
-            // console.warn(`[DISPATCHER] Ordine ${order.id} con stato ${order.statuss} non gestito per la destinazione: ${dest}`);
+            console.warn(`[DISPATCHER] Ordine ${order.id} con stato ${order.status} non gestito per la destinazione: ${dest}`);
             continue;
         }
 
         // console.log(`[DISPATCHER] Gestione ordine: ${order.id} con stato: ${order.status} su ${dest}`);
 
-        // Verifica se l'ordine è già registrato nel DB per questa destinazione
-        const existingReceipt = await DatabaseController.getInstance().getReceiptByIdAndStatus(order.orderId, order.status);
-        if (existingReceipt) {
-            logger.debug(`[DISPATCHER] Ordine ${order.id} già registrato per la destinazione ${dest}, salto la stampa.`);
-            continue;
-        }
-
-        logger.info(`[DISPATCHER] Stampa ordine ${order.id} su ${dest} (${printer.name})`);
-
-        try {
-            // Costruisce il buffer di stampa (es. ESC/POS)
-            const buffer = await buildKitchenTicket_v2(order, dest, items, printer.upsideDown, printer.beepEnable);
-
-            // Se la stampante è attiva, invia i dati
-            if (printer.active) {
-                logger.info(`[DISPATCHER] Invio a stampante ${printer.destination} (${printer.ip}:${printer.port})`);
-                await sendToPrinter(printer.destination, printer.ip, printer.port, buffer);
+        // Accoda il job per questa stampante: esecuzione sequenziale con delay
+        // tra stampe consecutive per evitare saturazione della memoria della stampante.
+        await enqueuePrinterJob(dest, async () => {
+            // Verifica se l'ordine è già registrato nel DB (dentro la coda per evitare race condition)
+            const existingReceipt = await DatabaseController.getInstance().getReceiptByIdAndStatus(order.orderId, order.status);
+            if (existingReceipt) {
+                logger.debug(`[DISPATCHER] Ordine ${order.id} già registrato per la destinazione ${dest}, salto la stampa.`);
+                return;
             }
 
-            // Salva la ticket nel database (stato PRINTED o FAILED)
-            DatabaseController.getInstance().saveReceipt({
-                id: order.id,
-                orderId: order.orderId,
-                orderNumber: order.orderNumber,
-                orderStatus: order.status,
-                destination: dest,
-                itemName: order.items[0].name,
-                tableNumber: order.items[0].tableNumber,
-                clientName: order.items[0].clientName,
-                itemNote: order.items[0].itemNote,
-                orderNotes: order.items[0].orderNotes || "",
-                printData: buffer,
-                printStatus: printer.active ? "PRINTED" : "FAILED",
-                printedAt: new Date(),
-                printed: true,
-                takeAway: order.items[0].takeAway
-            });
+            logger.info(`[DISPATCHER] Stampa ordine ${order.id} su ${dest} (${printer.name})`);
 
-            // Invia notifica WebSocket ai client connessi
-            if (printer.active) {
+            try {
+                // Costruisce il buffer di stampa (es. ESC/POS)
+                const buffer = await buildKitchenTicket_v2(order, dest, items, printer.upsideDown, printer.beepEnable);
+
+                // Se la stampante è attiva, invia i dati
+                if (printer.active) {
+                    logger.info(`[DISPATCHER] Invio a stampante ${printer.destination} (${printer.ip}:${printer.port})`);
+                    await sendToPrinter(printer.destination, printer.ip, printer.port, buffer);
+                }
+
+                // Salva la ticket nel database (stato PRINTED o FAILED)
+                DatabaseController.getInstance().saveReceipt({
+                    id: order.id,
+                    orderId: order.orderId,
+                    orderNumber: order.orderNumber,
+                    orderStatus: order.status,
+                    destination: dest,
+                    itemName: order.items[0].name,
+                    tableNumber: order.items[0].tableNumber,
+                    clientName: order.items[0].clientName,
+                    itemNote: order.items[0].itemNote,
+                    orderNotes: order.items[0].orderNotes || "",
+                    printData: buffer,
+                    printStatus: printer.active ? "PRINTED" : "FAILED",
+                    printedAt: new Date(),
+                    printed: true,
+                    takeAway: order.items[0].takeAway
+                });
+
+                // Invia notifica WebSocket ai client connessi
+                if (printer.active) {
+                    HttpServerController.instance.sendNotification(
+                        'RECEIPT_PRINTED',
+                        {
+                            receiptId: order.id,
+                            orderId: order.orderId,
+                            orderNumber: order.orderNumber,
+                            printerName: printer.name,
+                            destination: dest,
+                            itemName: order.items[0].name,
+                            tableNumber: order.items[0].tableNumber,
+                            clientName: order.items[0].clientName,
+                            takeAway: order.items[0].takeAway
+                        },
+                        'success'
+                    );
+                }
+            } catch (err) {
+                // In caso di errore di stampa, salva comunque la ticket come FAILED
+                console.error(`Errore stampando ${dest}:`, err);
+                DatabaseController.getInstance().saveReceipt({
+                    id: order.id,
+                    orderId: order.orderId,
+                    orderNumber: order.orderNumber,
+                    orderStatus: order.status,
+                    destination: dest,
+                    itemName: order.items[0].name,
+                    tableNumber: order.items[0].tableNumber,
+                    clientName: order.items[0].clientName,
+                    itemNote: order.items[0].itemNote,
+                    orderNotes: order.items[0].orderNotes || "",
+                    printData: Buffer.from(""),
+                    printStatus: "FAILED",
+                    printedAt: new Date(),
+                    printed: true,
+                    takeAway: order.items[0].takeAway
+                });
+
+                // Invia notifica WebSocket di errore
                 HttpServerController.instance.sendNotification(
-                    'RECEIPT_PRINTED',
+                    'RECEIPT_PRINT_FAILED',
                     {
                         receiptId: order.id,
                         orderId: order.orderId,
                         orderNumber: order.orderNumber,
                         printerName: printer.name,
                         destination: dest,
+                        error: err instanceof Error ? err.message : String(err),
                         itemName: order.items[0].name,
                         tableNumber: order.items[0].tableNumber,
-                        clientName: order.items[0].clientName,
-                        takeAway: order.items[0].takeAway
+                        clientName: order.items[0].clientName
                     },
-                    'success'
+                    'error'
                 );
             }
-        } catch (err) {
-            // In caso di errore di stampa, salva comunque la ticket come FAILED
-            console.error(`Errore stampando ${dest}:`, err);
-            DatabaseController.getInstance().saveReceipt({
-                id: order.id,
-                orderId: order.orderId,
-                orderNumber: order.orderNumber,
-                orderStatus: order.status,
-                destination: dest,
-                itemName: order.items[0].name,
-                tableNumber: order.items[0].tableNumber,
-                clientName: order.items[0].clientName,
-                itemNote: order.items[0].itemNote,
-                orderNotes: order.items[0].orderNotes || "",
-                printData: Buffer.from(""),
-                printStatus: "FAILED",
-                printedAt: new Date(),
-                printed: true,
-                takeAway: order.items[0].takeAway
-            });
-
-            // Invia notifica WebSocket di errore
-            HttpServerController.instance.sendNotification(
-                'RECEIPT_PRINT_FAILED',
-                {
-                    receiptId: order.id,
-                    orderId: order.orderId,
-                    orderNumber: order.orderNumber,
-                    printerName: printer.name,
-                    destination: dest,
-                    error: err instanceof Error ? err.message : String(err),
-                    itemName: order.items[0].name,
-                    tableNumber: order.items[0].tableNumber,
-                    clientName: order.items[0].clientName
-                },
-                'error'
-            );
-        }
+        });
     }
 }
 
