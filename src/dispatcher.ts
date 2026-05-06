@@ -140,8 +140,6 @@ export async function handleSingleOrderData(data: any) {
  * Filtra solo i messaggi di tipo PKMI_UPDATE e costruisce l'oggetto ordine.
  */
 export async function handleIncomingData(data: any) {
-    console.log("[DISPATCHER] Dati ricevuti:", data);
-
     // Ignora tipi di messaggio non gestiti
     if (data.type != "PKMI_UPDATE" && data.type != "PKMI_ADD_ALL" && data.type != "PKMI_ADD") {
         console.warn("[DISPATCHER] Tipo di dato non gestito:", data.type);
@@ -241,8 +239,7 @@ export async function handleIncomingData(data: any) {
  */
 export async function handleIncomingOrder(order: OrderPayload) {
     // Invia notifica WebSocket ai client connessi per aggiornare la lista dei ticket
-    logger.debug("[DISPATCHER] About to send NEW_TICKETS notification for order:", order.orderId);
-    const notificationResult = HttpServerController.instance.sendNotification(
+    HttpServerController.instance.sendNotification(
         'NEW_TICKETS',
         {
             orderId: order.orderId,
@@ -252,7 +249,6 @@ export async function handleIncomingOrder(order: OrderPayload) {
         },
         'info'
     );
-    logger.debug("[DISPATCHER] NEW_TICKETS notification sent to", notificationResult, "clients");
 
     // Raggruppa gli item per destinazione (es: CUCINA, BAR, ecc.)
     const grouped = groupBy(order.items, i => i.dest);

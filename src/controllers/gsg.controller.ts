@@ -91,9 +91,7 @@ export class GSGController {
     this.heartbeatTimer = setInterval(async () => {
       if (!this.listener) return;
       try {
-        await this.listener.query("SELECT 1").then(() => {
-            logger.debug("[GSG] heartbeat OK");
-        });
+        await this.listener.query("SELECT 1");
       } catch (err) {
         logger.warn("[GSG] heartbeat failed:", err);
         this.handleDisconnect();

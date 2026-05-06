@@ -117,9 +117,6 @@ export async function queryPrinterStatus(printer: PrinterConfig): Promise<Printe
     };
 
     try {
-        logger.debug(`[PRINTER-STATUS] ============================================================`);
-        logger.debug(`[PRINTER-STATUS] Checking status for printer: ${printer.name} (${printer.ip}:${printer.port})`);
-        
         // Prova prima con comandi DLE EOT standard
         let printerStatusByte = await sendStatusQuery(printer, ESC_POS_STATUS_COMMANDS.PRINTER_STATUS);
         let offlineStatusByte = await sendStatusQuery(printer, ESC_POS_STATUS_COMMANDS.OFFLINE_STATUS);
@@ -240,9 +237,6 @@ export async function queryPrinterStatus(printer: PrinterConfig): Promise<Printe
             status.errorMessage = errors.join(", ");
         }
 
-        logger.debug(`[PRINTER-STATUS] ${printer.name} - SUMMARY: ${status.online ? 'Online' : 'Offline'}, ${status.error ? 'Errori: ' + status.errorMessage : 'OK'}`);
-        logger.debug(`[PRINTER-STATUS] ============================================================`);
-
     } catch (err) {
         logger.error(`[PRINTER-STATUS] Errore durante l'interrogazione di ${printer.name}:`, err);
         status.online = false;
@@ -353,8 +347,6 @@ async function sendAlternativeStatusQuery(printer: PrinterConfig): Promise<numbe
         let received = false;
         let responseData: Buffer | null = null;
 
-        logger.debug(`[PRINTER-STATUS] Invio comando alternativo GS a a ${printer.name} - Comando: [${Array.from(command).map(b => '0x' + b.toString(16).toUpperCase().padStart(2, '0')).join(', ')}]`);
-
         const timeout = setTimeout(() => {
             if (!received) {
                 logger.warn(`[PRINTER-STATUS] Timeout comando alternativo ${printer.name}`);
@@ -369,20 +361,12 @@ async function sendAlternativeStatusQuery(printer: PrinterConfig): Promise<numbe
                 socket: {
                     open(sock) {
                         sock.write(command);
-                        logger.debug(`[PRINTER-STATUS] Comando alternativo inviato a ${printer.name}`);
                     },
                     data(sock, data) {
                         if (!received) {
                             received = true;
                             responseData = Buffer.from(data);
                             clearTimeout(timeout);
-                            
-                            logger.debug(`[PRINTER-STATUS] Risposta alternativa ricevuta da ${printer.name}:`);
-                            logger.debug(`  Lunghezza: ${responseData.length} byte(s)`);
-                            logger.debug(`  Hex dump: ${Array.from(responseData).map(b => '0x' + b.toString(16).toUpperCase().padStart(2, '0')).join(' ')}`);
-                            logger.debug(`  Decimal: ${Array.from(responseData).join(' ')}`);
-                            logger.debug(`  Binary: ${Array.from(responseData).map(b => b.toString(2).padStart(8, '0')).join(' ')}`);
-                            
                             sock.end();
                             
                             if (responseData && responseData.length > 0) {
@@ -465,7 +449,6 @@ export async function checkAllPrintersStatus(printers: PrinterConfig[]): Promise
     logger.info("[PRINTER-STATUS] Inizio controllo stato stampanti");
     
     const activePrinters = printers.filter(p => p.active);
-    logger.debug(`[PRINTER-STATUS] Stampanti attive da controllare: ${activePrinters.length}`);
 
     for (const printer of activePrinters) {
         // Salta il controllo se la stampante sta stampando
