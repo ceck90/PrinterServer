@@ -1,4 +1,4 @@
-import { handleIncomingData, handleSingleOrderData as handleSyncOrderData, setResyncCallback } from "../dispatcher";
+import { handleIncomingData, handleSingleOrderData as handleSyncOrderData, setResyncCallback, setFetchItemCallback, reconcileMissedOrders } from "../dispatcher";
 import Stomp from "stompjs";
 import SockJS from "sockjs-client";
 
@@ -108,12 +108,22 @@ export class WSClientController {
                 console.error("[SOCK] Error fetching items:", error);   
             });
 
-            // Registra la callback di resync per il debounce su PKMI_UPDATE
+            // Registra la callback di resync per il debounce su PKMI_UPDATE.
+            // Dopo il fetch normale esegue la riconciliazione: verifica che gli
+            // ordini in todo_plate_cache non siano diventati DONE/CANCELLED prima
+            // che il resync li trovasse come PROGRESS (scenario burst rapido).
             setResyncCallback(async () => {
                 const items = await KitchenManagementController.getInstance().fetchItems();
+                const processedIds = Array.isArray(items) ? items.map((i: any) => String(i.id)) : [];
                 if (Array.isArray(items) && items.length > 0) {
                     await handleSyncOrderData(items);
                 }
+                await reconcileMissedOrders(processedIds);
+            });
+
+            // Registra la callback per il fetch di un singolo item (usata dalla riconciliazione).
+            setFetchItemCallback(async (id: string) => {
+                return KitchenManagementController.getInstance().fetchItemById(id);
             });
 
             // Sottoscrizione ai topic

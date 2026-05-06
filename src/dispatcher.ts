@@ -49,6 +49,115 @@ function scheduleResync(): void {
 }
 
 // ==================
+// Riconciliazione ordini potenzialmente persi
+// ==================
+
+/**
+ * Callback per il fetch di un singolo item dal server KMS tramite ID.
+ * Iniettata dall'esterno per evitare dipendenze circolari.
+ */
+let _fetchItemCallback: ((id: string) => Promise<any>) | null = null;
+
+/**
+ * Registra la funzione di fetch per un singolo plate-item.
+ * Da invocare dopo la connessione WebSocket.
+ */
+export function setFetchItemCallback(fn: (id: string) => Promise<any>): void {
+    _fetchItemCallback = fn;
+}
+
+/**
+ * Riconcilia gli ordini in todo_plate_cache che NON sono stati trovati
+ * nell'ultima risposta fetchItems (cioè sono già passati a DONE/CANCELLED).
+ *
+ * Scenario target: ordine va TODO → PROGRESS → DONE nel giro di pochi secondi
+ * (entro il debounce del resync). Il messaggio STOMP PROGRESS potrebbe essere
+ * stato perso (riconnessione) e fetchItems non restituisce più DONE. Senza
+ * questa riconciliazione, l'ordine non verrebbe mai stampato.
+ *
+ * @param processedItemIds IDs degli item appena processati da fetchItems
+ */
+export async function reconcileMissedOrders(processedItemIds: string[]): Promise<void> {
+    const cacheEntries = DatabaseController.getInstance().getAllTodoPlateCache();
+    if (cacheEntries.length === 0) return;
+
+    const processedSet = new Set(processedItemIds);
+    const missing = cacheEntries.filter(e => !processedSet.has(e.orderId));
+    if (missing.length === 0) return;
+
+    logger.info(`[DISPATCHER] Riconciliazione: ${missing.length} ordini in cache non restituiti da fetchItems`);
+
+    // Recupera tutti gli item mancanti in parallelo per ridurre la latenza REST.
+    // Le stampe restano serializzate per stampante tramite enqueuePrinterJob.
+    const fetchResults = await Promise.allSettled(
+        missing.map(entry =>
+            _fetchItemCallback!(entry.orderId)
+                .then(item => ({ entry, item }))
+                .catch(err => { throw { entry, err }; })
+        )
+    );
+
+    for (const result of fetchResults) {
+        if (result.status === "rejected") {
+            const { entry, err } = result.reason;
+            logger.error(`[DISPATCHER] Errore riconciliazione ordine ${entry.orderId}:`, err);
+            continue;
+        }
+
+        const { entry, item } = result.value;
+        try {
+            if (!item) {
+                logger.warn(`[DISPATCHER] Ordine ${entry.orderId} (plate: ${entry.plateName}) non trovato sul server → pulizia cache`);
+                DatabaseController.getInstance().deleteTodoPlate(entry.orderId);
+                continue;
+            }
+
+            if (item.status === "CANCELLED") {
+                logger.info(`[DISPATCHER] Ordine ${entry.orderId} CANCELLED → pulizia cache`);
+                DatabaseController.getInstance().deleteTodoPlate(entry.orderId);
+                continue;
+            }
+
+            if (item.status === "DONE") {
+                const receipt = DatabaseController.getInstance().getReceiptByIdAndStatus(String(item.id), "PROGRESS");
+                if (!receipt) {
+                    logger.warn(`[DISPATCHER] ⚠ STAMPA TARDIVA: ordine ${entry.orderId} è DONE ma non è mai stato stampato. Plate originale: ${entry.plateName}`);
+                    const order: OrderPayload = {
+                        id: String(item.id),
+                        orderId: String(item.id),
+                        status: "PROGRESS",
+                        createdAt: item.menuItem?.createdDate || new Date().toISOString(),
+                        timestamp: new Date().toISOString(),
+                        orderNumber: item.orderNumber || 0,
+                        items: [{
+                            dest: entry.plateName,
+                            name: item.menuItem?.name || "",
+                            qty: item.quantity || 1,
+                            tableNumber: item.tableNumber || "",
+                            clientName: item.clientName || "",
+                            itemNote: item.notes || "",
+                            orderNotes: item.orderNotes || "",
+                            takeAway: item.takeAway || false,
+                        }],
+                    };
+                    await handleIncomingOrder(order);
+                } else {
+                    logger.debug(`[DISPATCHER] Ordine ${entry.orderId} è DONE ed era già stato stampato → pulizia cache`);
+                    DatabaseController.getInstance().deleteTodoPlate(entry.orderId);
+                }
+                continue;
+            }
+
+            if (item.status === "TODO") {
+                logger.debug(`[DISPATCHER] Ordine ${entry.orderId} ancora TODO ma assente dal fetchItems → mantenuto in cache`);
+            }
+        } catch (err) {
+            logger.error(`[DISPATCHER] Errore riconciliazione ordine ${entry.orderId}:`, err);
+        }
+    }
+}
+
+// ==================
 // Per-printer burst limiter (coda sequenziale)
 // ==================
 
@@ -255,16 +364,18 @@ export async function handleIncomingOrder(order: OrderPayload) {
 
     // Cicla su ogni gruppo/destinazione
     for (const [dest, items] of Object.entries(grouped)) {
-        // Cerca la stampante nell'array globale printers
-        const printer = printers.find(p => p.destination === dest || p.name === dest);
-        if (!printer) {
-            // console.warn(`[DISPATCHER] Nessuna stampante configurata per la destinazione: ${dest}`);
+        // Ignora subito gli stati non stampabili; il check avviene PRIMA della
+        // ricerca della stampante per evitare che il warning "printer not found"
+        // scatti su TODO/DONE (che non devono essere stampati per design).
+        if (order.status == "TODO" || order.status == "DONE") {
+            console.warn(`[DISPATCHER] Ordine ${order.id} con stato ${order.status} non gestito per la destinazione: ${dest}`);
             continue;
         }
 
-        // Gestisce solo stati specifici
-        if (order.status == "TODO" || order.status == "DONE") {
-            console.warn(`[DISPATCHER] Ordine ${order.id} con stato ${order.status} non gestito per la destinazione: ${dest}`);
+        // Cerca la stampante nell'array globale printers (solo per ordini PROGRESS)
+        const printer = printers.find(p => p.destination === dest || p.name === dest);
+        if (!printer) {
+            logger.warn(`[DISPATCHER] Nessuna stampante configurata per la destinazione: "${dest}" (ordine ${order.id}). Verificare la configurazione delle stampanti.`);
             continue;
         }
 

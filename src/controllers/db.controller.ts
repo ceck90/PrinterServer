@@ -746,6 +746,17 @@ export class DatabaseController {
         );
     }
 
+    /**
+     * Restituisce tutte le entry della cache plate originale.
+     * Usato dal meccanismo di riconciliazione per trovare ordini potenzialmente
+     * persi (passati a DONE/CANCELLED senza essere stati catturati come PROGRESS).
+     */
+    public getAllTodoPlateCache(): Array<{ orderId: string; plateName: string; createdAt: string }> {
+        return this.db.query(
+            `SELECT orderId, plateName, createdAt FROM todo_plate_cache`
+        ).all() as Array<{ orderId: string; plateName: string; createdAt: string }>;
+    }
+
     //#endregion TODO PLATE CACHE
 }
 
