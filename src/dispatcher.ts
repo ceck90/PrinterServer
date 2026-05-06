@@ -370,10 +370,14 @@ export async function handleIncomingOrder(order: OrderPayload) {
         });
     }
 
-    // Rimuove dal DB la plate originale: l'ordine è stato processato
-    // (stampato o scartato per idempotency). Pulizia necessaria per evitare
-    // che la tabella cresca indefinitamente a ogni evento di festival.
-    DatabaseController.getInstance().deleteTodoPlate(order.orderId);
+    // Rimuove dal DB la plate originale solo se l'ordine è stato processato
+    // come PROGRESS (stampato o scartato per idempotency).
+    // Per gli ordini TODO la entry deve restare: verrà usata quando l'ordine
+    // transiterà a PROGRESS (via resync o messaggio diretto) per garantire
+    // la stampa sulla stampante della plate di nascita, anche dopo un reboot.
+    if (order.status !== "TODO") {
+        DatabaseController.getInstance().deleteTodoPlate(order.orderId);
+    }
 }
 
 export async function handleIncomingOrderFromGSG(order: any) {
