@@ -1178,8 +1178,8 @@ export class HttpServerController {
             }
         };
         
-        logger.debug(`[WS] Preparing to send notification: ${type} (${severity})`);
-        logger.debug(`[WS] Notification payload:`, JSON.stringify(notification, null, 2));
+        //logger.debug(`[WS] Preparing to send notification: ${type} (${severity})`);
+        //logger.debug(`[WS] Notification payload:`, JSON.stringify(notification, null, 2));
         const result = this.broadcast(notification);
         logger.debug(`[WS] Notification sent to ${result} clients`);
         return result;
