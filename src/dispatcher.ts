@@ -154,15 +154,15 @@ export async function handleIncomingData(data: any) {
             }
             break;
         case "DONE":
-            console.log(`[DISPATCHER] Ordine completato: ${data.plateKitchenMenuItem.orderNumber} - ${data.plateKitchenMenuItem.plate.name}/${data.plateKitchenMenuItem.menuItem.name}`);
+            console.log(`[DISPATCHER] Ordine completato: ${data.plateKitchenMenuItem.orderNumber} - ${data.plateKitchenMenuItem.plate?.name}/${data.plateKitchenMenuItem.menuItem.name}`);
             return;
         case "CANCELLED":
             // Logga gli ordini completati o cancellati e ignora
-            console.log(`[DISPATCHER] Ordine cancellato: ${data.plateKitchenMenuItem.orderNumber} - ${data.plateKitchenMenuItem.plate.name}/${data.plateKitchenMenuItem.menuItem.name}`);
+            console.log(`[DISPATCHER] Ordine cancellato: ${data.plateKitchenMenuItem.orderNumber} - ${data.plateKitchenMenuItem.plate?.name}/${data.plateKitchenMenuItem.menuItem.name}`);
             return;
     }
 
-    console.log(`[DISPATCHER] Gestisco ordine ${data.plateKitchenMenuItem.orderNumber} - ${data.plateKitchenMenuItem.plate.name}/${data.plateKitchenMenuItem.menuItem.name} con stato: ${data.plateKitchenMenuItem.status}`);
+    console.log(`[DISPATCHER] Gestisco ordine ${data.plateKitchenMenuItem.orderNumber} - ${data.plateKitchenMenuItem.plate?.name}/${data.plateKitchenMenuItem.menuItem.name} con stato: ${data.plateKitchenMenuItem.status}`);
 
     // Costruisce l'oggetto ordine da processare
     const order: OrderPayload = {

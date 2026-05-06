@@ -1,4 +1,4 @@
-import { handleIncomingData, handleSingleOrderData as handleSyncOrderData, handleSyncOrders, setResyncCallback } from "../dispatcher";
+import { handleIncomingData, handleSingleOrderData as handleSyncOrderData, setResyncCallback } from "../dispatcher";
 import Stomp from "stompjs";
 import SockJS from "sockjs-client";
 
@@ -32,6 +32,13 @@ export class WSClientController {
     private shouldReconnect = true;
 
     private stompClient: any;
+
+    /**
+     * Coda seriale per i messaggi /topic/pkmi.
+     * Garantisce che un messaggio venga processato completamente prima di
+     * iniziare il successivo, evitando race condition e perdita di eventi.
+     */
+    private _pkmiQueue: Promise<void> = Promise.resolve();
 
     // Topic STOMP a cui sottoscriversi
     private pkmiTopic: string = "/topic/pkmi";
@@ -115,8 +122,18 @@ export class WSClientController {
             });
 
             _this.stompClient.subscribe(_this.pkmiTopic, (event: any) => {
-                const data = JSON.parse(event.body);
-                handleIncomingData(data);
+                let data: any;
+                try {
+                    data = JSON.parse(event.body);
+                } catch (parseErr) {
+                    console.error("[STOMP] Messaggio pkmi non valido (JSON malformato):", parseErr);
+                    return;
+                }
+                // Accoda il processamento in modo seriale: ogni messaggio viene
+                // completato prima di avviare il successivo, impedendo race condition.
+                _this._pkmiQueue = _this._pkmiQueue
+                    .then(() => handleIncomingData(data))
+                    .catch(err => console.error("[STOMP] Errore non gestito nel processamento del messaggio pkmi:", err));
             });
 
         }, (error: any) => {
