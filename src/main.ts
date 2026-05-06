@@ -8,7 +8,6 @@ import { printSpecificOrder } from './dispatcher.ts';
 import { checkAllPrintersStatus } from './printer-status.ts';
 import * as fs from 'fs';
 import * as path from 'path';
-import { Client } from 'pg';
 import { gsg_queries } from './gsg-helper.ts';
 // import { printTest } from './receipt.ts';
 
@@ -42,7 +41,7 @@ if (!fs.existsSync(envPath)) {
         KITCHEN_MGMT_SERVER_URL=http://127.0.0.1:8080
         WS_CLIENT_RECONNECT_ATTEMPTS=-1
         WS_CLIENT_RECONNECT_DELAY_MS=2000
-        TOKEN_KEY="05q8GiW=atxs"
+        TOKEN_KEY="your-secure-token-key"
         HTTP_SERVER_PORT=4000
         GSG_DB_HOST=127.0.0.1
         GSG_DB_PORT=5432
@@ -116,13 +115,13 @@ const WSClientOptions = {
 };
 const wsClientController = WSClientController.getInstance(WSClientOptions);
 
-const gsgController = GSGController.getInstance(new Client({
-    host: process.env.GSG_DB_HOST || '1127.0.0.1',
+const gsgController = GSGController.getInstance({
+    host: process.env.GSG_DB_HOST || '127.0.0.1',
     port: parseInt(process.env.GSG_DB_PORT || '5432', 10),
     user: process.env.GSG_DB_USER || 'postgres',
     password: process.env.GSG_DB_PASSWORD || 'postgres',
     database: process.env.GSG_DB_DATABASE || 'sagra'
-}));
+});
 
 await gsgController.start().catch(err => {
     console.error("[GSG] errore durante l'avvio:", err);

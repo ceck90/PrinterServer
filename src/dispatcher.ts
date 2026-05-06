@@ -492,33 +492,65 @@ export async function handleIncomingOrder(order: OrderPayload) {
 }
 
 export async function handleIncomingOrderFromGSG(order: any) {
+    if (order == null) return;
+
     const printer = printers.find(p => p.destination === "COPERTI" || p.name === "COPERTI");
     if (!printer) {
         logger.warn(`[DISPATCHER] Nessuna stampante configurata per la destinazione: COPERTI`);
         return;
     }
 
-    if (order != null && order != undefined) {
+    // Idempotency: prefisso "GSG-" per distinguere gli ordini GSG da quelli KMS
+    const orderId = `GSG-${order.id}`;
+    const existing = DatabaseController.getInstance().getReceiptByIdAndStatus(orderId, "PROGRESS");
+    if (existing) {
+        logger.debug(`[DISPATCHER] Ordine GSG ${orderId} già stampato, skip`);
+        return;
+    }
 
-        // Invia notifica WebSocket ai client connessi per aggiornare la lista dei ticket
-        HttpServerController.instance.sendNotification(
-            'NEW_TICKETS',
-            {
-                orderId: order.id,
-                orderNumber: order.numeroOrdine || order.id,
-                tableNumber: order.numeroTavolo,
-                clientName: order.cliente,
-                timestamp: new Date().toISOString()
-            },
-            'info'
-        );
+    // Invia notifica WebSocket ai client connessi per aggiornare la lista dei ticket
+    HttpServerController.instance.sendNotification(
+        'NEW_TICKETS',
+        {
+            orderId: orderId,
+            orderNumber: order.numeroOrdine || order.id,
+            tableNumber: order.numeroTavolo,
+            clientName: order.cliente,
+            timestamp: new Date().toISOString()
+        },
+        'info'
+    );
 
-        // Se la stampante è attiva, invia i dati
-        if (printer.active) {
+    // Usa la coda per-stampante per evitare stampe sovrapposte
+    if (printer.active) {
+        await enqueuePrinterJob(printer.destination, async () => {
+            // Secondo check all'interno della coda (evita doppia stampa in caso di burst)
+            const check = DatabaseController.getInstance().getReceiptByIdAndStatus(orderId, "PROGRESS");
+            if (check) {
+                logger.debug(`[DISPATCHER] Ordine GSG ${orderId} già stampato (check interno coda), skip`);
+                return;
+            }
             const buffer = await buildSittingPlaceTicket(order.id, order.numeroTavolo, order.cliente, order.coperti, order.cassiere, false, false);
             logger.info(`[DISPATCHER] Stampa coperti GSG ordine ${order.id} su ${printer.destination}`);
             await sendToPrinter(printer.destination, printer.ip, printer.port, buffer);
-        }
+            DatabaseController.getInstance().saveReceipt({
+                id: orderId,
+                orderId: orderId,
+                orderNumber: order.id,
+                orderStatus: "PROGRESS",
+                destination: printer.destination,
+                itemName: "COPERTI",
+                printData: buffer,
+                clientName: order.cliente || "",
+                tableNumber: order.numeroTavolo || "",
+                itemNote: "",
+                orderNotes: "",
+                printStatus: "PRINTED",
+                printedAt: new Date(),
+                printed: true,
+                takeAway: false,
+            });
+        });
     }
 }
 

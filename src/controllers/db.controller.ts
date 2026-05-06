@@ -31,6 +31,9 @@ export class DatabaseController {
             this.backupDatabase(this.dbPath);
         }
         this.initializeDatabase();
+        // seedUsers è async (usa Argon2). Non blocca il costruttore — la finestra di race
+        // condition è limitata ai primissimi ms del primo avvio (tabella users vuota).
+        void this.seedUsers().catch(err => console.error("[DB] Errore seedUsers:", err));
     }
 
     /**
@@ -227,32 +230,40 @@ export class DatabaseController {
             );
         `);
 
-        // Seed iniziale per gli utenti
-        this.seedUsers();
     }
 
     private async seedUsers() {
         const users = [
-            { username: "admin", password: "password", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-            { username: "user", password: "user", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+            { username: "admin", password: "password", createdAt: new Date().toISOString() },
+            { username: "user", password: "user", createdAt: new Date().toISOString() }
         ];
 
         for (const user of users) {
-            user.password = await hashPassword(user.password);
-        }
+            // Hash only if user does not exist yet (checked via INSERT OR IGNORE below)
+            const existing = this.db.query(`SELECT id FROM users WHERE username = ?`).get(user.username);
+            if (existing) continue;
 
-        for (const user of users) {
+            const hashed = await hashPassword(user.password);
             this.db.run(
-                `INSERT INTO users (username, password, createdAt, updatedAt)
-                VALUES (?, ?, ?, ?)
-                ON CONFLICT(username) DO UPDATE SET
-                    password = excluded.password,
-                    updatedAt = excluded.updatedAt`,
-                [user.username, user.password, user.createdAt, user.updatedAt]
+                `INSERT OR IGNORE INTO users (username, password, createdAt, updatedAt)
+                VALUES (?, ?, ?, ?)`,
+                [user.username, hashed, user.createdAt, user.createdAt]
             );
         }
 
-        console.log("[DB] Users seeded");
+        console.log("[DB] Users seeded (nuovi utenti aggiunti, password esistenti invariate)");
+    }
+
+    /**
+     * Salva un ordine GSG nel database (INSERT OR IGNORE — idempotente su gsgId).
+     */
+    public saveGsgOrder(order: { id: number, numeroTavolo?: string, cliente?: string, coperti?: number, serata?: string, ora?: string, data?: string }) {
+        const timestamp = [order.data, order.ora].filter(Boolean).join(' ');
+        this.db.run(
+            `INSERT OR IGNORE INTO gsg_orders (gsgId, orderId, orderNumber, tableNumber, clientName, orderNotes, orderTimestamp, coperti)
+            VALUES (?, ?, ?, ?, ?, '', ?, ?)`,
+            [order.id, String(order.id), order.id, order.numeroTavolo ?? "", order.cliente ?? "", timestamp, order.coperti ?? 0]
+        );
     }
 
     /**

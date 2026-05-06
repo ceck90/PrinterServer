@@ -1,6 +1,7 @@
 import { Client } from "pg";
 import { handleIncomingOrderFromGSG } from "../dispatcher.ts";
 import { gsg_queries } from "../gsg-helper.ts";
+import { DatabaseController } from "./db.controller.ts";
 import * as logger from "../logger.ts";
 
 type NewOrderPayload = { operation: string; item: any };
@@ -9,8 +10,10 @@ type PgConfig = ConstructorParameters<typeof Client>[0];
 export class GSGController {
   private static instance: GSGController;
 
-  // Listener dedicato
+  // Connessione dedicata solo al LISTEN/NOTIFY + heartbeat
   private listener?: Client;
+  // Connessione separata per le query SQL (non blocca la ricezione dei NOTIFY)
+  private queryClient?: Client;
   private stopping = false;
   private backoffMs = 1000;
   private readonly backoffMax = 15000;
@@ -21,17 +24,9 @@ export class GSGController {
 
   private constructor(private readonly baseConfig?: PgConfig) {}
 
-  public static getInstance(clientOrConfig?: Client | PgConfig) {
+  public static getInstance(config?: PgConfig) {
     if (!this.instance) {
-      if (clientOrConfig instanceof Client) {
-        this.instance = new GSGController(clientOrConfig);
-        console.log("[GSG] Client passato direttamente");
-        // facoltativo: usare direttamente il client passato per query non-listen
-      } else {
-        this.instance = new GSGController(
-          clientOrConfig ?? { host: "localhost", port: 5432, user: "user", password: "password", database: "dbname" }
-        );
-      }
+      this.instance = new GSGController(config);
     }
     return this.instance;
   }
@@ -50,6 +45,10 @@ export class GSGController {
       try { await this.listener.end(); } catch {}
       this.listener = undefined;
     }
+    if (this.queryClient) {
+      try { await this.queryClient.end(); } catch {}
+      this.queryClient = undefined;
+    }
   }
 
   private async connectAndListen(): Promise<void> {
@@ -58,6 +57,11 @@ export class GSGController {
         const client = new Client(this.baseConfig ?? {});
         await client.connect();
         this.listener = client;
+
+        // Connessione separata per le query SQL
+        const qClient = new Client(this.baseConfig ?? {});
+        await qClient.connect();
+        this.queryClient = qClient;
 
         // Reset backoff
         this.backoffMs = 1000;
@@ -69,8 +73,12 @@ export class GSGController {
         // Heartbeat
         this.startHeartbeat();
 
-        // Handler eventi
-        client.on("notification", (msg) => this.onNotification(msg.payload));
+        // Bug #3: .catch() esplicito per evitare unhandled Promise rejection
+        client.on("notification", (msg) => {
+          this.onNotification(msg.payload).catch(err =>
+            logger.error("[GSG] Errore non gestito in onNotification:", err)
+          );
+        });
         client.on("error", (err) => console.error("[GSG] PG error:"));
         client.on("end", () => {
           console.warn("[GSG] PG connection ended");
@@ -108,16 +116,21 @@ export class GSGController {
       try { this.listener.end(); } catch {}
       this.listener = undefined;
     }
+    if (this.queryClient) {
+      try { this.queryClient.end(); } catch {}
+      this.queryClient = undefined;
+    }
     if (!this.stopping) void this.connectAndListen();
   }
 
   public async query(text: string, params?: any[]): Promise<any> {
     try {
-      if(this.listener) {
-        const res = await this.listener.query(text, params);
+      if (this.queryClient) {
+        const res = await this.queryClient.query(text, params);
         return res;
       } else {
-        console.error("[GSG] No client available for queries");
+        console.error("[GSG] queryClient non disponibile");
+        throw new Error("[GSG] queryClient non disponibile");
       }
     }
     catch (err) {
@@ -184,9 +197,9 @@ export class GSGController {
       logger.debug(`[GSG] Event structure: ${JSON.stringify(event, null, 2)}`);
       
       try {
-        // Inserisci le righe in SQLite
-        if (event?.righe) {
-          await this.insertIntoSQLite(event.righe);
+        // Salva l'ordine GSG in SQLite (idempotente: INSERT OR IGNORE su gsgId)
+        if (event?.ordine) {
+          await this.insertIntoSQLite(event);
         }
         
         // Verifica se abbiamo i dati dell'ordine per la stampa coperti
@@ -213,11 +226,15 @@ export class GSGController {
     this.isProcessing = false;
   }
 
-  // Funzione simulata di inserimento in SQLite
-  private async insertIntoSQLite(event: any) {
-    // Esegui la tua query di inserimento su SQLite
-    // Ad esempio db.run("INSERT INTO ordini ...", [event.data]);
-    logger.debug("[GSG] Evento inserito:", event);
+  // Salva l'ordine GSG nel database SQLite locale (idempotente via INSERT OR IGNORE)
+  private async insertIntoSQLite(event: { ordine?: any; righe?: any[] }) {
+    if (!event.ordine) return;
+    try {
+      DatabaseController.getInstance().saveGsgOrder(event.ordine);
+      logger.debug(`[GSG] Ordine ${event.ordine.id} salvato in gsg_orders`);
+    } catch (err) {
+      logger.error("[GSG] Errore salvataggio gsg_orders:", err);
+    }
   };
 
 }
