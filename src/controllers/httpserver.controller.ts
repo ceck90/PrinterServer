@@ -1073,9 +1073,10 @@ export class HttpServerController {
         if (!HttpServerController.#instance) {
             console.log("[HttpServerController] Creating new singleton instance");
             HttpServerController.#instance = new HttpServerController();
-        } else {
-            console.log("[HttpServerController] Returning existing singleton instance");
-        }
+        } 
+        // else {
+        //     console.log("[HttpServerController] Returning existing singleton instance");
+        // }
         return HttpServerController.#instance;
     }
 

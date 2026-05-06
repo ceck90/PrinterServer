@@ -20,7 +20,7 @@ import * as logger from "./logger.ts";
  */
 let _resyncCallback: (() => Promise<void>) | null = null;
 let _resyncTimer: ReturnType<typeof setTimeout> | null = null;
-const RESYNC_DEBOUNCE_MS = 1500;
+const RESYNC_DEBOUNCE_MS = 3000; // 3 secondi di debounce per evitare resync troppo frequenti in caso di molti PKMI_UPDATE ravvicinati
 
 /**
  * Registra la funzione di resync chiamata con debounce ad ogni PKMI_UPDATE.
@@ -90,6 +90,27 @@ export async function handleSingleOrderData(data: any) {
     if (Array.isArray(data)) {
         for (const item of data) {
             // console.log("[DISPATCHER] Gestisco il sync di:", item.id);
+            const _itemId = String(item.id);
+
+            // Persiste la plate originale degli ordini TODO nel DB al primo avvistamento
+            // (sync iniziale o PKMI_ADD). Il DB sopravvive a crash e reboot: anche dopo
+            // un riavvio il resync troverà la plate corretta e stamperà sulla stampante giusta.
+            if (item.status === "TODO" && item.plate?.name) {
+                DatabaseController.getInstance().saveTodoPlate(_itemId, item.plate.name);
+            }
+
+            // Per ordini PROGRESS: se la plate è cambiata rispetto a quella originale
+            // (memorizzata nel DB al momento della creazione TODO), usa la plate originale
+            // per garantire la stampa sulla stampante corretta anche dopo un reboot.
+            let _dest = item.plate?.name || "";
+            if (item.status === "PROGRESS") {
+                const _originalPlate = DatabaseController.getInstance().getTodoPlate(_itemId);
+                if (_originalPlate && _originalPlate !== _dest) {
+                    logger.info(`[DISPATCHER] Resync ordine ${_itemId}: plate variata da "${_originalPlate}" a "${_dest}", stampo su plate originale`);
+                    _dest = _originalPlate;
+                }
+            }
+
             const order: OrderPayload = {
                 id: item.id,
                 orderId: item.id,
@@ -98,7 +119,7 @@ export async function handleSingleOrderData(data: any) {
                 timestamp: new Date().toISOString(),
                 orderNumber: item.orderNumber || 0,
                 items: [{
-                    dest: item.plate?.name || "",
+                    dest: _dest,
                     name: item.menuItem.name,
                     qty: item.quantity || 1,
                     tableNumber: item.tableNumber,
@@ -152,6 +173,15 @@ export async function handleIncomingData(data: any) {
                 console.warn("[DISPATCHER] Ordine in lavorazione senza destinazione:", data.plateKitchenMenuItem);
                 return;
             }
+            // Persiste la plate originale degli ordini TODO nel DB: se successivamente
+            // la plate cambia durante la transizione TODO → PROGRESS, il DB
+            // garantisce la stampa sulla stampante corretta anche dopo un reboot.
+            if (data.plateKitchenMenuItem.status === "TODO") {
+                DatabaseController.getInstance().saveTodoPlate(
+                    String(data.plateKitchenMenuItem.id),
+                    data.plateKitchenMenuItem.plate.name
+                );
+            }
             break;
         case "DONE":
             console.log(`[DISPATCHER] Ordine completato: ${data.plateKitchenMenuItem.orderNumber} - ${data.plateKitchenMenuItem.plate?.name}/${data.plateKitchenMenuItem.menuItem.name}`);
@@ -162,7 +192,22 @@ export async function handleIncomingData(data: any) {
             return;
     }
 
-    console.log(`[DISPATCHER] Gestisco ordine ${data.plateKitchenMenuItem.orderNumber} - ${data.plateKitchenMenuItem.plate?.name}/${data.plateKitchenMenuItem.menuItem.name} con stato: ${data.plateKitchenMenuItem.status}`);
+    // Risolve la plate considerando possibili variazioni durante la transizione TODO → PROGRESS.
+    // Se la plate è cambiata rispetto a quella memorizzata in cache (avvistamento TODO),
+    // usa la plate originale per stampare sulla stampante corretta.
+    const _resolvedPlateName = (() => {
+        if (data.plateKitchenMenuItem.status !== "PROGRESS") {
+            return data.plateKitchenMenuItem.plate.name;
+        }
+        const _originalPlate = DatabaseController.getInstance().getTodoPlate(String(data.plateKitchenMenuItem.id));
+        if (_originalPlate && _originalPlate !== data.plateKitchenMenuItem.plate.name) {
+            logger.info(`[DISPATCHER] Ordine ${data.plateKitchenMenuItem.id}: plate variata da "${_originalPlate}" a "${data.plateKitchenMenuItem.plate.name}", stampo su plate originale`);
+            return _originalPlate;
+        }
+        return data.plateKitchenMenuItem.plate.name;
+    })();
+
+    console.log(`[DISPATCHER] Gestisco ordine ${data.plateKitchenMenuItem.orderNumber} - ${_resolvedPlateName}/${data.plateKitchenMenuItem.menuItem.name} con stato: ${data.plateKitchenMenuItem.status}`);
 
     // Costruisce l'oggetto ordine da processare
     const order: OrderPayload = {
@@ -173,7 +218,7 @@ export async function handleIncomingData(data: any) {
         timestamp: new Date().toISOString(),
         orderNumber: data.plateKitchenMenuItem.orderNumber || 0,
         items: [{
-            dest: data.plateKitchenMenuItem.plate.name,
+            dest: _resolvedPlateName,
             name: data.plateKitchenMenuItem.menuItem.name,
             qty: data.plateKitchenMenuItem.quantity || 1,
             tableNumber: data.plateKitchenMenuItem.tableNumber,
@@ -328,6 +373,11 @@ export async function handleIncomingOrder(order: OrderPayload) {
             }
         });
     }
+
+    // Rimuove dal DB la plate originale: l'ordine è stato processato
+    // (stampato o scartato per idempotency). Pulizia necessaria per evitare
+    // che la tabella cresca indefinitamente a ogni evento di festival.
+    DatabaseController.getInstance().deleteTodoPlate(order.orderId);
 }
 
 export async function handleIncomingOrderFromGSG(order: any) {

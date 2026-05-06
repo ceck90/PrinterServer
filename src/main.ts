@@ -21,7 +21,7 @@ const banner = `
  Backend per gestione e stampa ticket piatto
  con stampanti termiche Ethernet
 
- Versione:  1.1.0 - 25-04-2026
+ Versione:  1.2.1 - 06-05-2026
  Autore:    Roberto Ceccato - RC Projects
  Email:     ceccato.roberto@alice.it
 ==============================================

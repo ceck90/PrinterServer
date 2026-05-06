@@ -215,6 +215,18 @@ export class DatabaseController {
             );
         `);
 
+        // Cache persistente della plate originale degli ordini TODO.
+        // Sopravvive a crash e reboot: consente al resync di stampare sulla
+        // stampante corretta anche se la plate è cambiata durante la transizione
+        // TODO → PROGRESS. La riga viene rimossa dopo che l'ordine è stampato.
+        this.db.run(`
+            CREATE TABLE IF NOT EXISTS todo_plate_cache (
+                orderId TEXT PRIMARY KEY,
+                plateName TEXT NOT NULL,
+                createdAt TEXT NOT NULL
+            );
+        `);
+
         // Seed iniziale per gli utenti
         this.seedUsers();
     }
@@ -692,5 +704,48 @@ export class DatabaseController {
     }
 
     //#endregion USERS
+
+    //#region TODO PLATE CACHE
+
+    /**
+     * Persiste la plate originale di un ordine TODO nel database.
+     * Usa INSERT OR IGNORE per non sovrascrivere il valore originale se
+     * l'ordine viene visto più volte prima della stampa.
+     * @param orderId ID dell'ordine
+     * @param plateName Nome originale della plate al momento della creazione
+     */
+    public saveTodoPlate(orderId: string, plateName: string): void {
+        this.db.run(
+            `INSERT OR IGNORE INTO todo_plate_cache (orderId, plateName, createdAt)
+             VALUES (?, ?, ?)`,
+            [orderId, plateName, new Date().toISOString()]
+        );
+    }
+
+    /**
+     * Restituisce la plate originale memorizzata per un ordine TODO.
+     * @param orderId ID dell'ordine
+     * @returns Nome della plate originale, o null se non presente
+     */
+    public getTodoPlate(orderId: string): string | null {
+        const row = this.db.query(
+            `SELECT plateName FROM todo_plate_cache WHERE orderId = ?`
+        ).get(orderId) as { plateName: string } | null;
+        return row?.plateName ?? null;
+    }
+
+    /**
+     * Rimuove la plate originale dalla cache persistente dopo che l'ordine
+     * è stato processato (stampato o scartato per idempotency).
+     * @param orderId ID dell'ordine
+     */
+    public deleteTodoPlate(orderId: string): void {
+        this.db.run(
+            `DELETE FROM todo_plate_cache WHERE orderId = ?`,
+            [orderId]
+        );
+    }
+
+    //#endregion TODO PLATE CACHE
 }
 
