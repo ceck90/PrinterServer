@@ -1,10 +1,11 @@
 # Flusso dei messaggi asincroni — PrinterServer
 
-> Documento di riferimento per l'analisi di potenziali perdite di eventi asincroni.
+> **Ultima revisione: 2026-05-07** — Documento aggiornato dopo le sessioni di bugfix.
+> Descrive il flusso **attuale** del codice, incluse tutte le modifiche apportate.
 
 ---
 
-## 1. Schema generale del flusso
+## 1. Schema generale del flusso (stato attuale)
 
 ```
 [Kitchen-management-server]
@@ -15,7 +16,10 @@
         │
         ├─ /topic/greetings   →  log soltanto
         │
-        └─ /topic/pkmi        →  JSON.parse(event.body)
+        └─ /topic/pkmi        →  JSON.parse (try-catch)
+                                         │
+                                         ▼
+                              _pkmiQueue (Promise chain seriale) ← FIX #1
                                          │
                                          ▼
                               [handleIncomingData(data)]   ← dispatcher.ts
@@ -23,235 +27,204 @@
 
 ---
 
-## 2. Dettaglio fase di connessione e sync iniziale
+## 2. Avvio: connessione e sync iniziale
 
 ```
 WSClientController.connect()
   │
-  ├─ [SockJS WebSocket creato]
+  ├─ SockJS WebSocket creato
   │
-  ├─ stompClient.connect() callback (successo)
-  │     │
-  │     ├─ KitchenManagementController.fetchItems()   ← REST GET /plate-item?statuses=TODO,PROGRESS
-  │     │     └─ paginazione automatica (Promise.all sulle pagine N>0)
-  │     │           │
-  │     │           ▼
-  │     │     handleSingleOrderData(items[])           ← dispatcher.ts
-  │     │           └─ per ogni item → handleIncomingOrder(order)
-  │     │
-  │     ├─ setResyncCallback(async () => {             ← registra callback debounced
-  │     │     fetchItems() → handleSingleOrderData()
-  │     │   })
-  │     │
-  │     ├─ subscribe(/topic/greetings)  → log
-  │     │
-  │     └─ subscribe(/topic/pkmi)       → handleIncomingData(data)
-  │
-  └─ stompClient.connect() callback (errore)
-        └─ tryReconnect()  → setTimeout(connect, reconnectDelayMs)
+  └─ stompClient.connect() → onConnect:
+        │
+        ├─ KitchenManagementController.fetchItems(TODO,PROGRESS)  ← REST paginato
+        │     └─ handleSingleOrderData(items[])                   ← sync iniziale
+        │           └─ per ogni item → handleIncomingOrder(order)
+        │
+        ├─ setResyncCallback(...)    ← registra callback debounced
+        ├─ setFetchItemCallback(...) ← registra fetch singolo item   ← FIX #4
+        │
+        ├─ subscribe /topic/greetings → log
+        └─ subscribe /topic/pkmi    → _pkmiQueue chain              ← FIX #1
 ```
 
 ---
 
-## 3. handleIncomingData(data) — dispatcher.ts
+## 3. handleIncomingData(data) — dispatcher.ts (messaggio STOMP in arrivo)
 
 ```
 handleIncomingData(data)
   │
-  ├─ GUARD: tipo non in {PKMI_UPDATE, PKMI_ADD_ALL, PKMI_ADD}  → return (silenzioso)
+  ├─ GUARD tipo non in {PKMI_UPDATE, PKMI_ADD_ALL, PKMI_ADD} → return (warn)
+  ├─ GUARD !data.plateKitchenMenuItem || !menuItem           → return (silenzioso)
   │
-  ├─ GUARD: !data.plateKitchenMenuItem || !menuItem            → return (silenzioso)
-  │
-  ├─ if (PKMI_UPDATE && status in {PROGRESS, DONE})
-  │     └─ scheduleResync()   ← debounce 1500ms
-  │           └─ dopo 1500ms: fetchItems() → handleSingleOrderData()
+  ├─ if PKMI_UPDATE && status in {PROGRESS, DONE}
+  │     └─ scheduleResync()  ← debounce 3000ms
   │
   ├─ switch(status):
-  │     TODO / PROGRESS:  se plate == null → return (warn)
-  │     DONE:             → return (log + ignorato)
-  │     CANCELLED:        → return (log + ignorato)
+  │     TODO:
+  │       plate==null → return (warn)
+  │       plate!=null → saveTodoPlate(id, plate.name)  ← FIX #3 — DB persistente
+  │     PROGRESS:
+  │       plate==null → return (warn)
+  │     DONE:      → log + return (non stampato)
+  │     CANCELLED: → log + return (non stampato)
   │
-  ├─ Costruisce OrderPayload
+  ├─ Risolve plate per PROGRESS:                        ← FIX #3
+  │     getTodoPlate(id) → se plate originale diversa → usa plate originale
+  │
+  ├─ Costruisce OrderPayload (con plate risolta)
   │
   └─ await handleIncomingOrder(order)
 ```
 
 ---
 
-## 4. handleIncomingOrder(order) — dispatcher.ts
+## 4. handleSingleOrderData(items[]) — dispatcher.ts (sync/resync)
+
+```
+handleSingleOrderData(items[])
+  │
+  └─ for each item (seriale, for-of await):
+        │
+        ├─ if TODO && plate.name → saveTodoPlate(id, plate)  ← FIX #3
+        │
+        ├─ if PROGRESS:
+        │     getTodoPlate(id)
+        │       plate diversa → usa plate originale (log)    ← FIX #3
+        │
+        └─ await handleIncomingOrder(order)
+```
+
+---
+
+## 5. handleIncomingOrder(order) — dispatcher.ts (stampa)
 
 ```
 handleIncomingOrder(order)
   │
-  ├─ HttpServerController.sendNotification('NEW_TICKETS', ...)   ← fire-and-forget (non awaited)
+  ├─ sendNotification('NEW_TICKETS', ...)   ← WebSocket push UI
   │
-  ├─ groupBy(order.items, i => i.dest)
+  ├─ groupBy(items, dest)
   │
   └─ for each [dest, items]:
         │
-        ├─ GUARD: printer non trovato per dest  → continue
+        ├─ if status == TODO || DONE → warn + continue      ← FIX #5 (check prima)
         │
-        ├─ GUARD: status == TODO || DONE        → continue (warn)
+        ├─ find printer for dest
+        │     not found → logger.warn VISIBILE + continue   ← FIX #5
         │
         └─ await enqueuePrinterJob(dest, async () => {
                 │
                 ├─ getReceiptByIdAndStatus(orderId, status)
-                │     └─ se già esistente → return (idempotency check)
+                │     già presente → return (idempotency)
                 │
-                ├─ buildKitchenTicket_v2(order, dest, items, ...)
-                │
+                ├─ buildKitchenTicket_v2(...)
                 ├─ if printer.active → await sendToPrinter(ip, port, buffer)
-                │
-                ├─ DatabaseController.saveReceipt(...)        ← NON awaited (fire-and-forget)
-                │
-                ├─ if printer.active → sendNotification('RECEIPT_PRINTED', ...)
-                │
-                └─ catch(err):
-                      ├─ DatabaseController.saveReceipt({ printStatus: "FAILED" })  ← NON awaited
-                      └─ sendNotification('RECEIPT_PRINT_FAILED', ...)
+                ├─ saveReceipt(...)   ← sincrono bun:sqlite
+                └─ sendNotification('RECEIPT_PRINTED' | 'RECEIPT_PRINT_FAILED')
            })
+
+  └─ if status != TODO → deleteTodoPlate(orderId)  ← FIX #3b (non cancella su TODO)
 ```
 
 ---
 
-## 5. enqueuePrinterJob — coda per stampante
+## 6. Resync debounced (3s dopo PKMI_UPDATE PROGRESS/DONE)
 
 ```
-_printerQueues: Map<dest, Promise<void>>
+scheduleResync() → setTimeout 3000ms (reset ad ogni evento)
+  └─ resyncCallback():
+        │
+        ├─ fetchItems(TODO, PROGRESS) → items[]
+        │     processedIds = items.map(i => i.id)
+        │
+        ├─ handleSingleOrderData(items)         ← stampa ordini PROGRESS trovati
+        │
+        └─ reconcileMissedOrders(processedIds)  ← FIX #4
 
-enqueuePrinterJob(dest, job):
-  prev = _printerQueues.get(dest) ?? Promise.resolve()
-  next = prev.then(async () => {
-    await job()
-    await sleep(INTER_PRINT_DELAY_MS)   // 100ms
-  })
-  _printerQueues.set(dest, next.catch(() => sleep(100)))
-  return next
-```
-
-> **Nota**: `next.catch()` sostituisce la chain in mappa senza await. Un errore
-> non catturato nel `job()` fa sì che `next` rigetti, ma la map viene aggiornata
-> con `next.catch(...)` che risolve sempre → la coda non si interrompe.
-
----
-
-## 6. handleSingleOrderData (sync/resync) — dispatcher.ts
-
-```
-handleSingleOrderData(data[])
+reconcileMissedOrders(processedIds):
   │
-  └─ for each item (sequenziale, for-of con await):
-        └─ await handleIncomingOrder(order)
+  ├─ getAllTodoPlateCache()  ← tutti gli ordini TODO ancora in attesa nel DB
+  ├─ filtra: entry NOT IN processedIds  ← ordini "scomparsi" dal fetchItems
+  │
+  └─ Promise.allSettled( fetchItemById per ognuno )  ← parallelo
+        │
+        ├─ CANCELLED  → deleteTodoPlate
+        ├─ not found  → deleteTodoPlate (warn)
+        ├─ DONE + mai stampato (no receipt PROGRESS) →
+        │     ⚠ STAMPA TARDIVA con plate originale dalla cache
+        │     → handleIncomingOrder(order forzato a PROGRESS)
+        ├─ DONE + già stampato → deleteTodoPlate
+        └─ TODO ancora (edge case paginazione) → mantenuto in cache
 ```
-
-> Usato sia per il sync iniziale che per ogni ciclo di resync debounced.
-> Poiché è un `for...of` con `await`, gli ordini vengono processati **in serie**.
 
 ---
 
-## 7. Punti critici identificati (potenziali perdite di eventi)
+## 7. todo_plate_cache — DB persistente (nuova tabella)
 
-### 7.1 — `handleIncomingData` non è awaited dal subscriber STOMP
-
-```ts
-// kitchenmgmt.controller.ts
-_this.stompClient.subscribe(_this.pkmiTopic, (event: any) => {
-    const data = JSON.parse(event.body);
-    handleIncomingData(data);   // ← Promise NON awaited
-});
+```sql
+CREATE TABLE todo_plate_cache (
+    orderId   TEXT PRIMARY KEY,
+    plateName TEXT NOT NULL,     -- plate di nascita, immutabile (INSERT OR IGNORE)
+    createdAt TEXT NOT NULL
+);
 ```
-Il callback STOMP è **sincrono**. `handleIncomingData` restituisce una Promise
-che **non viene né awaited né `.catch()`-ata**. Se arriva un secondo messaggio
-prima che il primo sia completato, **entrambi entrano in pipeline senza
-coordinazione**. Un errore non catturato produce un Unhandled Promise Rejection.
 
----
+| Operazione | Quando | Metodo DB |
+|---|---|---|
+| Scrittura | Primo avvistamento TODO (STOMP o sync) | `saveTodoPlate` — INSERT OR IGNORE |
+| Lettura | Risoluzione plate per ordini PROGRESS | `getTodoPlate` |
+| Cancellazione | Dopo stampa/idempotency (non su TODO) | `deleteTodoPlate` |
+| Lettura lista | Riconciliazione post-resync | `getAllTodoPlateCache` |
 
-### 7.2 — `DatabaseController.saveReceipt` non è awaited
-
-```ts
-// dispatcher.ts — dentro enqueuePrinterJob
-DatabaseController.getInstance().saveReceipt({...});   // fire-and-forget
+**Scenario crash/reboot coperto:**
 ```
-Il salvataggio avviene **dopo** `sendToPrinter` ma **non è awaited**. Se il
-processo termina o il DB lancia un'eccezione, la receipt non viene registrata
-anche se la stampa è avvenuta fisicamente. Questo può causare **ristampe** al
-prossimo resync (l'idempotency check in `getReceiptByIdAndStatus` restituirebbe
-`null`).
-
----
-
-### 7.3 — Race condition tra PKMI_UPDATE e resync debounced
-
+t=0   PKMI_ADD: X TODO plate=PANINI  → DB: {X: "PANINI"}
+t=5s  CRASH
+t=10s Riavvio + sync iniziale: X già PROGRESS plate=PASS
+      getTodoPlate("X") → "PANINI"   ← sopravvissuto al crash
+      → stampa su PANINI  ✓
 ```
-t=0   PKMI_UPDATE arriva  → scheduleResync (timer 1500ms)
-t=1   PKMI_UPDATE arriva  → timer resettato (debounce)
-t=1500ms  resync: fetchItems() → handleSingleOrderData()
-          (potenzialmente processa lo stesso ordine già in coda)
-```
-Se un `handleIncomingOrder` per l'ordine X è ancora nella coda di
-`enqueuePrinterJob` quando parte il resync, il resync processerà lo stesso
-ordine → l'idempotency check nel DB lo blocca **solo se il primo job ha già
-completato `saveReceipt`**. Poiché `saveReceipt` non è awaited (7.2), il check
-potrebbe trovare `null` e stampare due volte.
-
----
-
-### 7.4 — `enqueuePrinterJob` è awaited in `handleIncomingOrder`, ma i messaggi STOMP concorrenti non lo sono
-
-Ogni chiamata a `handleIncomingOrder` fa `await enqueuePrinterJob(...)` per
-**ogni dest nell'ordine**, ma poiché il subscriber STOMP non awaita
-`handleIncomingData`, due messaggi possono avviare due `handleIncomingOrder`
-in parallelo → due job diversi possono essere accodati sulla stessa stampante
-quasi contemporaneamente. La coda serializza correttamente i job, ma
-l'idempotency check vive **dentro** la coda, quindi è protetto da race condition
-**solo se la coda è la stessa destinazione**. Ordini multi-destinazione possono
-ancora avere race condition cross-dest per lo stesso `orderId`.
-
----
-
-### 7.5 — Sync iniziale vs primo messaggio STOMP
-
-```
-connect()
-  └─ onConnect:
-       ├─ fetchItems()          → handleSingleOrderData()  [async, non awaited]
-       ├─ setResyncCallback()
-       └─ subscribe /topic/pkmi  [attivo subito]
-```
-La subscribe è registrata **prima** che `fetchItems` completi. Se arriva un
-`PKMI_UPDATE` durante il fetch iniziale, `handleIncomingData` viene chiamato
-**in parallelo** con `handleSingleOrderData`. Non c'è coordinazione: il
-controllo idempotency sul DB è l'unica barriera, che richiede a sua volta
-che `saveReceipt` sia completato (cfr. 7.2).
 
 ---
 
 ## 8. Legenda stati ordine
 
-| Status    | handleIncomingData | handleIncomingOrder |
-|-----------|-------------------|---------------------|
-| TODO      | entra nel flusso  | **ignorato** (warn) |
-| PROGRESS  | entra nel flusso  | processato + stampa |
-| DONE      | **ignorato**      | **ignorato** (warn) |
-| CANCELLED | **ignorato**      | **ignorato** (warn) |
-
-> Solo gli ordini in stato **PROGRESS** vengono effettivamente stampati.
-> TODO è accettato da `handleIncomingData` ma scartato da `handleIncomingOrder`.
+| Status | handleIncomingData | handleIncomingOrder | Effetto finale |
+|---|---|---|---|
+| TODO | salva plate nel DB | skip stampa (warn) | solo plate memorizzata |
+| PROGRESS | risolve plate originale | **stampa** | ticket prodotta |
+| DONE | ignorato (log) | skip (warn) | nessuna azione |
+| CANCELLED | ignorato (log) | skip (warn) | nessuna azione |
 
 ---
 
-## 9. Componenti coinvolti
+## 9. Bug risolti (riepilogo cronologico)
+
+| # | Problema | Causa radice | Fix applicato |
+|---|---|---|---|
+| 1 | Perdita eventi in burst | Subscriber STOMP sincrono, Promise non awaited né catchata | `_pkmiQueue` Promise chain seriale in `WSClientController`; JSON.parse in try-catch |
+| 2 | TypeError silenzioso su DONE/CANCELLED | `plate.name` senza optional chaining → rigetto Promise silenziosa | `plate?.name` in 3 punti di dispatcher.ts |
+| 3 | Stampa sulla stampante sbagliata post-resync | La plate cambia tra TODO e PROGRESS; il resync vede già quella nuova | Tabella `todo_plate_cache` nel DB (persistente a crash); `saveTodoPlate`/`getTodoPlate` |
+| 3b | Cache svuotata subito dopo scrittura | `deleteTodoPlate` chiamata anche per ordini TODO | `if (status !== "TODO")` prima della delete |
+| 4 | Ordini TODO→PROGRESS→DONE persi nel debounce | fetchItems non restituisce DONE; nessun meccanismo di recovery | `reconcileMissedOrders` + `setFetchItemCallback`; fetch parallelo via `Promise.allSettled` |
+| 5 | Warning stampante non trovata mai visibile | Check status/printer nell'ordine sbagliato; warn commentato | Status check PRIMA della ricerca stampante; warn sempre visibile per PROGRESS |
+
+---
+
+## 10. Componenti coinvolti
 
 | Componente | File | Ruolo |
 |---|---|---|
-| `WSClientController` | `kitchenmgmt.controller.ts` | Connessione STOMP, retry, subscribe |
-| `KitchenManagementController` | `kitchenmgmt.controller.ts` | REST fetch items (paginato) |
-| `handleIncomingData` | `dispatcher.ts` | Filtro e normalizzazione messaggi STOMP |
-| `handleSingleOrderData` | `dispatcher.ts` | Normalizzazione array (sync/resync) |
-| `handleIncomingOrder` | `dispatcher.ts` | Routing su stampante, idempotency, stampa |
-| `enqueuePrinterJob` | `dispatcher.ts` | Coda sequenziale per-stampante (Promise chain) |
-| `scheduleResync` | `dispatcher.ts` | Debounce 1500ms su PKMI_UPDATE |
+| `WSClientController` | `kitchenmgmt.controller.ts` | Connessione STOMP, `_pkmiQueue` seriale, retry automatico |
+| `KitchenManagementController` | `kitchenmgmt.controller.ts` | REST fetch items paginato, fetch singolo item per ID |
+| `handleIncomingData` | `dispatcher.ts` | Filtro/normalizzazione messaggi STOMP, salva plate TODO |
+| `handleSingleOrderData` | `dispatcher.ts` | Normalizzazione array sync/resync, risolve plate originale |
+| `handleIncomingOrder` | `dispatcher.ts` | Routing stampante, idempotency check, accodamento stampa |
+| `enqueuePrinterJob` | `dispatcher.ts` | Coda sequenziale per-stampante (Promise chain), 100ms inter-print delay |
+| `scheduleResync` | `dispatcher.ts` | Debounce 3000ms su PKMI_UPDATE PROGRESS/DONE |
+| `reconcileMissedOrders` | `dispatcher.ts` | Recovery ordini TODO→DONE persi nel debounce (stampa tardiva) |
 | `sendToPrinter` | `print.ts` | Invio buffer ESC/POS via TCP |
-| `DatabaseController.saveReceipt` | `db.controller.ts` | Persistenza receipt (idempotency source) |
-| `HttpServerController.sendNotification` | `httpserver.controller.ts` | WebSocket push ai client |
+| `DatabaseController.saveReceipt` | `db.controller.ts` | Persistenza receipt — fonte per idempotency check |
+| `DatabaseController.todo_plate_cache` | `db.controller.ts` | Cache persistente plate originale degli ordini TODO |
+| `HttpServerController.sendNotification` | `httpserver.controller.ts` | WebSocket push notifiche ai client UI |
