@@ -117,9 +117,6 @@ export async function queryPrinterStatus(printer: PrinterConfig): Promise<Printe
     };
 
     try {
-        logger.debug(`[PRINTER-STATUS] ============================================================`);
-        logger.debug(`[PRINTER-STATUS] Checking status for printer: ${printer.name} (${printer.ip}:${printer.port})`);
-        
         // Prova prima con comandi DLE EOT standard
         let printerStatusByte = await sendStatusQuery(printer, ESC_POS_STATUS_COMMANDS.PRINTER_STATUS);
         let offlineStatusByte = await sendStatusQuery(printer, ESC_POS_STATUS_COMMANDS.OFFLINE_STATUS);
@@ -140,10 +137,10 @@ export async function queryPrinterStatus(printer: PrinterConfig): Promise<Printe
             }
         }
         
-        logStatusByte("PRINTER_STATUS (DLE EOT 1)", printerStatusByte, printer.name);
-        logStatusByte("OFFLINE_STATUS (DLE EOT 2)", offlineStatusByte, printer.name);
-        logStatusByte("ERROR_STATUS (DLE EOT 3)", errorStatusByte, printer.name);
-        logStatusByte("PAPER_STATUS (DLE EOT 4)", paperStatusByte, printer.name);
+        // logStatusByte("PRINTER_STATUS (DLE EOT 1)", printerStatusByte, printer.name);
+        // logStatusByte("OFFLINE_STATUS (DLE EOT 2)", offlineStatusByte, printer.name);
+        // logStatusByte("ERROR_STATUS (DLE EOT 3)", errorStatusByte, printer.name);
+        // logStatusByte("PAPER_STATUS (DLE EOT 4)", paperStatusByte, printer.name);
 
         // Se non abbiamo ricevuto alcuna risposta, la stampante è VERAMENTE offline (timeout TCP)
         // Questo è l'UNICO modo affidabile per rilevare offline su 80-VI-UL
@@ -170,7 +167,7 @@ export async function queryPrinterStatus(printer: PrinterConfig): Promise<Printe
                 // Bit3=1 indica problema carta (verificato: succede quando togli carta)
                 logger.debug(`[PRINTER-STATUS] ${printer.name} - Bit3=1: Probabile carta finita`);
             }
-            logger.debug(`[PRINTER-STATUS] ${printer.name} - PRINTER_STATUS: byte=0x${printerStatusByte.toString(16).toUpperCase()}, bit3=${bit3}`);
+            // logger.debug(`[PRINTER-STATUS] ${printer.name} - PRINTER_STATUS: byte=0x${printerStatusByte.toString(16).toUpperCase()}, bit3=${bit3}`);
         }
 
         // Offline Status (DLE EOT 2)
@@ -178,7 +175,7 @@ export async function queryPrinterStatus(printer: PrinterConfig): Promise<Printe
         // Test reali mostrano che il LED errore si accende ma i bit non cambiano
         // Lo leggiamo solo per debug/log
         if (offlineStatusByte !== null) {
-            logger.debug(`[PRINTER-STATUS] ${printer.name} - OFFLINE_STATUS: byte=0x${offlineStatusByte.toString(16).toUpperCase()}`);
+            // logger.debug(`[PRINTER-STATUS] ${printer.name} - OFFLINE_STATUS: byte=0x${offlineStatusByte.toString(16).toUpperCase()}`);
         }
         
         // Cover open: NON RILEVABILE via ESC/POS su 80-VI-UL
@@ -196,10 +193,10 @@ export async function queryPrinterStatus(printer: PrinterConfig): Promise<Printe
             if (cutterError || unrecoverableError || autoRecoverableError) {
                 status.cutterError = cutterError;
                 status.error = true;
-                logger.warn(`[PRINTER-STATUS] ${printer.name} - ERROR_STATUS riporta errori (raro su 80-VI-UL)`);
+                // logger.warn(`[PRINTER-STATUS] ${printer.name} - ERROR_STATUS riporta errori (raro su 80-VI-UL)`);
             }
             
-            logger.debug(`[PRINTER-STATUS] ${printer.name} - ERROR_STATUS: byte=0x${errorStatusByte.toString(16).toUpperCase()}`);
+            // logger.debug(`[PRINTER-STATUS] ${printer.name} - ERROR_STATUS: byte=0x${errorStatusByte.toString(16).toUpperCase()}`);
         }
 
         // Paper Status (DLE EOT 4)
@@ -223,10 +220,10 @@ export async function queryPrinterStatus(printer: PrinterConfig): Promise<Printe
                 }
             }
             
-            logger.debug(`[PRINTER-STATUS] ${printer.name} - PAPER_STATUS: byte=0x${paperStatusByte.toString(16).toUpperCase()}, nearEndBits=${nearEndBits.toString(2).padStart(2,'0')}, paperEnd=${status.paperEnd}, paperNearEnd=${status.paperNearEnd}`);
+            // logger.debug(`[PRINTER-STATUS] ${printer.name} - PAPER_STATUS: byte=0x${paperStatusByte.toString(16).toUpperCase()}, nearEndBits=${nearEndBits.toString(2).padStart(2,'0')}, paperEnd=${status.paperEnd}, paperNearEnd=${status.paperNearEnd}`);
         }
 
-        logger.debug(`[PRINTER-STATUS] ${printer.name} - FINAL STATUS: online=${status.online}, paperEnd=${status.paperEnd}, paperNearEnd=${status.paperNearEnd}`);
+        // logger.debug(`[PRINTER-STATUS] ${printer.name} - FINAL STATUS: online=${status.online}, paperEnd=${status.paperEnd}, paperNearEnd=${status.paperNearEnd}`);
 
         // Costruisce messaggio di errore se necessario
         const errors: string[] = [];
@@ -239,9 +236,6 @@ export async function queryPrinterStatus(printer: PrinterConfig): Promise<Printe
         if (errors.length > 0) {
             status.errorMessage = errors.join(", ");
         }
-
-        logger.debug(`[PRINTER-STATUS] ${printer.name} - SUMMARY: ${status.online ? 'Online' : 'Offline'}, ${status.error ? 'Errori: ' + status.errorMessage : 'OK'}`);
-        logger.debug(`[PRINTER-STATUS] ============================================================`);
 
     } catch (err) {
         logger.error(`[PRINTER-STATUS] Errore durante l'interrogazione di ${printer.name}:`, err);
@@ -265,7 +259,7 @@ async function sendStatusQuery(printer: PrinterConfig, statusType: number): Prom
         let received = false;
         let responseData: Buffer | null = null;
 
-        logger.debug(`[PRINTER-STATUS] Invio comando a ${printer.name} - Tipo: ${statusType}, Comando: [${Array.from(command).map(b => '0x' + b.toString(16).toUpperCase().padStart(2, '0')).join(', ')}]`);
+        // logger.debug(`[PRINTER-STATUS] Invio comando a ${printer.name} - Tipo: ${statusType}, Comando: [${Array.from(command).map(b => '0x' + b.toString(16).toUpperCase().padStart(2, '0')).join(', ')}]`);
 
         const timeout = setTimeout(() => {
             if (!received) {
@@ -282,7 +276,7 @@ async function sendStatusQuery(printer: PrinterConfig, statusType: number): Prom
                     open(sock) {
                         // Invia comando di richiesta stato
                         sock.write(command);
-                        logger.debug(`[PRINTER-STATUS] Comando inviato a ${printer.name}`);
+                        // logger.debug(`[PRINTER-STATUS] Comando inviato a ${printer.name}`);
                     },
                     data(sock, data) {
                         // Riceve risposta dalla stampante
@@ -292,11 +286,11 @@ async function sendStatusQuery(printer: PrinterConfig, statusType: number): Prom
                             clearTimeout(timeout);
                             
                             // Log dettagliato dei dati ricevuti
-                            logger.debug(`[PRINTER-STATUS] Risposta ricevuta da ${printer.name}:`);
-                            logger.debug(`  Lunghezza: ${responseData.length} byte(s)`);
-                            logger.debug(`  Hex dump: ${Array.from(responseData).map(b => '0x' + b.toString(16).toUpperCase().padStart(2, '0')).join(' ')}`);
-                            logger.debug(`  Decimal: ${Array.from(responseData).join(' ')}`);
-                            logger.debug(`  Binary: ${Array.from(responseData).map(b => b.toString(2).padStart(8, '0')).join(' ')}`);
+                            // logger.debug(`[PRINTER-STATUS] Risposta ricevuta da ${printer.name}:`);
+                            // logger.debug(`  Lunghezza: ${responseData.length} byte(s)`);
+                            // logger.debug(`  Hex dump: ${Array.from(responseData).map(b => '0x' + b.toString(16).toUpperCase().padStart(2, '0')).join(' ')}`);
+                            // logger.debug(`  Decimal: ${Array.from(responseData).join(' ')}`);
+                            // logger.debug(`  Binary: ${Array.from(responseData).map(b => b.toString(2).padStart(8, '0')).join(' ')}`);
                             
                             sock.end();
                             
@@ -353,8 +347,6 @@ async function sendAlternativeStatusQuery(printer: PrinterConfig): Promise<numbe
         let received = false;
         let responseData: Buffer | null = null;
 
-        logger.debug(`[PRINTER-STATUS] Invio comando alternativo GS a a ${printer.name} - Comando: [${Array.from(command).map(b => '0x' + b.toString(16).toUpperCase().padStart(2, '0')).join(', ')}]`);
-
         const timeout = setTimeout(() => {
             if (!received) {
                 logger.warn(`[PRINTER-STATUS] Timeout comando alternativo ${printer.name}`);
@@ -369,20 +361,12 @@ async function sendAlternativeStatusQuery(printer: PrinterConfig): Promise<numbe
                 socket: {
                     open(sock) {
                         sock.write(command);
-                        logger.debug(`[PRINTER-STATUS] Comando alternativo inviato a ${printer.name}`);
                     },
                     data(sock, data) {
                         if (!received) {
                             received = true;
                             responseData = Buffer.from(data);
                             clearTimeout(timeout);
-                            
-                            logger.debug(`[PRINTER-STATUS] Risposta alternativa ricevuta da ${printer.name}:`);
-                            logger.debug(`  Lunghezza: ${responseData.length} byte(s)`);
-                            logger.debug(`  Hex dump: ${Array.from(responseData).map(b => '0x' + b.toString(16).toUpperCase().padStart(2, '0')).join(' ')}`);
-                            logger.debug(`  Decimal: ${Array.from(responseData).join(' ')}`);
-                            logger.debug(`  Binary: ${Array.from(responseData).map(b => b.toString(2).padStart(8, '0')).join(' ')}`);
-                            
                             sock.end();
                             
                             if (responseData && responseData.length > 0) {
@@ -465,7 +449,6 @@ export async function checkAllPrintersStatus(printers: PrinterConfig[]): Promise
     logger.info("[PRINTER-STATUS] Inizio controllo stato stampanti");
     
     const activePrinters = printers.filter(p => p.active);
-    logger.debug(`[PRINTER-STATUS] Stampanti attive da controllare: ${activePrinters.length}`);
 
     for (const printer of activePrinters) {
         // Salta il controllo se la stampante sta stampando

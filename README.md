@@ -31,7 +31,7 @@ WS_CLIENT_RECONNECT_ATTEMPTS=-1
 WS_CLIENT_RECONNECT_DELAY_MS=2000
 
 # Chiave di autenticazione token
-TOKEN_KEY="05q8GiW=atxs"
+TOKEN_KEY="your-secret-token-key"
 
 # Configurazione Database GSG (PostgreSQL)
 GSG_DB_HOST=127.0.0.1

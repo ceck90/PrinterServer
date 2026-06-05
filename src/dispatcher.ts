@@ -9,11 +9,217 @@ import { HttpServerController } from "./controllers/httpserver.controller";
 import { sleep } from "bun";
 import * as logger from "./logger.ts";
 
+// ==================
+// Resync su PKMI_UPDATE (debounced)
+// ==================
+
+/**
+ * Callback registrata dall'esterno (kitchenmgmt.controller) per evitare
+ * una dipendenza circolare. Viene invocata con debounce ad ogni PKMI_UPDATE
+ * per sincronizzare gli ordini in PROGRESS che potrebbero essere stati persi.
+ */
+let _resyncCallback: (() => Promise<void>) | null = null;
+let _resyncTimer: ReturnType<typeof setTimeout> | null = null;
+const RESYNC_DEBOUNCE_MS = 3000; // 3 secondi di debounce per evitare resync troppo frequenti in caso di molti PKMI_UPDATE ravvicinati
+
+/**
+ * Registra la funzione di resync chiamata con debounce ad ogni PKMI_UPDATE.
+ * Da invocare dopo la connessione WebSocket per evitare dipendenze circolari.
+ */
+export function setResyncCallback(fn: () => Promise<void>): void {
+    _resyncCallback = fn;
+}
+
+/**
+ * Schedula il resync con debounce: se arrivano più PKMI_UPDATE ravvicinati,
+ * il timer viene resettato e il resync viene eseguito una sola volta.
+ */
+function scheduleResync(): void {
+    if (!_resyncCallback) return;
+    if (_resyncTimer) clearTimeout(_resyncTimer);
+    _resyncTimer = setTimeout(async () => {
+        _resyncTimer = null;
+        logger.info("[DISPATCHER] Resync debounced su PKMI_UPDATE in corso...");
+        try {
+            await _resyncCallback!();
+        } catch (err) {
+            logger.error("[DISPATCHER] Errore durante il resync su PKMI_UPDATE:", err);
+        }
+    }, RESYNC_DEBOUNCE_MS);
+}
+
+// ==================
+// Riconciliazione ordini potenzialmente persi
+// ==================
+
+/**
+ * Callback per il fetch di un singolo item dal server KMS tramite ID.
+ * Iniettata dall'esterno per evitare dipendenze circolari.
+ */
+let _fetchItemCallback: ((id: string) => Promise<any>) | null = null;
+
+/**
+ * Registra la funzione di fetch per un singolo plate-item.
+ * Da invocare dopo la connessione WebSocket.
+ */
+export function setFetchItemCallback(fn: (id: string) => Promise<any>): void {
+    _fetchItemCallback = fn;
+}
+
+/**
+ * Riconcilia gli ordini in todo_plate_cache che NON sono stati trovati
+ * nell'ultima risposta fetchItems (cioè sono già passati a DONE/CANCELLED).
+ *
+ * Scenario target: ordine va TODO → PROGRESS → DONE nel giro di pochi secondi
+ * (entro il debounce del resync). Il messaggio STOMP PROGRESS potrebbe essere
+ * stato perso (riconnessione) e fetchItems non restituisce più DONE. Senza
+ * questa riconciliazione, l'ordine non verrebbe mai stampato.
+ *
+ * @param processedItemIds IDs degli item appena processati da fetchItems
+ */
+export async function reconcileMissedOrders(processedItemIds: string[]): Promise<void> {
+    const cacheEntries = DatabaseController.getInstance().getAllTodoPlateCache();
+    if (cacheEntries.length === 0) return;
+
+    const processedSet = new Set(processedItemIds);
+    const missing = cacheEntries.filter(e => !processedSet.has(e.orderId));
+    if (missing.length === 0) return;
+
+    logger.info(`[DISPATCHER] Riconciliazione: ${missing.length} ordini in cache non restituiti da fetchItems`);
+
+    // Recupera tutti gli item mancanti in parallelo per ridurre la latenza REST.
+    // Le stampe restano serializzate per stampante tramite enqueuePrinterJob.
+    const fetchResults = await Promise.allSettled(
+        missing.map(entry =>
+            _fetchItemCallback!(entry.orderId)
+                .then(item => ({ entry, item }))
+                .catch(err => { throw { entry, err }; })
+        )
+    );
+
+    for (const result of fetchResults) {
+        if (result.status === "rejected") {
+            const { entry, err } = result.reason;
+            logger.error(`[DISPATCHER] Errore riconciliazione ordine ${entry.orderId}:`, err);
+            continue;
+        }
+
+        const { entry, item } = result.value;
+        try {
+            if (!item) {
+                logger.warn(`[DISPATCHER] Ordine ${entry.orderId} (plate: ${entry.plateName}) non trovato sul server → pulizia cache`);
+                DatabaseController.getInstance().deleteTodoPlate(entry.orderId);
+                continue;
+            }
+
+            if (item.status === "CANCELLED") {
+                logger.info(`[DISPATCHER] Ordine ${entry.orderId} CANCELLED → pulizia cache`);
+                DatabaseController.getInstance().deleteTodoPlate(entry.orderId);
+                continue;
+            }
+
+            if (item.status === "DONE") {
+                const receipt = DatabaseController.getInstance().getReceiptByIdAndStatus(String(item.id), "PROGRESS");
+                if (!receipt) {
+                    logger.warn(`[DISPATCHER] ⚠ STAMPA TARDIVA: ordine ${entry.orderId} è DONE ma non è mai stato stampato. Plate originale: ${entry.plateName}`);
+                    const order: OrderPayload = {
+                        id: String(item.id),
+                        orderId: String(item.id),
+                        status: "PROGRESS",
+                        createdAt: item.menuItem?.createdDate || new Date().toISOString(),
+                        timestamp: new Date().toISOString(),
+                        orderNumber: item.orderNumber || 0,
+                        items: [{
+                            dest: entry.plateName,
+                            name: item.menuItem?.name || "",
+                            qty: item.quantity || 1,
+                            tableNumber: item.tableNumber || "",
+                            clientName: item.clientName || "",
+                            itemNote: item.notes || "",
+                            orderNotes: item.orderNotes || "",
+                            takeAway: item.takeAway || false,
+                        }],
+                    };
+                    await handleIncomingOrder(order);
+                } else {
+                    logger.debug(`[DISPATCHER] Ordine ${entry.orderId} è DONE ed era già stato stampato → pulizia cache`);
+                    DatabaseController.getInstance().deleteTodoPlate(entry.orderId);
+                }
+                continue;
+            }
+
+            if (item.status === "TODO") {
+                logger.debug(`[DISPATCHER] Ordine ${entry.orderId} ancora TODO ma assente dal fetchItems → mantenuto in cache`);
+            }
+        } catch (err) {
+            logger.error(`[DISPATCHER] Errore riconciliazione ordine ${entry.orderId}:`, err);
+        }
+    }
+}
+
+// ==================
+// Per-printer burst limiter (coda sequenziale)
+// ==================
+
+/**
+ * Ritardo minimo tra stampe consecutive sulla stessa stampante (ms).
+ * Evita di saturare la memoria interna delle stampanti termiche.
+ */
+const INTER_PRINT_DELAY_MS = 100;
+
+/**
+ * Code per stampante: ogni destinazione ha una Promise chain sequenziale,
+ * così i job vengono eseguiti uno alla volta e in ordine per ciascuna stampante.
+ */
+const _printerQueues = new Map<string, Promise<void>>();
+
+/**
+ * Accoda un job per la stampante indicata.
+ * Il job parte solo quando tutti i job precedenti per quella destinazione
+ * sono completati; al termine attende INTER_PRINT_DELAY_MS prima di
+ * sbloccare il prossimo, lasciando tempo alla stampante di svuotare il buffer.
+ * La coda non si interrompe mai: un eventuale errore nel job viene gestito
+ * internamente e la chain prosegue normalmente.
+ */
+function enqueuePrinterJob(destination: string, job: () => Promise<void>): Promise<void> {
+    const prev = _printerQueues.get(destination) ?? Promise.resolve();
+    // Il job gestisce i propri errori internamente, quindi next non rigetta mai.
+    const next = prev.then(async () => {
+        await job();
+        await sleep(INTER_PRINT_DELAY_MS);
+    });
+    // Salva la chain senza il .catch in modo che eventuali errori imprevisti
+    // non rompano la coda delle chiamate successive.
+    _printerQueues.set(destination, next.catch(() => sleep(INTER_PRINT_DELAY_MS)));
+    return next;
+}
+
 export async function handleSingleOrderData(data: any) {
     // console.log("[DISPATCHER] Dati ricevuti:", data);
     if (Array.isArray(data)) {
         for (const item of data) {
             // console.log("[DISPATCHER] Gestisco il sync di:", item.id);
+            const _itemId = String(item.id);
+
+            // Persiste la plate originale degli ordini TODO nel DB al primo avvistamento
+            // (sync iniziale o PKMI_ADD). Il DB sopravvive a crash e reboot: anche dopo
+            // un riavvio il resync troverà la plate corretta e stamperà sulla stampante giusta.
+            if (item.status === "TODO" && item.plate?.name) {
+                DatabaseController.getInstance().saveTodoPlate(_itemId, item.plate.name);
+            }
+
+            // Per ordini PROGRESS: se la plate è cambiata rispetto a quella originale
+            // (memorizzata nel DB al momento della creazione TODO), usa la plate originale
+            // per garantire la stampa sulla stampante corretta anche dopo un reboot.
+            let _dest = item.plate?.name || "";
+            if (item.status === "PROGRESS") {
+                const _originalPlate = DatabaseController.getInstance().getTodoPlate(_itemId);
+                if (_originalPlate && _originalPlate !== _dest) {
+                    logger.info(`[DISPATCHER] Resync ordine ${_itemId}: plate variata da "${_originalPlate}" a "${_dest}", stampo su plate originale`);
+                    _dest = _originalPlate;
+                }
+            }
+
             const order: OrderPayload = {
                 id: item.id,
                 orderId: item.id,
@@ -22,7 +228,7 @@ export async function handleSingleOrderData(data: any) {
                 timestamp: new Date().toISOString(),
                 orderNumber: item.orderNumber || 0,
                 items: [{
-                    dest: item.plate?.name || "",
+                    dest: _dest,
                     name: item.menuItem.name,
                     qty: item.quantity || 1,
                     tableNumber: item.tableNumber,
@@ -43,8 +249,6 @@ export async function handleSingleOrderData(data: any) {
  * Filtra solo i messaggi di tipo PKMI_UPDATE e costruisce l'oggetto ordine.
  */
 export async function handleIncomingData(data: any) {
-    // console.log("[DISPATCHER] Dati ricevuti:", data);
-
     // Ignora tipi di messaggio non gestiti
     if (data.type != "PKMI_UPDATE" && data.type != "PKMI_ADD_ALL" && data.type != "PKMI_ADD") {
         console.warn("[DISPATCHER] Tipo di dato non gestito:", data.type);
@@ -62,6 +266,11 @@ export async function handleIncomingData(data: any) {
 
     // console.log(`[DISPATCHER] Ricevuto PKMI_UPDATE per ordine ${data.plateKitchenMenuItem.orderNumber} - ${data.plateKitchenMenuItem.plate.name}/${data.plateKitchenMenuItem.menuItem.name}`);
 
+    // Schedula un resync per catturare eventuali ordini PROGRESS mancati
+    if (data.type === "PKMI_UPDATE" && (data.plateKitchenMenuItem.status === "PROGRESS" || data.plateKitchenMenuItem.status === "DONE")) {
+        scheduleResync();
+    }
+
     // Gestione degli stati dell'ordine
     switch (data.plateKitchenMenuItem.status) {
         case "TODO":
@@ -71,17 +280,41 @@ export async function handleIncomingData(data: any) {
                 console.warn("[DISPATCHER] Ordine in lavorazione senza destinazione:", data.plateKitchenMenuItem);
                 return;
             }
+            // Persiste la plate originale degli ordini TODO nel DB: se successivamente
+            // la plate cambia durante la transizione TODO → PROGRESS, il DB
+            // garantisce la stampa sulla stampante corretta anche dopo un reboot.
+            if (data.plateKitchenMenuItem.status === "TODO") {
+                DatabaseController.getInstance().saveTodoPlate(
+                    String(data.plateKitchenMenuItem.id),
+                    data.plateKitchenMenuItem.plate.name
+                );
+            }
             break;
         case "DONE":
-            console.log(`[DISPATCHER] Ordine completato: ${data.plateKitchenMenuItem.orderNumber} - ${data.plateKitchenMenuItem.plate.name}/${data.plateKitchenMenuItem.menuItem.name}`);
+            console.log(`[DISPATCHER] Ordine completato: ${data.plateKitchenMenuItem.orderNumber} - ${data.plateKitchenMenuItem.plate?.name}/${data.plateKitchenMenuItem.menuItem.name}`);
             return;
         case "CANCELLED":
             // Logga gli ordini completati o cancellati e ignora
-            console.log(`[DISPATCHER] Ordine cancellato: ${data.plateKitchenMenuItem.orderNumber} - ${data.plateKitchenMenuItem.plate.name}/${data.plateKitchenMenuItem.menuItem.name}`);
+            console.log(`[DISPATCHER] Ordine cancellato: ${data.plateKitchenMenuItem.orderNumber} - ${data.plateKitchenMenuItem.plate?.name}/${data.plateKitchenMenuItem.menuItem.name}`);
             return;
     }
 
-    console.log(`[DISPATCHER] Gestisco ordine ${data.plateKitchenMenuItem.orderNumber} - ${data.plateKitchenMenuItem.plate.name}/${data.plateKitchenMenuItem.menuItem.name} con stato: ${data.plateKitchenMenuItem.status}`);
+    // Risolve la plate considerando possibili variazioni durante la transizione TODO → PROGRESS.
+    // Se la plate è cambiata rispetto a quella memorizzata in cache (avvistamento TODO),
+    // usa la plate originale per stampare sulla stampante corretta.
+    const _resolvedPlateName = (() => {
+        if (data.plateKitchenMenuItem.status !== "PROGRESS") {
+            return data.plateKitchenMenuItem.plate.name;
+        }
+        const _originalPlate = DatabaseController.getInstance().getTodoPlate(String(data.plateKitchenMenuItem.id));
+        if (_originalPlate && _originalPlate !== data.plateKitchenMenuItem.plate.name) {
+            logger.info(`[DISPATCHER] Ordine ${data.plateKitchenMenuItem.id}: plate variata da "${_originalPlate}" a "${data.plateKitchenMenuItem.plate.name}", stampo su plate originale`);
+            return _originalPlate;
+        }
+        return data.plateKitchenMenuItem.plate.name;
+    })();
+
+    console.log(`[DISPATCHER] Gestisco ordine ${data.plateKitchenMenuItem.orderNumber} - ${_resolvedPlateName}/${data.plateKitchenMenuItem.menuItem.name} con stato: ${data.plateKitchenMenuItem.status}`);
 
     // Costruisce l'oggetto ordine da processare
     const order: OrderPayload = {
@@ -92,7 +325,7 @@ export async function handleIncomingData(data: any) {
         timestamp: new Date().toISOString(),
         orderNumber: data.plateKitchenMenuItem.orderNumber || 0,
         items: [{
-            dest: data.plateKitchenMenuItem.plate.name,
+            dest: _resolvedPlateName,
             name: data.plateKitchenMenuItem.menuItem.name,
             qty: data.plateKitchenMenuItem.quantity || 1,
             tableNumber: data.plateKitchenMenuItem.tableNumber,
@@ -105,6 +338,8 @@ export async function handleIncomingData(data: any) {
 
     // Passa l'ordine alla funzione di gestione principale
     await handleIncomingOrder(order);
+
+    
 }
 
 /**
@@ -113,8 +348,7 @@ export async function handleIncomingData(data: any) {
  */
 export async function handleIncomingOrder(order: OrderPayload) {
     // Invia notifica WebSocket ai client connessi per aggiornare la lista dei ticket
-    logger.debug("[DISPATCHER] About to send NEW_TICKETS notification for order:", order.orderId);
-    const notificationResult = HttpServerController.instance.sendNotification(
+    HttpServerController.instance.sendNotification(
         'NEW_TICKETS',
         {
             orderId: order.orderId,
@@ -124,153 +358,199 @@ export async function handleIncomingOrder(order: OrderPayload) {
         },
         'info'
     );
-    logger.debug("[DISPATCHER] NEW_TICKETS notification sent to", notificationResult, "clients");
 
     // Raggruppa gli item per destinazione (es: CUCINA, BAR, ecc.)
     const grouped = groupBy(order.items, i => i.dest);
 
     // Cicla su ogni gruppo/destinazione
     for (const [dest, items] of Object.entries(grouped)) {
-        // Cerca la stampante nell'array globale printers
-        const printer = printers.find(p => p.destination === dest || p.name === dest);
-        if (!printer) {
-            // console.warn(`[DISPATCHER] Nessuna stampante configurata per la destinazione: ${dest}`);
+        // Ignora subito gli stati non stampabili; il check avviene PRIMA della
+        // ricerca della stampante per evitare che il warning "printer not found"
+        // scatti su TODO/DONE (che non devono essere stampati per design).
+        if (order.status == "TODO" || order.status == "DONE") {
+            console.warn(`[DISPATCHER] Ordine ${order.id} con stato ${order.status} non gestito per la destinazione: ${dest}`);
             continue;
         }
 
-        // Gestisce solo stati specifici
-        if (order.status == "TODO" || order.status == "DONE") {
-            // console.warn(`[DISPATCHER] Ordine ${order.id} con stato ${order.statuss} non gestito per la destinazione: ${dest}`);
+        // Cerca la stampante nell'array globale printers (solo per ordini PROGRESS)
+        const printer = printers.find(p => p.destination === dest || p.name === dest);
+        if (!printer) {
+            logger.warn(`[DISPATCHER] Nessuna stampante configurata per la destinazione: "${dest}" (ordine ${order.id}). Verificare la configurazione delle stampanti.`);
             continue;
         }
 
         // console.log(`[DISPATCHER] Gestione ordine: ${order.id} con stato: ${order.status} su ${dest}`);
 
-        // Verifica se l'ordine è già registrato nel DB per questa destinazione
-        const existingReceipt = await DatabaseController.getInstance().getReceiptByIdAndStatus(order.orderId, order.status);
-        if (existingReceipt) {
-            logger.debug(`[DISPATCHER] Ordine ${order.id} già registrato per la destinazione ${dest}, salto la stampa.`);
-            continue;
-        }
-
-        logger.info(`[DISPATCHER] Stampa ordine ${order.id} su ${dest} (${printer.name})`);
-
-        try {
-            // Costruisce il buffer di stampa (es. ESC/POS)
-            const buffer = await buildKitchenTicket_v2(order, dest, items, printer.upsideDown, printer.beepEnable);
-
-            // Se la stampante è attiva, invia i dati
-            if (printer.active) {
-                logger.info(`[DISPATCHER] Invio a stampante ${printer.destination} (${printer.ip}:${printer.port})`);
-                await sendToPrinter(printer.destination, printer.ip, printer.port, buffer);
+        // Accoda il job per questa stampante: esecuzione sequenziale con delay
+        // tra stampe consecutive per evitare saturazione della memoria della stampante.
+        await enqueuePrinterJob(dest, async () => {
+            // Verifica se l'ordine è già registrato nel DB (dentro la coda per evitare race condition)
+            const existingReceipt = await DatabaseController.getInstance().getReceiptByIdAndStatus(order.orderId, order.status);
+            if (existingReceipt) {
+                logger.debug(`[DISPATCHER] Ordine ${order.id} già registrato per la destinazione ${dest}, salto la stampa.`);
+                return;
             }
 
-            // Salva la ticket nel database (stato PRINTED o FAILED)
-            DatabaseController.getInstance().saveReceipt({
-                id: order.id,
-                orderId: order.orderId,
-                orderNumber: order.orderNumber,
-                orderStatus: order.status,
-                destination: dest,
-                itemName: order.items[0].name,
-                tableNumber: order.items[0].tableNumber,
-                clientName: order.items[0].clientName,
-                itemNote: order.items[0].itemNote,
-                orderNotes: order.items[0].orderNotes || "",
-                printData: buffer,
-                printStatus: printer.active ? "PRINTED" : "FAILED",
-                printedAt: new Date(),
-                printed: true,
-                takeAway: order.items[0].takeAway
-            });
+            logger.info(`[DISPATCHER] Stampa ordine ${order.id} su ${dest} (${printer.name})`);
 
-            // Invia notifica WebSocket ai client connessi
-            if (printer.active) {
+            try {
+                // Costruisce il buffer di stampa (es. ESC/POS)
+                const buffer = await buildKitchenTicket_v2(order, dest, items, printer.upsideDown, printer.beepEnable);
+
+                // Se la stampante è attiva, invia i dati
+                if (printer.active) {
+                    logger.info(`[DISPATCHER] Invio a stampante ${printer.destination} (${printer.ip}:${printer.port})`);
+                    await sendToPrinter(printer.destination, printer.ip, printer.port, buffer);
+                }
+
+                // Salva la ticket nel database (stato PRINTED o FAILED)
+                DatabaseController.getInstance().saveReceipt({
+                    id: order.id,
+                    orderId: order.orderId,
+                    orderNumber: order.orderNumber,
+                    orderStatus: order.status,
+                    destination: dest,
+                    itemName: order.items[0].name,
+                    tableNumber: order.items[0].tableNumber,
+                    clientName: order.items[0].clientName,
+                    itemNote: order.items[0].itemNote,
+                    orderNotes: order.items[0].orderNotes || "",
+                    printData: buffer,
+                    printStatus: printer.active ? "PRINTED" : "FAILED",
+                    printedAt: new Date(),
+                    printed: true,
+                    takeAway: order.items[0].takeAway
+                });
+
+                // Invia notifica WebSocket ai client connessi
+                if (printer.active) {
+                    HttpServerController.instance.sendNotification(
+                        'RECEIPT_PRINTED',
+                        {
+                            receiptId: order.id,
+                            orderId: order.orderId,
+                            orderNumber: order.orderNumber,
+                            printerName: printer.name,
+                            destination: dest,
+                            itemName: order.items[0].name,
+                            tableNumber: order.items[0].tableNumber,
+                            clientName: order.items[0].clientName,
+                            takeAway: order.items[0].takeAway
+                        },
+                        'success'
+                    );
+                }
+            } catch (err) {
+                // In caso di errore di stampa, salva comunque la ticket come FAILED
+                console.error(`Errore stampando ${dest}:`, err);
+                DatabaseController.getInstance().saveReceipt({
+                    id: order.id,
+                    orderId: order.orderId,
+                    orderNumber: order.orderNumber,
+                    orderStatus: order.status,
+                    destination: dest,
+                    itemName: order.items[0].name,
+                    tableNumber: order.items[0].tableNumber,
+                    clientName: order.items[0].clientName,
+                    itemNote: order.items[0].itemNote,
+                    orderNotes: order.items[0].orderNotes || "",
+                    printData: Buffer.from(""),
+                    printStatus: "FAILED",
+                    printedAt: new Date(),
+                    printed: true,
+                    takeAway: order.items[0].takeAway
+                });
+
+                // Invia notifica WebSocket di errore
                 HttpServerController.instance.sendNotification(
-                    'RECEIPT_PRINTED',
+                    'RECEIPT_PRINT_FAILED',
                     {
                         receiptId: order.id,
                         orderId: order.orderId,
                         orderNumber: order.orderNumber,
                         printerName: printer.name,
                         destination: dest,
+                        error: err instanceof Error ? err.message : String(err),
                         itemName: order.items[0].name,
                         tableNumber: order.items[0].tableNumber,
-                        clientName: order.items[0].clientName,
-                        takeAway: order.items[0].takeAway
+                        clientName: order.items[0].clientName
                     },
-                    'success'
+                    'error'
                 );
             }
-        } catch (err) {
-            // In caso di errore di stampa, salva comunque la ticket come FAILED
-            console.error(`Errore stampando ${dest}:`, err);
-            DatabaseController.getInstance().saveReceipt({
-                id: order.id,
-                orderId: order.orderId,
-                orderNumber: order.orderNumber,
-                orderStatus: order.status,
-                destination: dest,
-                itemName: order.items[0].name,
-                tableNumber: order.items[0].tableNumber,
-                clientName: order.items[0].clientName,
-                itemNote: order.items[0].itemNote,
-                orderNotes: order.items[0].orderNotes || "",
-                printData: Buffer.from(""),
-                printStatus: "FAILED",
-                printedAt: new Date(),
-                printed: true,
-                takeAway: order.items[0].takeAway
-            });
+        });
+    }
 
-            // Invia notifica WebSocket di errore
-            HttpServerController.instance.sendNotification(
-                'RECEIPT_PRINT_FAILED',
-                {
-                    receiptId: order.id,
-                    orderId: order.orderId,
-                    orderNumber: order.orderNumber,
-                    printerName: printer.name,
-                    destination: dest,
-                    error: err instanceof Error ? err.message : String(err),
-                    itemName: order.items[0].name,
-                    tableNumber: order.items[0].tableNumber,
-                    clientName: order.items[0].clientName
-                },
-                'error'
-            );
-        }
+    // Rimuove dal DB la plate originale solo se l'ordine è stato processato
+    // come PROGRESS (stampato o scartato per idempotency).
+    // Per gli ordini TODO la entry deve restare: verrà usata quando l'ordine
+    // transiterà a PROGRESS (via resync o messaggio diretto) per garantire
+    // la stampa sulla stampante della plate di nascita, anche dopo un reboot.
+    if (order.status !== "TODO") {
+        DatabaseController.getInstance().deleteTodoPlate(order.orderId);
     }
 }
 
 export async function handleIncomingOrderFromGSG(order: any) {
+    if (order == null) return;
+
     const printer = printers.find(p => p.destination === "COPERTI" || p.name === "COPERTI");
     if (!printer) {
         logger.warn(`[DISPATCHER] Nessuna stampante configurata per la destinazione: COPERTI`);
         return;
     }
 
-    if (order != null && order != undefined) {
+    // Idempotency: prefisso "GSG-" per distinguere gli ordini GSG da quelli KMS
+    const orderId = `GSG-${order.id}`;
+    const existing = DatabaseController.getInstance().getReceiptByIdAndStatus(orderId, "PROGRESS");
+    if (existing) {
+        logger.debug(`[DISPATCHER] Ordine GSG ${orderId} già stampato, skip`);
+        return;
+    }
 
-        // Invia notifica WebSocket ai client connessi per aggiornare la lista dei ticket
-        HttpServerController.instance.sendNotification(
-            'NEW_TICKETS',
-            {
-                orderId: order.id,
-                orderNumber: order.numeroOrdine || order.id,
-                tableNumber: order.numeroTavolo,
-                clientName: order.cliente,
-                timestamp: new Date().toISOString()
-            },
-            'info'
-        );
+    // Invia notifica WebSocket ai client connessi per aggiornare la lista dei ticket
+    HttpServerController.instance.sendNotification(
+        'NEW_TICKETS',
+        {
+            orderId: orderId,
+            orderNumber: order.numeroOrdine || order.id,
+            tableNumber: order.numeroTavolo,
+            clientName: order.cliente,
+            timestamp: new Date().toISOString()
+        },
+        'info'
+    );
 
-        // Se la stampante è attiva, invia i dati
-        if (printer.active) {
+    // Usa la coda per-stampante per evitare stampe sovrapposte
+    if (printer.active) {
+        await enqueuePrinterJob(printer.destination, async () => {
+            // Secondo check all'interno della coda (evita doppia stampa in caso di burst)
+            const check = DatabaseController.getInstance().getReceiptByIdAndStatus(orderId, "PROGRESS");
+            if (check) {
+                logger.debug(`[DISPATCHER] Ordine GSG ${orderId} già stampato (check interno coda), skip`);
+                return;
+            }
             const buffer = await buildSittingPlaceTicket(order.id, order.numeroTavolo, order.cliente, order.coperti, order.cassiere, false, false);
             logger.info(`[DISPATCHER] Stampa coperti GSG ordine ${order.id} su ${printer.destination}`);
             await sendToPrinter(printer.destination, printer.ip, printer.port, buffer);
-        }
+            DatabaseController.getInstance().saveReceipt({
+                id: orderId,
+                orderId: orderId,
+                orderNumber: order.id,
+                orderStatus: "PROGRESS",
+                destination: printer.destination,
+                itemName: "COPERTI",
+                printData: buffer,
+                clientName: order.cliente || "",
+                tableNumber: order.numeroTavolo || "",
+                itemNote: "",
+                orderNotes: "",
+                printStatus: "PRINTED",
+                printedAt: new Date(),
+                printed: true,
+                takeAway: false,
+            });
+        });
     }
 }
 

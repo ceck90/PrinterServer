@@ -32,9 +32,6 @@ export class HttpServerController {
      * Costruttore privato: definisce tutte le route HTTP.
      */
     private constructor() {
-        logger.debug(`[HttpServerController] Constructor called - creating new instance with ID: ${this.instanceId}`);
-        logger.debug("[HttpServerController] wsClients map initialized:", this.wsClients instanceof Map);
-
         //#region TOKEN
         // Simple authentication middleware
         // Carica TOKEN_SECRET da file .env
@@ -305,7 +302,6 @@ export class HttpServerController {
         this.app.ws(`${BASE_PATH}/api/ws`, {
             open(ws) {
                 try {
-                    logger.debug("[WS] New connection request");
                     const url = new URL(ws.data.request.url);
                     
                     // Verifica autenticazione tramite token (query param o header)
@@ -328,12 +324,9 @@ export class HttpServerController {
                     let id = url.searchParams.get('id') ?? crypto.randomUUID();
                     while (wsClientsMap.has(id)) id = crypto.randomUUID(); // garantisci unicità
 
-                    logger.debug(`[WS] Assigned client ID: ${id}`);
-
                     // Memorizza l'id associato al WebSocket usando WeakMap
                     wsClientIdsMap.set(ws.raw, id);
                     wsClientsMap.set(id, ws as any);
-                    logger.debug(`[WS] Client added to wsClients map. Total clients: ${wsClientsMap.size}`);
                     
                     // Facoltativo: keep-alive a livello di singola connessione
                     const keepAlive = setInterval(() => {
@@ -380,8 +373,7 @@ export class HttpServerController {
                 
                 logger.info(`[WS] Client disconnected: ${id}. Total clients: ${wsClientsMap.size}`);
             },
-            drain(ws) {
-                console.log("[WS] Client drain");
+            drain(_ws) {
             }
         });
         
@@ -1073,9 +1065,10 @@ export class HttpServerController {
         if (!HttpServerController.#instance) {
             console.log("[HttpServerController] Creating new singleton instance");
             HttpServerController.#instance = new HttpServerController();
-        } else {
-            console.log("[HttpServerController] Returning existing singleton instance");
-        }
+        } 
+        // else {
+        //     console.log("[HttpServerController] Returning existing singleton instance");
+        // }
         return HttpServerController.#instance;
     }
 
@@ -1126,19 +1119,15 @@ export class HttpServerController {
      */
     public broadcast(data: any): number {
         const payload = typeof data === 'string' ? data : JSON.stringify(data);
-        console.log(`[WS] Broadcasting message to ${this.wsClients.size} clients`);
-        console.log(`[WS] wsClients map keys:`, [...this.wsClients.keys()]);
         let count = 0;
         for (const ws of this.wsClients.values()) {
             try { 
                 ws.send(payload); 
                 count++; 
-                console.log(`[WS] Message sent successfully to client ${count}`);
             } catch (err) { 
                 console.error(`[WS] Failed to send to client:`, err);
             }
         }
-        console.log(`[WS] Broadcast completed. Sent to ${count} clients`);
         return count;
     }
 
@@ -1178,11 +1167,9 @@ export class HttpServerController {
             }
         };
         
-        logger.debug(`[WS] Preparing to send notification: ${type} (${severity})`);
-        logger.debug(`[WS] Notification payload:`, JSON.stringify(notification, null, 2));
-        const result = this.broadcast(notification);
-        logger.debug(`[WS] Notification sent to ${result} clients`);
-        return result;
+        //logger.debug(`[WS] Preparing to send notification: ${type} (${severity})`);
+        //logger.debug(`[WS] Notification payload:`, JSON.stringify(notification, null, 2));
+        return this.broadcast(notification);
     }
 
     /** Utility opzionali */

@@ -31,6 +31,9 @@ export class DatabaseController {
             this.backupDatabase(this.dbPath);
         }
         this.initializeDatabase();
+        // seedUsers è async (usa Argon2). Non blocca il costruttore — la finestra di race
+        // condition è limitata ai primissimi ms del primo avvio (tabella users vuota).
+        void this.seedUsers().catch(err => console.error("[DB] Errore seedUsers:", err));
     }
 
     /**
@@ -215,32 +218,52 @@ export class DatabaseController {
             );
         `);
 
-        // Seed iniziale per gli utenti
-        this.seedUsers();
+        // Cache persistente della plate originale degli ordini TODO.
+        // Sopravvive a crash e reboot: consente al resync di stampare sulla
+        // stampante corretta anche se la plate è cambiata durante la transizione
+        // TODO → PROGRESS. La riga viene rimossa dopo che l'ordine è stampato.
+        this.db.run(`
+            CREATE TABLE IF NOT EXISTS todo_plate_cache (
+                orderId TEXT PRIMARY KEY,
+                plateName TEXT NOT NULL,
+                createdAt TEXT NOT NULL
+            );
+        `);
+
     }
 
     private async seedUsers() {
         const users = [
-            { username: "admin", password: "password", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-            { username: "user", password: "user", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+            { username: "admin", password: "password", createdAt: new Date().toISOString() },
+            { username: "user", password: "user", createdAt: new Date().toISOString() }
         ];
 
         for (const user of users) {
-            user.password = await hashPassword(user.password);
-        }
+            // Hash only if user does not exist yet (checked via INSERT OR IGNORE below)
+            const existing = this.db.query(`SELECT id FROM users WHERE username = ?`).get(user.username);
+            if (existing) continue;
 
-        for (const user of users) {
+            const hashed = await hashPassword(user.password);
             this.db.run(
-                `INSERT INTO users (username, password, createdAt, updatedAt)
-                VALUES (?, ?, ?, ?)
-                ON CONFLICT(username) DO UPDATE SET
-                    password = excluded.password,
-                    updatedAt = excluded.updatedAt`,
-                [user.username, user.password, user.createdAt, user.updatedAt]
+                `INSERT OR IGNORE INTO users (username, password, createdAt, updatedAt)
+                VALUES (?, ?, ?, ?)`,
+                [user.username, hashed, user.createdAt, user.createdAt]
             );
         }
 
-        console.log("[DB] Users seeded");
+        console.log("[DB] Users seeded (nuovi utenti aggiunti, password esistenti invariate)");
+    }
+
+    /**
+     * Salva un ordine GSG nel database (INSERT OR IGNORE — idempotente su gsgId).
+     */
+    public saveGsgOrder(order: { id: number, numeroTavolo?: string, cliente?: string, coperti?: number, serata?: string, ora?: string, data?: string }) {
+        const timestamp = [order.data, order.ora].filter(Boolean).join(' ');
+        this.db.run(
+            `INSERT OR IGNORE INTO gsg_orders (gsgId, orderId, orderNumber, tableNumber, clientName, orderNotes, orderTimestamp, coperti)
+            VALUES (?, ?, ?, ?, ?, '', ?, ?)`,
+            [order.id, String(order.id), order.id, order.numeroTavolo ?? "", order.cliente ?? "", timestamp, order.coperti ?? 0]
+        );
     }
 
     /**
@@ -692,5 +715,59 @@ export class DatabaseController {
     }
 
     //#endregion USERS
+
+    //#region TODO PLATE CACHE
+
+    /**
+     * Persiste la plate originale di un ordine TODO nel database.
+     * Usa INSERT OR IGNORE per non sovrascrivere il valore originale se
+     * l'ordine viene visto più volte prima della stampa.
+     * @param orderId ID dell'ordine
+     * @param plateName Nome originale della plate al momento della creazione
+     */
+    public saveTodoPlate(orderId: string, plateName: string): void {
+        this.db.run(
+            `INSERT OR IGNORE INTO todo_plate_cache (orderId, plateName, createdAt)
+             VALUES (?, ?, ?)`,
+            [orderId, plateName, new Date().toISOString()]
+        );
+    }
+
+    /**
+     * Restituisce la plate originale memorizzata per un ordine TODO.
+     * @param orderId ID dell'ordine
+     * @returns Nome della plate originale, o null se non presente
+     */
+    public getTodoPlate(orderId: string): string | null {
+        const row = this.db.query(
+            `SELECT plateName FROM todo_plate_cache WHERE orderId = ?`
+        ).get(orderId) as { plateName: string } | null;
+        return row?.plateName ?? null;
+    }
+
+    /**
+     * Rimuove la plate originale dalla cache persistente dopo che l'ordine
+     * è stato processato (stampato o scartato per idempotency).
+     * @param orderId ID dell'ordine
+     */
+    public deleteTodoPlate(orderId: string): void {
+        this.db.run(
+            `DELETE FROM todo_plate_cache WHERE orderId = ?`,
+            [orderId]
+        );
+    }
+
+    /**
+     * Restituisce tutte le entry della cache plate originale.
+     * Usato dal meccanismo di riconciliazione per trovare ordini potenzialmente
+     * persi (passati a DONE/CANCELLED senza essere stati catturati come PROGRESS).
+     */
+    public getAllTodoPlateCache(): Array<{ orderId: string; plateName: string; createdAt: string }> {
+        return this.db.query(
+            `SELECT orderId, plateName, createdAt FROM todo_plate_cache`
+        ).all() as Array<{ orderId: string; plateName: string; createdAt: string }>;
+    }
+
+    //#endregion TODO PLATE CACHE
 }
 

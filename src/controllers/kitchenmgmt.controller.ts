@@ -1,4 +1,4 @@
-import { handleIncomingData, handleSingleOrderData as handleSyncOrderData, handleSyncOrders } from "../dispatcher";
+import { handleIncomingData, handleSingleOrderData as handleSyncOrderData, setResyncCallback, setFetchItemCallback, reconcileMissedOrders } from "../dispatcher";
 import Stomp from "stompjs";
 import SockJS from "sockjs-client";
 
@@ -32,6 +32,13 @@ export class WSClientController {
     private shouldReconnect = true;
 
     private stompClient: any;
+
+    /**
+     * Coda seriale per i messaggi /topic/pkmi.
+     * Garantisce che un messaggio venga processato completamente prima di
+     * iniziare il successivo, evitando race condition e perdita di eventi.
+     */
+    private _pkmiQueue: Promise<void> = Promise.resolve();
 
     // Topic STOMP a cui sottoscriversi
     private pkmiTopic: string = "/topic/pkmi";
@@ -101,14 +108,42 @@ export class WSClientController {
                 console.error("[SOCK] Error fetching items:", error);   
             });
 
+            // Registra la callback di resync per il debounce su PKMI_UPDATE.
+            // Dopo il fetch normale esegue la riconciliazione: verifica che gli
+            // ordini in todo_plate_cache non siano diventati DONE/CANCELLED prima
+            // che il resync li trovasse come PROGRESS (scenario burst rapido).
+            setResyncCallback(async () => {
+                const items = await KitchenManagementController.getInstance().fetchItems();
+                const processedIds = Array.isArray(items) ? items.map((i: any) => String(i.id)) : [];
+                if (Array.isArray(items) && items.length > 0) {
+                    await handleSyncOrderData(items);
+                }
+                await reconcileMissedOrders(processedIds);
+            });
+
+            // Registra la callback per il fetch di un singolo item (usata dalla riconciliazione).
+            setFetchItemCallback(async (id: string) => {
+                return KitchenManagementController.getInstance().fetchItemById(id);
+            });
+
             // Sottoscrizione ai topic
             _this.stompClient.subscribe(_this.greetingsTopic, (event: any) => {
                 console.log("[STOMP] Messaggio ricevuto dal server:", event.body);
             });
 
             _this.stompClient.subscribe(_this.pkmiTopic, (event: any) => {
-                const data = JSON.parse(event.body);
-                handleIncomingData(data);
+                let data: any;
+                try {
+                    data = JSON.parse(event.body);
+                } catch (parseErr) {
+                    console.error("[STOMP] Messaggio pkmi non valido (JSON malformato):", parseErr);
+                    return;
+                }
+                // Accoda il processamento in modo seriale: ogni messaggio viene
+                // completato prima di avviare il successivo, impedendo race condition.
+                _this._pkmiQueue = _this._pkmiQueue
+                    .then(() => handleIncomingData(data))
+                    .catch(err => console.error("[STOMP] Errore non gestito nel processamento del messaggio pkmi:", err));
             });
 
         }, (error: any) => {

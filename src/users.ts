@@ -7,7 +7,6 @@ import { Algorithm, hash, verify  } from "@node-rs/argon2";
  */
 export async function hashPassword(plain: string): Promise<string> {
   // parametri robusti; puoi aumentare in base alla macchina
-  console.log("[PASSWORD] Hashing password");
   return hash(plain, {
     algorithm: Algorithm.Argon2id,
     memoryCost: 19456,   // ~19 MB
@@ -20,7 +19,5 @@ export async function hashPassword(plain: string): Promise<string> {
  * Verifica una password contro l'hash salvato.
  */
 export async function verifyPassword(plain: string, hashed: string): Promise<boolean> {
-  var result = await verify(hashed, plain);
-  console.log("[PASSWORD] Verifying password result:", result);
-  return result;
+  return await verify(hashed, plain);
 }
