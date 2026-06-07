@@ -501,7 +501,7 @@ export async function handleIncomingOrderFromGSG(order: any) {
     }
 
     // Idempotency: prefisso "GSG-" per distinguere gli ordini GSG da quelli KMS
-    const orderId = `GSG-${order.progressivo}`;
+    const orderId = `GSG-${order.id}`;
     const existing = DatabaseController.getInstance().getReceiptByIdAndStatus(orderId, "PROGRESS");
     if (existing) {
         logger.debug(`[DISPATCHER] Ordine GSG ${orderId} già stampato, skip`);
@@ -530,13 +530,13 @@ export async function handleIncomingOrderFromGSG(order: any) {
                 logger.debug(`[DISPATCHER] Ordine GSG ${orderId} già stampato (check interno coda), skip`);
                 return;
             }
-            const buffer = await buildSittingPlaceTicket(order.id, order.numeroTavolo, order.cliente, order.coperti, order.cassiere, false, false);
-            logger.info(`[DISPATCHER] Stampa coperti GSG ordine ${order.id} su ${printer.destination}`);
+            const buffer = await buildSittingPlaceTicket(order.progressivo, order.numeroTavolo, order.cliente, order.coperti, order.cassiere, false, false);
+            logger.info(`[DISPATCHER] Stampa coperti GSG ordine ${order.progressivo} su ${printer.destination}`);
             await sendToPrinter(printer.destination, printer.ip, printer.port, buffer);
             DatabaseController.getInstance().saveReceipt({
                 id: orderId,
                 orderId: orderId,
-                orderNumber: order.id,
+                orderNumber: order.progressivo,
                 orderStatus: "PROGRESS",
                 destination: printer.destination,
                 itemName: "COPERTI",
