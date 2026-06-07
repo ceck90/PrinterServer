@@ -144,6 +144,7 @@ export class GSGController {
     let data: NewOrderPayload;
     try {
       data = JSON.parse(payload);
+      console.log("[GSG] NOTIFY ricevuto, payload:", data);
     } catch (e) {
       console.error("[GSG] payload non JSON:", payload);
       return;
