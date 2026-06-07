@@ -201,6 +201,7 @@ export const gsg_queries = {
     SELECT 
       id, 
       "numeroTavolo", 
+      progressivo,
       cliente, 
       coperti, 
       cassiere, 

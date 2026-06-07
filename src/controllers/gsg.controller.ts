@@ -206,15 +206,15 @@ export class GSGController {
         // Verifica se abbiamo i dati dell'ordine per la stampa coperti
         if (event?.ordine) {
           const ordine = event.ordine;
-          logger.debug(`[GSG] Dati ordine: id=${ordine.id}, esportazione=${ordine.esportazione}, coperti=${ordine.coperti}, numeroTavolo=${ordine.numeroTavolo}`);
+          logger.debug(`[GSG] Dati ordine: progressivo=${ordine.progressivo}, esportazione=${ordine.esportazione}, coperti=${ordine.coperti}, numeroTavolo=${ordine.numeroTavolo}`);
           
           // Filtro business: esportazione=false, coperti>0, numeroTavolo non vuoto
           if (ordine.esportazione === false && ordine.coperti > 0 && ordine.numeroTavolo && ordine.numeroTavolo !== "") {
-            logger.info(`[GSG] Stampa coperti per ordine ${ordine.id} - tavolo ${ordine.numeroTavolo}, ${ordine.coperti} coperti`);
+            logger.info(`[GSG] Stampa coperti per ordine ${ordine.progressivo} - tavolo ${ordine.numeroTavolo}, ${ordine.coperti} coperti`);
             await this.printOrderSittingsCount(ordine);
           }
           else {
-            logger.debug(`[GSG] Ordine id ${ordine.id} NON soddisfa i criteri per stampa coperti`);
+            logger.debug(`[GSG] Ordine progressivo ${ordine.progressivo} NON soddisfa i criteri per stampa coperti`);
           }
         } else {
           console.warn(`[GSG] Event senza dati ordine, skip stampa coperti`);
