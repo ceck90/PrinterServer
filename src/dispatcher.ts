@@ -501,7 +501,7 @@ export async function handleIncomingOrderFromGSG(order: any) {
     }
 
     // Idempotency: prefisso "GSG-" per distinguere gli ordini GSG da quelli KMS
-    const orderId = `GSG-${order.id}`;
+    const orderId = `GSG-${order.progressivo}`;
     const existing = DatabaseController.getInstance().getReceiptByIdAndStatus(orderId, "PROGRESS");
     if (existing) {
         logger.debug(`[DISPATCHER] Ordine GSG ${orderId} già stampato, skip`);
@@ -513,7 +513,7 @@ export async function handleIncomingOrderFromGSG(order: any) {
         'NEW_TICKETS',
         {
             orderId: orderId,
-            orderNumber: order.numeroOrdine || order.id,
+            orderNumber: order.progressivo,
             tableNumber: order.numeroTavolo,
             clientName: order.cliente,
             timestamp: new Date().toISOString()
